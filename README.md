@@ -35,7 +35,7 @@ can find, not one of them publishes an error bar. There are methodology pages
 that explain which platforms are covered and how pretty the charts are. There are
 none that say how many times a prompt is run.
 
-## what this does instead
+## what this does instead?
 
 Asks n times. Reports what the sample supports.
 

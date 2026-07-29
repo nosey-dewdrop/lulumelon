@@ -4,7 +4,7 @@
  *
  * This is the important property, and it is not the usual reason for a stub. The
  * product's whole claim is that repeated draws of the same prompt disagree, so a
- * stub that returns one fixed answer cannot exercise any of it — the intervals,
+ * stub that returns one fixed answer cannot exercise any of it, the intervals,
  * the agreement ratio, the drift verdict would all be tested against a constant.
  *
  * So the answer is seeded by (prompt, provider, drawIndex): reproducible for a
@@ -43,7 +43,7 @@ const DEFAULT_VOCABULARY = [
 /**
  * Builds one answer.
  *
- * Which names appear, and in what order, is a function of the seed — so the
+ * Which names appear, and in what order, is a function of the seed, so the
  * same draw is reproducible while different draws genuinely differ. Roughly a
  * third of the vocabulary appears in any given answer, which is about how these
  * answers behave in practice.

@@ -4,13 +4,13 @@
  *
  * Deterministic. No model, no network. Every visibility number downstream is
  * built on this function, so it is the one place a silent error becomes a wrong
- * metric — which is precisely what a hand-inspected export of this category's
+ * metric, which is precisely what a hand-inspected export of this category's
  * data turned out to contain.
  *
  * Four decisions worth defending:
  *
  *  1. Rank is the order of first appearance, measured by character offset. Not
- *     "which is discussed most", not "which the model recommends" — the
+ *     "which is discussed most", not "which the model recommends", the
  *     positional fact, which is the only part that is objectively in the text.
  *
  *  2. Longest alias wins. "Monday.com" and "Monday" both match the same string;
@@ -118,8 +118,8 @@ function collectCandidates(masked: string, brands: Brand[]): Candidate[] {
 /**
  * Drops candidates swallowed by a longer overlapping match.
  *
- * Without this, "Monday.com" produces two hits — one for the full name and one
- * for the bare "Monday" inside it — and the bare one would be flagged ambiguous,
+ * Without this, "Monday.com" produces two hits, one for the full name and one
+ * for the bare "Monday" inside it, and the bare one would be flagged ambiguous,
  * dragging an unambiguous mention into the doubtful bucket.
  */
 function resolveOverlaps(candidates: Candidate[]): Candidate[] {
@@ -152,7 +152,7 @@ export interface ExtractionOptions {
  * Extracts ranked mentions from one answer.
  *
  * Rank is assigned over the brands that survive filtering, so ranks are always
- * a dense 1..n sequence — a rank of 3 means two other tracked names came first
+ * a dense 1..n sequence, a rank of 3 means two other tracked names came first
  * in the text, with no gaps to interpret.
  */
 export function extractMentions(

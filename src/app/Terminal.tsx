@@ -8,7 +8,7 @@
  * cannot be abused. Unrecognised input is answered honestly and turned into the
  * call to action rather than faked.
  *
- * The chrome deliberately quotes the terminal the product is about — the same
+ * The chrome deliberately quotes the terminal the product is about, the same
  * markers, the same status bar, the same coral working line. Real text in real
  * DOM, so it is selectable and readable by a screen reader; nothing here is an
  * image of a terminal.
@@ -275,7 +275,7 @@ export function Terminal() {
           <span className="h-[11px] w-[11px] rounded-full bg-light-green" />
         </span>
         <span className="truncate pl-2 text-term-text">
-          youkiddingme — · what do the models actually say — ± recording
+          youkiddingme, · what do the models actually say, ± recording
         </span>
       </div>
 

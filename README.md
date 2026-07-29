@@ -128,16 +128,16 @@ a dashboard that overstates its sample.
 
 Built and tested, no network required:
 
-- `src/lib/stats.ts` — Wilson intervals, sample sizing, rank summary, classifier
+- `src/lib/stats.ts`, Wilson intervals, sample sizing, rank summary, classifier
   agreement, drift verdicts
-- `src/lib/mentions.ts` — deterministic extraction, alias resolution,
+- `src/lib/mentions.ts`, deterministic extraction, alias resolution,
   ordinary-word withholding, non-prose masking
-- `src/lib/visibility.ts` — appearance rate, per-axis pooling, overlap-aware
+- `src/lib/visibility.ts`, appearance rate, per-axis pooling, overlap-aware
   comparison, share of voice kept as a secondary read
-- `src/lib/llm/` — provider interface, live transports, and a stub that is
+- `src/lib/llm/`, provider interface, live transports, and a stub that is
   deterministic per draw yet disagrees between draws, which is the only way to
   test any of the above offline
-- `src/app/` — the landing page and its terminal
+- `src/app/`, the landing page and its terminal
 
 Not built yet: the scheduled runner, persistence, the report surface, auth.
 

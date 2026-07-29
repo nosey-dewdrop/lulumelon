@@ -7,7 +7,7 @@
  *
  * The `source` field on every transcript says which provider produced it. It is
  * rendered on screen. A recording made with the deterministic stub is labelled
- * as such, so the page cannot quietly present invented numbers as measurements —
+ * as such, so the page cannot quietly present invented numbers as measurements , 
  * when a run against a real provider is recorded, the label changes with it.
  *
  * `scripts/record-demo.ts` regenerates this file from an actual run.

@@ -3,7 +3,7 @@
  *
  * Every tool in this category reports a single number: "your visibility is
  * 18.5%". That number comes from asking each tracked prompt once. But a large
- * language model is not a deterministic function — ask the same question twice
+ * language model is not a deterministic function, ask the same question twice
  * and you get different answers, different brands, different orderings. So a
  * one-shot reading is not a measurement, it is one draw from a distribution
  * nobody characterised.
@@ -49,7 +49,7 @@ export interface Proportion {
  * Chosen over the textbook normal approximation (p ± z·sqrt(p(1-p)/n)) because
  * the normal approximation is wrong at exactly the sample sizes this product
  * uses. At n=10 it produces intervals that run below 0 or above 1, and at p=0
- * it collapses to the degenerate [0, 0] — which would let the tool report
+ * it collapses to the degenerate [0, 0], which would let the tool report
  * "you are definitely absent, zero uncertainty" after ten samples. That is the
  * single most misleading thing a visibility tool can say, because absence in
  * ten draws is entirely compatible with appearing a fifth of the time.
@@ -98,8 +98,8 @@ export function wilson(successes: number, n: number, confidence = 0.95): Proport
  *
  * Worst case, at p = 0.5. Used to answer the only question that matters when
  * setting up a run: "how many calls do I have to pay for to get an answer I can
- * quote?" The answer is unkind — halving the interval costs four times the
- * samples — and the product should say so rather than hide it.
+ * quote?" The answer is unkind, halving the interval costs four times the
+ * samples, and the product should say so rather than hide it.
  */
 export function samplesForWidth(targetWidth: number, confidence = 0.95): number {
   const z = Z[confidence];
@@ -275,7 +275,7 @@ export function pct(value: number, digits = 1): string {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
-/** "3/10 = 30.0% (6.7% to 65.2%)" — the format the whole product exists to print. */
+/** "3/10 = 30.0% (6.7% to 65.2%)", the format the whole product exists to print. */
 export function formatProportion(p: Proportion): string {
   return `${p.successes}/${p.n} = ${pct(p.point)} (${pct(p.lower)} to ${pct(p.upper)})`;
 }

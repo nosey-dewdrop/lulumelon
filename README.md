@@ -8,10 +8,9 @@ actually known.
 A company sent me a take-home case. It's extensions included multi-agent content pipeline, built as a
 durable workflow, every agent its own step, real parallel fan-out with a
 concurrency cap, a live external signal in the middle, a scoring judge, schema
-contracts at every boundary, and a page showing the whole run trace. Forty-eight
-hours. No boilerplate.
+contracts at every boundary, and a page showing the whole run trace. The deadline was 48 hours.
 
-It was so detailed that finishing it cost $77.56, about 66 million tokens and
+It was so detailed that finishing it cost me $77.56, about 66 million tokens and
 6,084 lines of code.
 
 At which point I decided to scale the work up slightly and build one of the

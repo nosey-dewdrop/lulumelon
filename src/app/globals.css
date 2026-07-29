@@ -1,26 +1,95 @@
 @import "tailwindcss";
 
+/*
+ * One colour world, sampled from the terminal this tool is about.
+ *
+ * No imported fonts: the system monospace stack is the point, not a decoration.
+ * No gradients, no rounded corners past 3px, no shadows at rest.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f7f7f5;
+  --ink: #14140f;
+  --ink-soft: #5c5c55;
+  --rule: #d9d9d2;
+
+  /* Terminal chrome, sampled from the reference screenshot. */
+  --term-bar: #3a3a3a;
+  --term-bg: #1c1c1c;
+  --term-input: #2a2a2a;
+  --term-text: #d0d0d0;
+  --term-bright: #ffffff;
+  --term-muted: #8a8a8a;
+  --term-rule: #3a3a3a;
+  --term-coral: #cf8b7d;
+  --term-lilac: #c397d8;
+  --term-pink: #d787af;
+  --term-green: #7fb069;
+
+  --light-red: #ff5f57;
+  --light-yellow: #febc2e;
+  --light-green: #28c840;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-rule: var(--rule);
+  --color-term-bar: var(--term-bar);
+  --color-term-bg: var(--term-bg);
+  --color-term-input: var(--term-input);
+  --color-term-text: var(--term-text);
+  --color-term-bright: var(--term-bright);
+  --color-term-muted: var(--term-muted);
+  --color-term-rule: var(--term-rule);
+  --color-term-coral: var(--term-coral);
+  --color-term-lilac: var(--term-lilac);
+  --color-term-pink: var(--term-pink);
+  --color-term-green: var(--term-green);
+  --color-light-red: var(--light-red);
+  --color-light-yellow: var(--light-yellow);
+  --color-light-green: var(--light-green);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-ligatures: none;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* The block cursor. Steps rather than fades, like a real terminal. */
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.caret {
+  animation: blink 1.06s step-end infinite;
+}
+
+/* Lines arrive rather than fade in: one frame, no easing theatre. */
+@keyframes arrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.arrive {
+  animation: arrive 90ms linear both;
 }

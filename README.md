@@ -3,7 +3,7 @@
 Measures what language models say about you, and reports how much of that is
 actually known.
 
-## how this started=
+## how this started?
 
 A company sent me a take-home case. It's extensions included multi-agent content pipeline, built as a
 durable workflow, every agent its own step, real parallel fan-out with a
@@ -17,7 +17,7 @@ At which point I decided to scale the work up slightly and build one of the
 company for myself.
 
 
-## what the category sells
+## what the category sells?
 
 Every product in AI visibility reports a number like this:
 

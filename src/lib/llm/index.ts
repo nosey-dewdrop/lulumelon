@@ -15,43 +15,38 @@ export { SchemaViolationError } from "./types.ts";
 export { createFakeProvider } from "./fake.ts";
 
 const ANTHROPIC_DEFAULTS: Record<AgentRole, string> = {
-  planner: "claude-sonnet-4-6",
-  writer: "claude-haiku-4-5-20251001",
-  judge: "claude-sonnet-4-6",
-  critic: "claude-sonnet-4-6",
+  // The answer role impersonates what a user would actually be asking, so it
+  // should be the model people actually ask. The sentiment role only classifies.
+  answer: "claude-sonnet-4-6",
+  sentiment: "claude-haiku-4-5",
 };
 
 const OPENAI_DEFAULTS: Record<AgentRole, string> = {
-  planner: "gpt-4o-mini",
-  writer: "gpt-4o-mini",
-  judge: "gpt-4o",
-  critic: "gpt-4o",
+  answer: "gpt-4o",
+  sentiment: "gpt-4o-mini",
 };
 
 function resolveModels(defaults: Record<AgentRole, string>): Record<AgentRole, string> {
   return {
-    planner: process.env.LLM_MODEL_PLANNER || defaults.planner,
-    writer: process.env.LLM_MODEL_WRITER || defaults.writer,
-    judge: process.env.LLM_MODEL_JUDGE || defaults.judge,
-    critic: process.env.LLM_MODEL_CRITIC || defaults.critic,
+    answer: process.env.LLM_MODEL_ANSWER || defaults.answer,
+    sentiment: process.env.LLM_MODEL_SENTIMENT || defaults.sentiment,
   };
 }
 
 /**
- * Failure-path switches for the stub, driven by env so the demo can be run
- * end to end without editing code:
+ * Failure-path switches for the stub, driven by env so a degraded round can be
+ * demonstrated end to end without editing code:
  *
- *   LLM_FAKE_FABRICATE_INDEX=0  the first writer emits fabricated claims, and
- *                               the grounding gate disqualifies it before the
- *                               judge ever scores it
- *   LLM_FAKE_FAIL_ROLE=judge    that agent throws, so the topic degrades to a
- *                               partial result while the other topics finish
+ *   LLM_FAKE_FAIL_EVERY_NTH_DRAW=4   every fourth draw throws, so a round
+ *                                    completes with fewer samples than requested
+ *                                    and the intervals widen accordingly
+ *   LLM_FAKE_FAIL_ROLE=sentiment     that role throws entirely
  */
 function fakeOptionsFromEnv(): FakeProviderOptions {
-  const index = process.env.LLM_FAKE_FABRICATE_INDEX;
+  const nth = process.env.LLM_FAKE_FAIL_EVERY_NTH_DRAW;
   const failRole = process.env.LLM_FAKE_FAIL_ROLE as FakeProviderOptions["failRole"];
   return {
-    fabricateAtIndex: index === undefined || index === "" ? undefined : Number(index),
+    failEveryNthDraw: nth ? Number(nth) : undefined,
     failRole: failRole || undefined,
   };
 }

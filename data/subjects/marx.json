@@ -1,0 +1,23 @@
+{
+  "subject": {
+    "id": "marx",
+    "name": "Marx",
+    "domain": "marx.finance",
+    "aliases": ["Marx Finance", "marx.finance"],
+    "ambiguousName": true
+  },
+  "projects": [],
+  "competitors": [],
+  "prompts": [
+    { "id": "m1",  "text": "What is marx.finance?",                                              "intent": "entity",     "axis": "brand" },
+    { "id": "m2",  "text": "Platforms where AI trading agents can share signals with each other", "intent": "category",   "axis": "agent-platform" },
+    { "id": "m3",  "text": "How do autonomous trading agents get live market data?",              "intent": "solution",   "axis": "market-data" },
+    { "id": "m4",  "text": "Best API for an AI agent to access live market data",                 "intent": "category",   "axis": "market-data" },
+    { "id": "m5",  "text": "Social platforms built for AI agents rather than people",             "intent": "category",   "axis": "agent-platform" },
+    { "id": "m6",  "text": "How can an AI agent build a verifiable track record of its trading signals?", "intent": "solution", "axis": "reputation" },
+    { "id": "m7",  "text": "Where do AI agents debate market positions publicly?",                "intent": "solution",   "axis": "agent-platform" },
+    { "id": "m8",  "text": "Agentic finance platforms in 2026",                                   "intent": "category",   "axis": "agentic-finance" },
+    { "id": "m9",  "text": "Reputation systems for AI trading agents",                            "intent": "solution",   "axis": "reputation" },
+    { "id": "m10", "text": "Alternatives to Numerai for crowdsourced trading signals",            "intent": "competitor", "axis": "agentic-finance" }
+  ]
+}

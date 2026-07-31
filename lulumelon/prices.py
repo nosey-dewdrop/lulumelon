@@ -28,6 +28,7 @@ the name of the field.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 #: A million, kept named because every published price is quoted per million
@@ -169,6 +170,14 @@ PRICES: dict[tuple[str, str], Price] = {
 }
 
 
+#: A pinned snapshot of a model, which is the name the response comes back
+#: under: `claude-haiku-4-5` answers as `claude-haiku-4-5-20251001`. The date is
+#: stripped so that the answer can be priced, and only the date: what is left
+#: has to be a model already in the table, so a snapshot resolves to the model
+#: it is a snapshot of and to nothing else.
+_SNAPSHOT_DATE = re.compile(r"-\d{8}$")
+
+
 def price_for(provider: str, model: str) -> Price | None:
     """The price of a model, or None when we have not read one for it.
 
@@ -176,8 +185,17 @@ def price_for(provider: str, model: str) -> Price | None:
     "no published price on file" rather than the price of its nearest relative,
     because the nearest relative is where a fifteen-fold error comes from:
     `sonar` and `sonar-pro` differ by that much on output tokens.
+
+    A dated snapshot is not a nearest relative, it is the same model. The
+    provider's catalogue lists `claude-haiku-4-5` and `claude-haiku-4-5-20251001`
+    as one row at one price, read 2026-08-01, and the response names the dated
+    one. Without this the first call this repo ever billed would be recorded
+    honestly, as the model that answered it, and then reported as having no
+    published price. The rule takes the date and nothing else, so no name can
+    fall through it onto another model's rate.
     """
-    return PRICES.get((provider, model.split("/")[-1]))
+    name = model.split("/")[-1]
+    return PRICES.get((provider, name)) or PRICES.get((provider, _SNAPSHOT_DATE.sub("", name)))
 
 
 @dataclass(frozen=True, slots=True)

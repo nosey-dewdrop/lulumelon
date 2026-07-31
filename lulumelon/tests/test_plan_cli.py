@@ -286,3 +286,73 @@ def test_the_daily_schedule_is_still_priced_when_the_design_is_not(tmp_path):
     text = run(prompts=3, pilot=SID, brand="marx", ledger_dir=tmp_path)
     assert "a daily schedule" in text
     assert "90 calls" in text
+
+
+# -- a diagnostic round prices a plan, and sizes nothing ---------------------
+
+
+DIAGNOSTIC = "diagnostic__anthropic__api__20260801T014500Z__0001"
+
+
+def test_a_diagnostic_pilot_prices_the_plan_without_being_treated_as_a_sample(tmp_path):
+    """The check call is the only call this repo has actually billed.
+
+    Figures are the ones that call came back with: 10046 input tokens for an
+    eleven word question, because the search results arrive as input, and 91
+    out. That is what makes the price real. It is one draw with no brand list,
+    which is why the split above it stays labelled assumed instead of being
+    computed from a single answer.
+    """
+    led = Ledger(tmp_path)
+    led.append(
+        DIAGNOSTIC,
+        Record(
+            snapshot_id=DIAGNOSTIC,
+            seq=0,
+            prompt_id="diagnostic",
+            repeat=0,
+            engine="anthropic",
+            surface="api",
+            model="claude-haiku-4-5-20251001",
+            asked_at="2026-08-01T01:45:00Z",
+            status="ok",
+            latency_ms=2961,
+            answer_text="1 August 2026.",
+            brands=(),
+            citations=("https://www.rapidtables.com/tools/todays-date.html",),
+            provider="anthropic",
+            input_tokens=10046,
+            output_tokens=91,
+        ),
+    )
+
+    text = run(pilot=DIAGNOSTIC, ledger_dir=tmp_path, provider="anthropic")
+
+    assert "priced from a measured 10046 in / 91 out tokens per call." in text
+    assert "floors, not totals" not in text
+    assert "VARIANCE, assumed" in text
+    assert "VARIANCE, measured from the pilot" not in text
+    assert "is a diagnostic round" in text
+
+
+def test_a_diagnostic_pilot_that_does_not_verify_plans_nothing(tmp_path):
+    """The chain is checked before the price is read off it, as for any round."""
+    led = Ledger(tmp_path)
+    led.append(
+        DIAGNOSTIC,
+        Record(
+            snapshot_id=DIAGNOSTIC, seq=0, prompt_id="diagnostic", repeat=0,
+            engine="anthropic", surface="api", model="claude-haiku-4-5-20251001",
+            asked_at="2026-08-01T01:45:00Z", status="ok", latency_ms=2961,
+            answer_text="1 August 2026.", brands=(), citations=(), provider="anthropic",
+            input_tokens=10046, output_tokens=91,
+        ),
+    )
+    path = led.path_of(DIAGNOSTIC)
+    path.write_text(
+        path.read_text(encoding="utf-8").replace('"input_tokens":10046', '"input_tokens":10'),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="does not verify"):
+        run(pilot=DIAGNOSTIC, ledger_dir=tmp_path, provider="anthropic")

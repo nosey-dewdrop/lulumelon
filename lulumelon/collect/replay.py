@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from ..mirror.types import Run
 
-from .ledger import Ledger
+from .ledger import Ledger, is_diagnostic
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +66,23 @@ class Replay:
 
 
 def replay(ledger: Ledger, snapshot_id: str) -> Replay:
-    """Read one snapshot and hand back the measurable part of it, plus the rest."""
+    """Read one snapshot and hand back the measurable part of it, plus the rest.
+
+    A diagnostic round is refused here rather than filtered out further along.
+    This is the one door between a written round and a `Run`, and `Run` is the
+    only thing `mirror` consumes, so refusing at this door is what makes "a
+    check call is never pooled into a brand measurement" a property of the code
+    instead of a rule in a comment. The call still cost money and is still on
+    the record; `lulu usage` reads it from the ledger without coming through
+    here.
+    """
+    if is_diagnostic(snapshot_id):
+        raise ValueError(
+            f"{snapshot_id} is a diagnostic round: it is one call made to prove a key "
+            "spends, asked with no brand list and answered once. it is priced by lulu "
+            "usage and it is not a sample, so nothing is scored from it"
+        )
+
     runs: list[Run] = []
     dropped = 0
     surfaces: dict[str, None] = {}

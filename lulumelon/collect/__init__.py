@@ -10,6 +10,7 @@ from .ask import SURFACES, UNKNOWN_MODEL, Answer, FakeProvider, PerplexityProvid
 from .budget import UNMEASURED_INPUT_TOKENS, UNMEASURED_OUTPUT_TOKENS, Budget
 from .detect import Brand, detect, normalise, occurrences
 from .ledger import (
+    DIAGNOSTIC_SUBJECT,
     GENESIS,
     HASHED_FIELDS,
     SCHEMA_VERSION,
@@ -18,6 +19,7 @@ from .ledger import (
     Record,
     UnknownSchemaVersion,
     decode,
+    is_diagnostic,
     scrub,
     storable,
 )
@@ -36,6 +38,7 @@ from .replica import (
 from .session import Prompt, RoundResult, run_round, utc_now
 
 __all__ = [
+    "DIAGNOSTIC_SUBJECT",
     "GENESIS",
     "INSTRUCTION",
     "INSTRUCTION_VERSION",
@@ -63,6 +66,7 @@ __all__ = [
     "Usage",
     "decode",
     "detect",
+    "is_diagnostic",
     "is_replica_surface",
     "normalise",
     "occurrences",

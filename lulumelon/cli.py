@@ -38,8 +38,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence, TextIO
 
-from .collect.ask import DEFAULT_MAX_SEARCHES, provider_for
-from .collect.ledger import Ledger, LedgerFormatError
+from .collect.ask import DEFAULT_MAX_SEARCHES, Answer, provider_for
+from .collect.ledger import (
+    DIAGNOSTIC_SUBJECT,
+    Ledger,
+    LedgerFormatError,
+    Record,
+    is_diagnostic,
+)
 from .collect.replay import replay
 from .collect.replica import (
     REPLICA_SURFACE,
@@ -47,6 +53,7 @@ from .collect.replica import (
     replica_surface,
     without,
 )
+from .collect.session import utc_now
 from .mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
 from .mirror.compare import model_confounds
 from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
@@ -70,7 +77,7 @@ from .keys import (
     spec_for,
     write_env_file,
 )
-from .prices import FEE_PER_SEARCH, estimate, fees, price_for, reported
+from .prices import FEE_PER_SEARCH, Cost, estimate, fees, price_for, reported
 from .plan import (
     Comparison,
     Design,
@@ -223,7 +230,10 @@ def setup(
     console.say(f"Fingerprint {fingerprint(key)}. Read it back yourself with:  {reread}")
     console.say()
 
-    return (check or check_call)(console, spec, key)
+    # Relative to the directory this was run from, like every other round. A
+    # measurement belongs to the project it was made for, and so does the
+    # receipt for the call that proved the key could pay for one.
+    return (check or check_call)(console, spec, key, ledger_dir=cwd / DEFAULT_LEDGER)
 
 
 # -- init -------------------------------------------------------------------
@@ -391,8 +401,83 @@ def report_lookup(console: Console, spec: ProviderSpec, found: Resolution) -> No
         console.say(f"Get one at {spec.key_page}, then run:  lulu init")
 
 
-def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | None = None) -> int:
-    """Spend the smallest possible amount to find out whether the key works."""
+def record_check_call(
+    ledger_dir: Path,
+    spec: ProviderSpec,
+    answer: Answer,
+    *,
+    clock: Callable[[], str] = utc_now,
+) -> Path:
+    """Write the call that was just billed, and hand back where it went.
+
+    A call that cost money and is not in the ledger is the one kind of
+    unrecorded spend this library exists to argue against, and until now the
+    two commands that bill one wrote nothing: `lulu usage` could not see money
+    that had actually been spent, and `lulu plan --pilot` had no measured token
+    rate to size a round from.
+
+    It is written to its own snapshot, under its own subject, because a
+    diagnostic is not a measurement. It asks about the account rather than
+    about a brand, and it is asked once; pooled into a round it would enter the
+    sample as a question where every tracked name went unmentioned. The
+    separation lives in the file name and in the record's own prompt id rather
+    than in a convention, and `replay` refuses to turn this snapshot into runs
+    at all.
+
+    A failed call is written too, with its status and the provider's reason.
+    The failures are the interesting half here: an account that cannot spend is
+    the state this command exists to find, and a diagnostic that only records
+    its successes is a diagnostic that flatters itself.
+
+    Only what the provider reported goes in, and only into fields schema v2
+    already hashes. The count of searches a call ran is not one of them, so it
+    is not written here: a column added twice costs two schema versions, and
+    the version that opens for it is a later job than this one.
+    """
+    store = Ledger(ledger_dir)
+    snapshot_id = store.next_snapshot_id(DIAGNOSTIC_SUBJECT, spec.name, answer.surface)
+    store.append(
+        snapshot_id,
+        Record(
+            snapshot_id=snapshot_id,
+            seq=0,  # the ledger assigns the real one; it owns the order
+            prompt_id=DIAGNOSTIC_SUBJECT,
+            repeat=0,
+            engine=spec.name,
+            surface=answer.surface,
+            # What answered, not what was asked for. A provider that quietly
+            # served another model billed at that model's rate, and this is the
+            # only record of which one it was.
+            model=answer.model,
+            asked_at=clock(),
+            status=answer.status,
+            latency_ms=answer.latency_ms,
+            answer_text=answer.text,
+            # No brand list was supplied to a diagnostic, so there is nothing
+            # detected here. An empty tuple is the honest value: nothing was
+            # looked for, rather than looked for and not found.
+            brands=(),
+            citations=answer.citations,
+            provider=spec.name,
+            error=answer.error,
+            input_tokens=answer.usage.input_tokens,
+            output_tokens=answer.usage.output_tokens,
+            search_context=answer.usage.search_context,
+            reported_cost_usd=answer.usage.cost_usd,
+        ),
+    )
+    return store.path_of(snapshot_id)
+
+
+def check_call(
+    console: Console, spec: ProviderSpec, key: str, *, ledger_dir: Path, model: str | None = None
+) -> int:
+    """Spend the smallest possible amount to find out whether the key works.
+
+    `ledger_dir` has no default. This function is the only place in the library
+    that bills a call outside a collected round, and a default here would let a
+    caller spend money without having decided where the evidence of it lands.
+    """
     model = model or spec.check_model
     price = price_for(spec.name, model)
     if price is None:
@@ -408,9 +493,15 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | N
 
     answer = provider_for(spec.name, key, model=model).ask(CHECK_PROMPT)
 
+    # Written before anything is printed. The money is spent the moment the
+    # call comes back, so the record is made before any work that could fail
+    # between spending it and writing it down.
+    path = record_check_call(ledger_dir, spec, answer)
+
     if not answer.ok:
         console.say(f"The call failed after {answer.latency_ms} ms.")
         console.say(f"  {answer.error}")
+        console.say(f"  recorded as an error in {path}")
         console.say()
         for line in diagnose(spec, answer.error):
             console.say(f"  {line}")
@@ -438,11 +529,11 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | N
     else:
         console.say("  tokens: the response did not report them")
 
+    cost: Cost | None
     if answer.usage.cost_usd is not None:
         cost = reported(answer.usage.cost_usd)
     elif price is None:
-        console.say("  cost: unknown, because no price for this model has been read from the provider")
-        return 0
+        cost = None
     elif counted:
         cost = estimate(
             price,
@@ -459,7 +550,15 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | N
         # and is the larger term, so it is reported as the floor it is rather
         # than padded out with zero tokens and called an estimate.
         cost = fees(price)
-    console.say(f"  cost of this call: {cost.as_text()}")
+
+    if cost is None:
+        console.say("  cost: unknown, because no price for this model has been read from the provider")
+    else:
+        console.say(f"  cost of this call: {cost.as_text()}")
+    # Last, and on every path that got an answer. A command that writes a file
+    # into whatever directory it was run from has to say so, and the line that
+    # says it must not sit behind a branch that returned early.
+    console.say(f"  recorded in {path}")
     return 0
 
 
@@ -537,7 +636,7 @@ def doctor(
     if offline:
         console.say("Stopping here: --offline was given, so no call was made and nothing was spent.")
         return 0
-    return check_call(console, spec, found.key)
+    return check_call(console, spec, found.key, ledger_dir=cwd / DEFAULT_LEDGER)
 
 
 # -- usage ------------------------------------------------------------------
@@ -822,17 +921,36 @@ def plan(
 def _pilot_split(
     console: Console, pilot: str | None, brand: str | None, ledger_dir: Path | None
 ) -> tuple[float, float] | None:
-    """Total variance and ICC read from a round that actually happened."""
+    """Total variance and ICC read from a round that actually happened.
+
+    Returns None for a diagnostic round rather than refusing the whole command.
+    A check call is a real billed call and settles what a call costs, which is
+    half of what a plan needs; it is one draw with no brand list, which is none
+    of the other half. So the price below is measured and the split stays
+    labelled as assumed, and the screen says which is which. Quietly reporting
+    a split "measured" from a single diagnostic answer would be the flattering
+    version of the same arithmetic.
+    """
     if pilot is None:
         return None
-    if brand is None or ledger_dir is None:
-        raise ValueError("a pilot needs --brand and --ledger so its answers can be scored")
+    if ledger_dir is None:
+        raise ValueError("a pilot needs --ledger so the round it names can be read")
     store = Ledger(ledger_dir)
+    # Before either branch. A design sized from a round that does not re-derive
+    # is a design with nothing behind it, whichever half of the round is used.
     problems = store.verify(pilot)
     if problems:
         raise ValueError(
             f"{pilot} does not verify ({len(problems)} problems), so nothing is planned from it"
         )
+    if is_diagnostic(pilot):
+        console.say()
+        console.say(f"  note: {pilot} is a diagnostic round, so it")
+        console.say("  measures what a call costs and not how the variance splits: it was asked")
+        console.say("  once, with no brand list. the bracket below is still assumed.")
+        return None
+    if brand is None:
+        raise ValueError("a pilot needs --brand and --ledger so its answers can be scored")
     played = replay(store, pilot)
     clusters = [list(sample.detections(brand)) for sample in group_runs(played.runs)]
     split = decompose(clusters)

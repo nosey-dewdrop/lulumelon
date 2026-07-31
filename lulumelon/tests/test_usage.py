@@ -349,3 +349,51 @@ def test_usage_on_an_empty_directory_says_nothing_was_spent(tmp_path):
     rec_out = Recorder()
     assert run_usage(rec_out.console, ledger_dir=tmp_path) == 0
     assert "nothing has been spent" in rec_out.text.lower()
+
+
+# -- a dated model id is the model, not a relative of it --------------------
+
+
+def test_a_dated_snapshot_is_priced_as_the_model_it_is_a_snapshot_of():
+    """The response names a snapshot; the price table names the model.
+
+    `claude-haiku-4-5` answers as `claude-haiku-4-5-20251001`, and the record
+    keeps what answered. Without resolving the date the first call this repo
+    ever billed would be recorded honestly and then reported as having no
+    published price. Both ids must reach the same published rate, because they
+    are one row on the provider's own page.
+    """
+    alias = price_for("anthropic", "claude-haiku-4-5")
+    dated = price_for("anthropic", "claude-haiku-4-5-20251001")
+    assert alias is not None
+    assert dated == alias
+
+
+def test_only_the_date_is_stripped_and_never_a_model_name():
+    """The rule resolves a snapshot to its own model, or to nothing at all.
+
+    A name that is not in the table stays unpriced. `sonar-pro` keeps its own
+    rate and cannot decay into `sonar`, which is the fifteen-fold error this
+    file exists to refuse.
+    """
+    assert price_for("anthropic", "claude-haiku-4-5-2025100") is None, "not a date"
+    assert price_for("anthropic", "claude-opus-9-9-20251001") is None, "no such model"
+    assert price_for("perplexity", "sonar-pro").model == "sonar-pro"
+
+
+def test_a_dated_model_is_priced_at_its_own_rate_through_a_whole_round():
+    """The path a recorded call takes, on the figures of the one real call.
+
+    10046 input tokens and 91 output, which is what the first billed call in
+    this repo reported, at $1 and $5 per million plus one search fee at $10 per
+    thousand: $0.020501. That is what the provider actually charged, so this
+    arithmetic is checked against a bill rather than against itself.
+
+    It agrees because that call ran exactly one search, and this arithmetic
+    charges one fee per call. A call that searched twice cost a fee more than
+    it reports, and closing that needs the search count on the record, which is
+    a field schema v2 does not have.
+    """
+    spend = spend_of([counted(10046, 91, model="claude-haiku-4-5-20251001", provider="anthropic")])
+    assert spend.unpriced == 0
+    assert spend.low_usd == pytest.approx(0.020501)

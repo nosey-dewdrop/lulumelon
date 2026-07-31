@@ -176,7 +176,7 @@ SOURCES = {
 }
 
 
-def test_the_check_call_reports_the_searches_and_the_sources(monkeypatch):
+def test_the_check_call_reports_the_searches_and_the_sources(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
         urllib.request,
         "urlopen",
@@ -188,14 +188,14 @@ def test_the_check_call_reports_the_searches_and_the_sources(monkeypatch):
         ),
     )
     rec = Recorder()
-    assert check_call(rec.console, ANTHROPIC, KEY) == 0
+    assert check_call(rec.console, ANTHROPIC, KEY, ledger_dir=tmp_path / "ledger") == 0
     text = rec.text
     assert "searches it ran: 2" in text
     assert "sources it returned: 1" in text
     assert "https://a.example/today" in text
 
 
-def test_a_call_that_came_back_with_no_sources_is_called_out(monkeypatch):
+def test_a_call_that_came_back_with_no_sources_is_called_out(tmp_path: Path, monkeypatch):
     """The failure a keys-only check would have printed as a success.
 
     The key spends, the model answers, and the thing this product measures is
@@ -208,11 +208,11 @@ def test_a_call_that_came_back_with_no_sources_is_called_out(monkeypatch):
         replying(claude([{"type": "text", "text": "I think it is August."}])),
     )
     rec = Recorder()
-    assert check_call(rec.console, ANTHROPIC, KEY) == 0
+    assert check_call(rec.console, ANTHROPIC, KEY, ledger_dir=tmp_path / "ledger") == 0
     assert "NO SOURCES" in rec.text
 
 
-def test_the_call_is_priced_by_the_searches_it_ran_not_by_being_one_call(monkeypatch):
+def test_the_call_is_priced_by_the_searches_it_ran_not_by_being_one_call(tmp_path: Path, monkeypatch):
     """Three searches on a per-search fee is three fees, and the screen says so.
 
     At ten dollars per thousand searches that is three cents rather than one,
@@ -229,17 +229,17 @@ def test_the_call_is_priced_by_the_searches_it_ran_not_by_being_one_call(monkeyp
         ),
     )
     rec = Recorder()
-    check_call(rec.console, ANTHROPIC, KEY)
+    check_call(rec.console, ANTHROPIC, KEY, ledger_dir=tmp_path / "ledger")
     assert "$0.03" in rec.text
 
 
-def test_the_key_never_reaches_the_screen_even_when_the_call_fails(monkeypatch):
+def test_the_key_never_reaches_the_screen_even_when_the_call_fails(tmp_path: Path, monkeypatch):
     def urlopen(req, timeout=None):
         raise RuntimeError(f"boom while sending {KEY}")
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
     rec = Recorder()
-    assert check_call(rec.console, ANTHROPIC, KEY) == 1
+    assert check_call(rec.console, ANTHROPIC, KEY, ledger_dir=tmp_path / "ledger") == 1
     assert KEY not in rec.text
 
 
@@ -323,3 +323,172 @@ def test_a_terminal_gets_the_hidden_prompt():
     got = read_key(rec.console, FakeStdin("", tty=True), lambda p: KEY)
     assert got == KEY
     assert "not be shown" in rec.text
+
+
+# -- the call that cost money is on the record ------------------------------
+#
+# `lulu setup` and `lulu doctor` each bill one real call. Until these tests
+# existed nothing wrote it down, so `lulu usage` could not see money that had
+# actually been spent and `lulu plan --pilot` had no measured token rate to
+# size a round from. The budget arithmetic in the last handoff was done by
+# hand for exactly that reason.
+
+import urllib.error  # noqa: E402
+
+import pytest  # noqa: E402,F811
+
+from lulumelon.cli import doctor, usage as run_usage  # noqa: E402
+from lulumelon.collect import Ledger, is_diagnostic, replay  # noqa: E402
+
+#: The model id the first real call this repo ever made came back under. The
+#: alias asked for is `claude-haiku-4-5`; the response names the dated
+#: snapshot, which is the same model at the same published price. The record
+#: carries what answered, so this is the string the invoice has to price.
+ANSWERED_AS = "claude-haiku-4-5-20251001"
+
+DATED = "1 August 2026."
+
+
+def searched_once(**over) -> dict:
+    return {
+        **claude(
+            [SOURCES, {"type": "text", "text": DATED}],
+            server_tool_use={"web_search_requests": 1},
+        ),
+        **over,
+    }
+
+
+def refusing(code: int, body: str):
+    def urlopen(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, code, "denied", {}, io.BytesIO(body.encode()))
+
+    return urlopen
+
+
+def only_round(ledger_dir: Path) -> tuple[Ledger, str]:
+    """The one snapshot a single check call is expected to have opened."""
+    led = Ledger(ledger_dir)
+    written = led.snapshots()
+    assert len(written) == 1, f"one call should open one round, got {written}"
+    return led, written[0]
+
+
+def test_a_billed_check_call_lands_one_record_that_verifies(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(urllib.request, "urlopen", replying(searched_once()))
+    rec = Recorder()
+    assert check_call(rec.console, ANTHROPIC, KEY, ledger_dir=tmp_path / "ledger") == 0
+
+    led, snapshot_id = only_round(tmp_path / "ledger")
+    assert led.verify(snapshot_id) == [], "the round it wrote must re-derive"
+    (record,) = list(led.read(snapshot_id))
+
+    assert record.status == "ok"
+    assert record.model == "claude-haiku-4-5", "the model as the response named it"
+    assert (record.input_tokens, record.output_tokens) == (900, 30)
+    assert record.citations == ("https://a.example/today",)
+    assert record.brands == (), "no brand list was supplied, so nothing was looked for"
+    assert str(led.path_of(snapshot_id)) in rec.text, "it must say where it wrote"
+
+
+def test_a_check_call_that_failed_is_recorded_with_its_reason(tmp_path: Path, monkeypatch):
+    """The failures are the half worth keeping.
+
+    An account that cannot spend is the state this command exists to find, and
+    a diagnostic that records only its successes flatters itself. Nothing is
+    swallowed and nothing is retried.
+    """
+    body = json.dumps({"error": {"type": "authentication_error", "message": "invalid x-api-key"}})
+    monkeypatch.setattr(urllib.request, "urlopen", refusing(401, body))
+    rec = Recorder()
+    assert check_call(rec.console, ANTHROPIC, KEY, ledger_dir=tmp_path / "ledger") == 1
+
+    led, snapshot_id = only_round(tmp_path / "ledger")
+    assert led.verify(snapshot_id) == []
+    (record,) = list(led.read(snapshot_id))
+
+    assert record.status == "error"
+    assert "401" in record.error and "invalid x-api-key" in record.error
+    assert record.model == "unknown", "nothing answered, so no model can be named"
+    assert record.input_tokens is None, "a call that failed reported no tokens"
+    assert "recorded as an error in" in rec.text
+
+
+def test_lulu_usage_sees_the_check_call_and_prices_it(tmp_path: Path, monkeypatch):
+    """The money is now visible to the command that reports money.
+
+    Priced from the figures the response itself carried: 900 in and 30 out at
+    $1 and $5 per million is $0.001050, plus one search fee at $10 per
+    thousand. The response named the dated snapshot of the model, which is the
+    same model at the same published price, so it prices rather than landing
+    in `no published price on file`.
+    """
+    monkeypatch.setattr(urllib.request, "urlopen", replying(searched_once(model=ANSWERED_AS)))
+    ledger_dir = tmp_path / "ledger"
+    assert check_call(Recorder().console, ANTHROPIC, KEY, ledger_dir=ledger_dir) == 0
+
+    rec = Recorder()
+    assert run_usage(rec.console, ledger_dir=ledger_dir) == 0
+    text = rec.text
+    assert "chain intact" in text
+    assert "1 calls recorded: 1 answered, 0 failed" in text
+    assert "input   900" in text and "output  30" in text
+    assert "$0.011050" in text
+    assert f"anthropic/{ANSWERED_AS}" in text
+
+
+def test_the_diagnostic_round_cannot_be_read_as_a_measurement(tmp_path: Path, monkeypatch):
+    """The separation is in the file name and enforced at the one door.
+
+    `mirror` consumes `Run` objects and nothing else, and `replay` is the only
+    thing that makes them, so a check call refused there cannot be pooled into
+    a brand's sample by anything downstream.
+    """
+    monkeypatch.setattr(urllib.request, "urlopen", replying(searched_once()))
+    assert check_call(Recorder().console, ANTHROPIC, KEY, ledger_dir=tmp_path / "ledger") == 0
+
+    led, snapshot_id = only_round(tmp_path / "ledger")
+    assert snapshot_id.startswith("diagnostic__anthropic__api__")
+    assert is_diagnostic(snapshot_id)
+    assert not is_diagnostic("marx__anthropic__api__20260801T014500Z__0001")
+
+    with pytest.raises(ValueError, match="diagnostic round"):
+        replay(led, snapshot_id)
+
+
+def test_the_offline_path_writes_nothing_because_it_spends_nothing(tmp_path: Path):
+    (tmp_path / ".env").write_text(f"ANTHROPIC_API_KEY={KEY}\n", encoding="utf-8")
+    rec = Recorder()
+    code = doctor(
+        rec.console,
+        cwd=tmp_path,
+        home=tmp_path / "home",
+        provider="anthropic",
+        offline=True,
+        env={},
+        keychain=lambda service, account: None,
+    )
+    assert code == 0
+    assert "nothing was spent" in rec.text
+    assert not (tmp_path / "ledger").exists(), "nothing spent is nothing written, not even a directory"
+
+
+def test_the_key_reaches_neither_the_screen_nor_the_ledger(tmp_path: Path, monkeypatch):
+    """The provider's own words go on the record; the secret in them does not.
+
+    Redaction happens where those words are made, before the record is hashed,
+    so the key never exists on disk rather than being taken out afterwards.
+    """
+    def urlopen(req, timeout=None):
+        raise RuntimeError(f"boom while sending {KEY}")
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    ledger_dir = tmp_path / "ledger"
+    rec = Recorder()
+    assert check_call(rec.console, ANTHROPIC, KEY, ledger_dir=ledger_dir) == 1
+
+    led, snapshot_id = only_round(ledger_dir)
+    written = led.path_of(snapshot_id).read_text(encoding="utf-8")
+    assert KEY not in written
+    assert KEY not in rec.text
+    assert "[redacted key]" in written, "the reason is kept, the secret is not"

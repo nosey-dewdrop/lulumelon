@@ -101,7 +101,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 528 tests, offline
+    python3 -m pytest lulumelon/tests   # 539 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -117,6 +117,12 @@ key belongs to off the key, stores it in the OS keychain where there is one and
 in a file with owner-only permissions where there is not, says where it went,
 and then spends about a cent proving that the key works, that the search tool is
 switched on for your account, and that a search actually comes back with pages.
+
+That call is billed, so it is written down. It lands in `./ledger` under a name
+beginning `diagnostic__`, and the command says the path on the way past. A round
+of its own, because a call made to test an account is not a measurement of a
+brand: it is priced by `lulu usage` like any other spend, and refused by
+everything that scores an answer.
 
 The key is never printed, never put in shell history, and never written into the
 repository. Nothing is asked, because every question in a setup step is a place

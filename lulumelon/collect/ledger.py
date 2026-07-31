@@ -60,6 +60,22 @@ SCHEMA_VERSION = 2
 #: First link of a chain. Any value works as long as it is fixed and obvious.
 GENESIS = "0" * 64
 
+#: Subject a diagnostic round is filed under. A check call costs money and so
+#: belongs on the record, but it is not a measurement: it asks about the
+#: account, not about a brand, and its answer carries no brand list. Pooled into
+#: a round it would enter the sample as a question where every tracked name went
+#: unmentioned, which is a measurement nobody made.
+#:
+#: The separation is therefore in the file name, where it can be seen, rather
+#: than in a convention someone has to remember. `replay` refuses to turn one of
+#: these into runs at all, and runs are the only thing `mirror` consumes.
+DIAGNOSTIC_SUBJECT = "diagnostic"
+
+
+def is_diagnostic(snapshot_id: str) -> bool:
+    """Whether this snapshot holds diagnostic calls rather than a measurement."""
+    return snapshot_id.startswith(f"{DIAGNOSTIC_SUBJECT}__")
+
 # -- what each version hashed ------------------------------------------------
 #
 # Both rows are spelled out in full. Writing `_V2 = _V1 | {...}` would be

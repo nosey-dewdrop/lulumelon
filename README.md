@@ -75,6 +75,7 @@ lulumelon/
   collect/        the part that asks, and the part that writes it down
     ask.py        provider boundary; Perplexity Sonar and a deterministic stub
     session.py    one round: k asks per prompt, failures recorded not retried
+    budget.py     a ceiling checked before each call, so a round stops short
     ledger.py     append-only, hash-chained, nothing edited in place
     detect.py     brand matching by declared literals, no model in the loop
     audit.py      whether the answer engines are allowed to read the site
@@ -100,7 +101,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 510 tests, offline
+    python3 -m pytest lulumelon/tests   # 528 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started

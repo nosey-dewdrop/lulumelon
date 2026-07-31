@@ -4,12 +4,28 @@ from __future__ import annotations
 
 import pytest
 
-from lulumelon.collect import Brand, FakeProvider, Ledger, Prompt, replay, run_round
+from lulumelon.collect import (
+    Brand,
+    Budget,
+    FakeProvider,
+    Ledger,
+    Prompt,
+    Usage,
+    replay,
+    run_round,
+)
+from lulumelon.prices import price_for
 
 BRANDS = (Brand("Marx", aliases=("marx.finance",)), Brand("Rival"))
 
 P1 = Prompt("p1", "best trading agent platform?")
 P2 = Prompt("p2", "alternatives to Rival?")
+
+OPUS = price_for("anthropic", "claude-opus-5")
+#: A stub that reports its usage, so a round through it is priced from measured
+#: counts rather than from the guard's opening guess. 1000 in and 200 out on
+#: this price is $0.01 of tokens, and one search is another $0.01.
+METERED = Usage(input_tokens=1000, output_tokens=200, searches=1)
 
 
 def ticking_clock():
@@ -188,3 +204,83 @@ def test_the_collector_computes_no_score(led):
     assert not hasattr(result, "visibility")
     assert not hasattr(result, "score")
     assert result.ok == 2
+
+
+# -- the budget, when there is one ------------------------------------------
+
+
+def test_a_budget_nobody_could_exhaust_leaves_the_round_alone(led):
+    # the guard has to be invisible when it is not binding, or nobody will run
+    # a round with one on.
+    unguarded = run_round(
+        ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
+        k=3, subject="marx", clock=ticking_clock(),
+    )
+    guarded = run_round(
+        ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
+        k=3, subject="marx", clock=ticking_clock(),
+        budget=Budget(price=OPUS, limit_usd=5.0, max_searches=1),
+    )
+
+    assert (guarded.asked, guarded.ok, guarded.errors) == (unguarded.asked, unguarded.ok, unguarded.errors)
+    assert guarded.planned == unguarded.planned == 6
+    assert guarded.unasked == 0
+    assert not guarded.stopped_for_budget
+    assert led.count(guarded.snapshot_id) == led.count(unguarded.snapshot_id) == 6
+
+
+def test_a_round_that_runs_out_stops_short_and_says_how_short(led):
+    # $0.25 at $0.02 a call is twelve asks, and the design asked for sixteen.
+    # The four that were never made are the reason every interval computed off
+    # this snapshot is wider than the plan that bought it.
+    budget = Budget(price=OPUS, limit_usd=0.25, max_searches=1)
+    result = run_round(
+        ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
+        k=8, subject="marx", clock=ticking_clock(), budget=budget,
+    )
+
+    assert result.planned == 16
+    assert result.asked == 12
+    assert result.unasked == 4
+    assert result.stopped_for_budget
+    assert result.errors == 0
+    assert "stopped for budget, 4 never asked" in result.as_text()
+
+    assert led.count(result.snapshot_id) == 12, "the ledger holds the asks that happened"
+    assert led.verify(result.snapshot_id) == [], "stopping leaves no half-written record"
+    assert budget.spent_usd == pytest.approx(0.24)
+
+
+def test_a_budget_for_three_unmetered_calls_makes_exactly_three(led):
+    # the stub reports no usage at all, so every call is charged at the opening
+    # ceiling of $0.08 and $0.28 buys three of them. A guard that read the
+    # silence as no spend would have asked all six.
+    budget = Budget(price=OPUS, limit_usd=0.28, max_searches=1)
+    result = run_round(
+        ledger=led, provider=FakeProvider(), prompts=[P1, P2, Prompt("p3", "who else?")],
+        brands=BRANDS, k=2, subject="marx", clock=ticking_clock(), budget=budget,
+    )
+
+    assert result.asked == 3
+    assert result.planned == 6
+    assert result.stopped_for_budget
+    assert led.count(result.snapshot_id) == 3
+    assert budget.unmetered_calls == 3
+    assert budget.spent_usd == pytest.approx(0.24)
+
+
+def test_a_round_that_cannot_afford_its_first_ask_asks_nothing(led):
+    # a snapshot with no records in it is still a snapshot, and it is a better
+    # outcome than one call made to discover the budget was never enough.
+    budget = Budget(price=OPUS, limit_usd=0.01, max_searches=1)
+    result = run_round(
+        ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1], brands=BRANDS,
+        k=4, subject="marx", clock=ticking_clock(), budget=budget,
+    )
+
+    assert result.asked == 0
+    assert result.unasked == 4
+    assert result.stopped_for_budget
+    assert result.error_rate == 0.0, "asking nothing is not failing"
+    assert led.count(result.snapshot_id) == 0
+    assert budget.spent_usd == 0.0

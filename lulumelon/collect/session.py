@@ -27,6 +27,13 @@ the system clock on its own.
 cannot silently mix a logged-out browser with an API. The surface effect is
 larger than the noise being measured, so mixing them would produce a number
 about the collector rather than about the brand.
+
+**Running out of money ends the round rather than raising.** The asks already
+made are observations and a traceback would throw them away, so a round that
+hit its ceiling comes back shorter, with the count of what it never asked. That
+count is the only thing that tells a reader the interval is wider than the
+design asked for, because the ledger of a round cut short and the ledger of a
+small round look the same on disk.
 """
 
 from __future__ import annotations
@@ -36,6 +43,7 @@ from datetime import datetime, timezone
 from typing import Callable, Iterable, Sequence
 
 from .ask import Answer, Provider
+from .budget import Budget
 from .detect import Brand, detect
 from .ledger import Ledger, Record
 
@@ -65,16 +73,36 @@ class RoundResult:
     `errors` is surfaced here rather than logged because a round that half
     failed is not a smaller round, it is a different one, and the caller has to
     decide what to do about that before reading any score.
+
+    A round stopped by its budget is the same kind of fact, which is why
+    `planned` sits next to `asked` instead of being recoverable from the
+    arguments. Nothing on disk distinguishes a round that was cut short from a
+    round that was small, so without those two side by side the missing draws
+    become invisible at exactly the moment they matter: they are what makes the
+    interval downstream wider than the design was sized for.
     """
 
     snapshot_id: str
     asked: int
     ok: int
     errors: int
+    planned: int
+    stopped_for_budget: bool = False
 
     @property
     def error_rate(self) -> float:
         return self.errors / self.asked if self.asked else 0.0
+
+    @property
+    def unasked(self) -> int:
+        """Asks the round was sized for and never made."""
+        return max(0, self.planned - self.asked)
+
+    def as_text(self) -> str:
+        line = f"asked {self.asked} of {self.planned}, {self.ok} answered, {self.errors} failed"
+        if self.stopped_for_budget:
+            line += f"; stopped for budget, {self.unasked} never asked"
+        return line
 
 
 def run_round(
@@ -86,6 +114,7 @@ def run_round(
     k: int,
     subject: str,
     clock: Callable[[], str] = utc_now,
+    budget: Budget | None = None,
 ) -> RoundResult:
     """Ask every prompt `k` times and append every result to a new snapshot.
 
@@ -96,6 +125,11 @@ def run_round(
     `k < 2` is refused. It is not an unsupported option, it is a design whose
     output cannot carry an interval, and accepting it here would let a caller
     produce a ledger that looks measurable and is not.
+
+    Without a `budget` the round asks everything it was given, which is the
+    right default for a round somebody is watching. With one, each ask is
+    checked against that ask's own ceiling before it is made, because the
+    cheapest place to find out a call did not fit is before paying for it.
     """
     if k < 2:
         raise ValueError(
@@ -109,41 +143,61 @@ def run_round(
 
     snapshot_id = ledger.next_snapshot_id(subject, provider.name, provider.surface)
 
-    asked = ok = 0
-    for prompt in prompts:
-        for repeat in range(k):
-            answer: Answer = provider.ask(prompt.text)
-            asked += 1
-            if answer.ok:
-                ok += 1
-            ledger.append(
-                snapshot_id,
-                Record(
-                    snapshot_id=snapshot_id,
-                    seq=0,  # the ledger assigns the real one; it owns the order
-                    prompt_id=prompt.id,
-                    repeat=repeat,
-                    engine=provider.name,
-                    surface=answer.surface,
-                    model=answer.model,
-                    asked_at=clock(),
-                    status=answer.status,
-                    latency_ms=answer.latency_ms,
-                    answer_text=answer.text,
-                    brands=detect(answer.text, tuple(brands)) if answer.ok else (),
-                    citations=answer.citations,
-                    provider=provider.name,
-                    error=answer.error,
-                    # Written from what the provider reported, and left unknown
-                    # when it reported nothing. This is the only place a call's
-                    # cost enters the permanent record; a round collected
-                    # without it can never be priced afterwards, because the
-                    # response it would have been priced from is gone.
-                    input_tokens=answer.usage.input_tokens,
-                    output_tokens=answer.usage.output_tokens,
-                    search_context=answer.usage.search_context,
-                    reported_cost_usd=answer.usage.cost_usd,
-                ),
-            )
+    # Flattened before the loop so that running out of budget leaves through
+    # one exit. A nested break needs a flag to carry it out of the inner loop,
+    # and a flag read one indent later is where a round quietly asks one more.
+    draws = [(prompt, repeat) for prompt in prompts for repeat in range(k)]
 
-    return RoundResult(snapshot_id=snapshot_id, asked=asked, ok=ok, errors=asked - ok)
+    asked = ok = 0
+    stopped_for_budget = False
+    for prompt, repeat in draws:
+        if budget is not None and not budget.can_afford_another():
+            stopped_for_budget = True
+            break
+
+        answer: Answer = provider.ask(prompt.text)
+        asked += 1
+        if answer.ok:
+            ok += 1
+        if budget is not None:
+            # Charged here rather than after the write, because the call is
+            # paid for the moment it comes back and the ledger cannot undo it.
+            budget.charge(answer)
+        ledger.append(
+            snapshot_id,
+            Record(
+                snapshot_id=snapshot_id,
+                seq=0,  # the ledger assigns the real one; it owns the order
+                prompt_id=prompt.id,
+                repeat=repeat,
+                engine=provider.name,
+                surface=answer.surface,
+                model=answer.model,
+                asked_at=clock(),
+                status=answer.status,
+                latency_ms=answer.latency_ms,
+                answer_text=answer.text,
+                brands=detect(answer.text, tuple(brands)) if answer.ok else (),
+                citations=answer.citations,
+                provider=provider.name,
+                error=answer.error,
+                # Written from what the provider reported, and left unknown
+                # when it reported nothing. This is the only place a call's
+                # cost enters the permanent record; a round collected
+                # without it can never be priced afterwards, because the
+                # response it would have been priced from is gone.
+                input_tokens=answer.usage.input_tokens,
+                output_tokens=answer.usage.output_tokens,
+                search_context=answer.usage.search_context,
+                reported_cost_usd=answer.usage.cost_usd,
+            ),
+        )
+
+    return RoundResult(
+        snapshot_id=snapshot_id,
+        asked=asked,
+        ok=ok,
+        errors=asked - ok,
+        planned=len(draws),
+        stopped_for_budget=stopped_for_budget,
+    )

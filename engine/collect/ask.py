@@ -37,6 +37,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from keys import redact
+
 #: Values allowed in `Run.surface`. Anything else is a bug in a provider.
 SURFACES = ("logged_in", "logged_out", "api", "unspecified")
 
@@ -166,7 +168,10 @@ class PerplexityProvider:
     user-facing one would be the same mistake the category makes.
     """
 
-    api_key: str
+    #: `repr=False` is not cosmetic. A dataclass prints its fields, so a
+    #: traceback that mentions this object, a logged round, or a debugger frame
+    #: would otherwise carry the customer's key with it.
+    api_key: str = field(repr=False)
     name: str = "perplexity"
     surface: str = "api"
     model: str = "sonar"
@@ -222,11 +227,14 @@ class PerplexityProvider:
         )
 
     def _failed(self, started: float, why: str) -> Answer:
+        # The reason travels into the ledger and onto the screen, and it is
+        # partly the provider's own words about a request that carried a key.
+        # Scrubbing happens here, at the one place those words are created.
         return Answer(
             text="",
             model=UNKNOWN_MODEL,
             surface=self.surface,
             latency_ms=int((time.monotonic() - started) * 1000),
             status="error",
-            error=why,
+            error=redact(why, self.api_key),
         )

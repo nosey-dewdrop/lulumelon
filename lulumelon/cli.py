@@ -1,18 +1,21 @@
-"""`lulu`: the two commands that stand between a new user and a measurement.
+"""`lulu`: the commands that stand between a person and a defensible number.
 
-A bring-your-own-key tool has exactly one hard step, and it happens before any
-of the engineering matters: putting a key somewhere the tool will find it. That
-step is treated here as a feature with tests, not as a paragraph in a README.
+Two of them are about getting started, and two are about money and evidence.
 
-`lulu init` asks, stores, and then says out loud where it stored it.
+`lulu init` asks for a key, stores it, and says out loud where it stored it.
 `lulu doctor` answers "why is it not working" in one screen: every place that
 was looked at, what was wrong with the key as a string, whether the endpoint is
 reachable at all, and what the one test call cost.
+`lulu plan` sizes a round before it is bought, and says where no number of
+repeats would be enough.
+`lulu usage` says what the rounds already on disk cost, and `lulu verify`
+re-derives their chains so the person relying on that can check it themselves.
 
-Both are written so nothing is guessed. Where the code cannot know something it
-says so: an unknown price is "no published price on file", not a plausible
-number, and a rejected key names the two things that produce that rejection
-rather than printing a status code.
+All of them are written so nothing is guessed. Where the code cannot know
+something it says so: an unknown price is "no published price on file", not a
+plausible number; a rejected key names the states that produce that rejection
+rather than printing a status code; and a round nobody metered is priced as a
+floor rather than padded out with zeros and called an estimate.
 
 Every stream and every prompt is injected, so the whole interaction is exercised
 in tests without a terminal and without a key.
@@ -381,6 +384,53 @@ def usage(
     return 1 if failed_chain else 0
 
 
+# -- verify -----------------------------------------------------------------
+
+
+def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -> int:
+    """Re-derive every chain on disk and say what that does and does not prove.
+
+    The library tells a customer that every number it prints is reproducible
+    from the ledger. Until this command existed that was true and unusable: the
+    check lived in the test suite, where only we could run it. A guarantee the
+    person relying on it cannot exercise is a claim, not a guarantee.
+
+    What is printed at the end is the limit of the check, not a summary of how
+    well it went. A verifier that reports "intact" without saying what intact
+    covers is the sort of confident output this repo exists to argue with.
+    """
+    store = Ledger(ledger_dir)
+    wanted = [snapshot] if snapshot else store.snapshots()
+    console.say(f"lulu verify — {ledger_dir}")
+    console.say()
+    if not wanted:
+        console.say("No rounds recorded here, so there is nothing to check.")
+        return 0
+
+    broken = 0
+    for snapshot_id in wanted:
+        problems = store.verify(snapshot_id)
+        if not problems:
+            console.say(f"  intact   {snapshot_id}   {store.count(snapshot_id)} records")
+            continue
+        broken += 1
+        console.say(f"  BROKEN   {snapshot_id}   {len(problems)} problems")
+        for line in problems:
+            console.say(f"           {line}")
+
+    console.say()
+    console.say(f"{len(wanted) - broken} of {len(wanted)} rounds re-derive from their own contents.")
+    console.say()
+    console.say("What that covers: every record present was checked against its own hash and")
+    console.say("against the one before it, so altering an answer costs a rewrite of every")
+    console.say("record after it.")
+    console.say()
+    console.say("What it does not cover: records removed from the end of a file. Nothing on")
+    console.say("disk states how long a round was meant to be, so a cut tail leaves no trace.")
+    console.say("Keep your own count of what you asked for until that is closed.")
+    return 1 if broken else 0
+
+
 # -- plan -------------------------------------------------------------------
 
 #: ICCs the no-pilot bracket is evaluated at. Not a guess at the answer: the
@@ -572,6 +622,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_usage.add_argument("--provider", default="perplexity", help="which engine's price table to use")
     p_usage.add_argument("--model", default=CHECK_MODEL, help="which model's published rates to use")
 
+    p_verify = sub.add_parser("verify", help="re-derive every chain on disk and report what moved")
+    p_verify.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
+    p_verify.add_argument("--snapshot", default=None, help="one round; every round by default")
+
     p_plan = sub.add_parser("plan", help="how many calls a target precision needs, and what it costs")
     p_plan.add_argument("--prompts", type=int, required=True, help="how many tracked questions")
     p_plan.add_argument("--brands", type=int, default=1, help="how many brands are read from the same answers")
@@ -637,6 +691,8 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 provider=args.provider,
                 model=args.model,
             )
+        if args.command == "verify":
+            return verify(console, ledger_dir=Path(args.ledger), snapshot=args.snapshot)
         if args.command == "usage":
             return usage(
                 console,

@@ -59,7 +59,7 @@ cannot support.
 
 ```
 lulumelon/
-  cli.py          `lulu init` and `lulu doctor`: the key path, before anything runs
+  cli.py          `lulu init` / `doctor` / `plan` / `usage` / `verify`
   keys.py         where a key is looked for, in order, and how it is kept quiet
   prices.py       what a call costs, from the provider's page, with the date read
   mirror/         the measurement core, calls no model
@@ -97,7 +97,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 212 tests, offline
+    python3 -m pytest lulumelon/tests   # 310 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -112,6 +112,27 @@ published prices.
 
 `lulu doctor` prints every place it looked, in order, whether or not it found
 anything. `lulu doctor --offline` does all of that and spends nothing.
+
+## what a measurement costs
+
+    lulu plan --prompts 40 --brands 5 --half-width 5
+
+sizes the round before it is bought. With no pilot it will not hand back a
+single number: for a yes-or-no outcome the total per-draw variance is p(1-p)
+and cannot exceed a quarter, which is arithmetic, but how that splits between
+the model answering differently and the questions you picked is not, and the
+split is what decides whether repeats or prompts buy your precision. So it
+prints the range, the icc above which no number of repeats reaches the target
+at all, and the price of both ends. Point it at a recorded round with
+`--pilot` and every one of those is replaced by a measured value.
+
+    lulu usage     # what the rounds on disk cost, from the provider's figures
+    lulu verify    # re-derive every chain, and say what that check does not cover
+
+`lulu usage` keeps three bases apart and never merges them: an amount the
+provider stated, a cost computed from tokens it reported, and a floor for calls
+it said nothing about. Failed calls are counted and priced at nothing, because
+no response says whether a rejected call is billed.
 
 ---
 

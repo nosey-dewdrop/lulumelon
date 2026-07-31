@@ -387,6 +387,47 @@ def test_contact_details_are_stripped_from_the_error_field_too(led):
     assert "ops@marx.finance" not in led.path_of("s__e__api__x__0001").read_text(encoding="utf-8")
 
 
+# -- the check a customer can actually run ----------------------------------
+
+
+def _console():
+    import io
+
+    from lulumelon.cli import Console
+
+    out, err = io.StringIO(), io.StringIO()
+    return Console(out=out, err=err), out
+
+
+def test_verify_command_passes_an_untouched_archive(archive, tmp_path):
+    from lulumelon.cli import verify as run_verify
+
+    console, out = _console()
+    assert run_verify(console, ledger_dir=tmp_path) == 0
+    assert "intact" in out.getvalue()
+
+
+def test_verify_command_names_what_moved(archive, tmp_path):
+    from lulumelon.cli import verify as run_verify
+
+    _tamper(archive, V1_SNAPSHOT, 0, lambda line: line.replace('"marx"', '"planted"'))
+    console, out = _console()
+    assert run_verify(console, ledger_dir=tmp_path) == 1
+    assert "BROKEN" in out.getvalue()
+    assert "own hash" in out.getvalue()
+
+
+def test_verify_command_states_the_limit_of_the_check(archive, tmp_path):
+    """It must not read as a completeness claim, because it is not one."""
+    from lulumelon.cli import verify as run_verify
+
+    console, out = _console()
+    run_verify(console, ledger_dir=tmp_path)
+    text = out.getvalue()
+    assert "does not cover" in text
+    assert "cut tail leaves no trace" in text
+
+
 # -- the hole that is still open -------------------------------------------
 
 

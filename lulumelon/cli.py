@@ -14,6 +14,9 @@ re-derives their chains so the person relying on that can check it themselves.
 `lulu ablate` asks whether a replica round tracks the live surface closely
 enough to reason from, and returns three answers rather than two, because a
 design that cannot tell has not passed.
+`lulu lift` measures what one source was worth, between the arm that carried it
+and the arm that did not, and prints that number under a name it has to earn:
+without a gate that passed, the same arithmetic is a fact about a laboratory.
 
 All of them are written so nothing is guessed. Where the code cannot know
 something it says so: an unknown price is "no published price on file", not a
@@ -37,9 +40,17 @@ from typing import Callable, Mapping, Sequence, TextIO
 from .collect.ask import PerplexityProvider
 from .collect.ledger import Ledger, LedgerFormatError
 from .collect.replay import replay
-from .collect.replica import REPLICA_SURFACE
+from .collect.replica import (
+    REPLICA_SURFACE,
+    is_replica_surface,
+    replica_surface,
+    without,
+)
 from .mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
 from .mirror.compare import model_confounds
+from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
+from .mirror.lift import UNDECIDED as EFFECT_UNDECIDED
+from .mirror.lift import source_effect
 from .mirror.types import Snapshot, group_runs
 from .mirror.variance import decompose
 from .keys import (
@@ -652,6 +663,37 @@ def _pilot_tokens(pilot: str | None, ledger_dir: Path | None) -> tuple[int, int]
 #: "cannot tell" as "fine" is the failure this whole command exists to prevent.
 ABLATE_EXIT = {STANDS_IN: 0, DIFFERS: 1, UNDECIDED: 4}
 
+#: Returned by both gate and contrast when a chain does not re-derive. A broken
+#: evidence file is not a verdict of any kind, so it never shares a code with
+#: one.
+CHAIN_BROKEN = 3
+
+
+class BrokenChain(Exception):
+    """One snapshot did not re-derive, so no number is computed from it."""
+
+
+def _verified(store: Ledger, console: Console, role: str, snapshot_id: str):
+    """Re-derive one round's chain, then replay it, announcing both.
+
+    Shared by the two commands that read rounds off disk to compare them.
+    Copying this would eventually give the same broken file two different
+    treatments depending on which command opened it.
+    """
+    problems = store.verify(snapshot_id)
+    if problems:
+        console.say(f"  {snapshot_id}: CHAIN BROKEN, {len(problems)} problems.")
+        console.say("  no verdict is computed from a round that does not re-derive.")
+        raise BrokenChain(snapshot_id)
+    played = replay(store, snapshot_id)
+    console.say(f"  {role:<8} {snapshot_id}")
+    console.say(f"           {played.as_text()}")
+    return played
+
+
+def _detections(played, brand: str) -> dict[str, tuple[int, ...]]:
+    return {s.prompt_id: s.detections(brand) for s in group_runs(played.runs)}
+
 
 def ablate(
     console: Console,
@@ -676,34 +718,27 @@ def ablate(
     console.say(f"lulu ablate — {ledger_dir}")
     console.say()
 
-    sides = {}
-    for role, snapshot_id in (("live", live), ("replica", replica)):
-        problems = store.verify(snapshot_id)
-        if problems:
-            console.say(f"  {snapshot_id}: CHAIN BROKEN, {len(problems)} problems.")
-            console.say("  no verdict is computed from a round that does not re-derive.")
-            return 3
-        played = replay(store, snapshot_id)
-        console.say(f"  {role:<8} {snapshot_id}")
-        console.say(f"           {played.as_text()}")
-        sides[role] = played
+    try:
+        sides = {
+            role: _verified(store, console, role, snapshot_id)
+            for role, snapshot_id in (("live", live), ("replica", replica))
+        }
+    except BrokenChain:
+        return CHAIN_BROKEN
 
     console.say()
     lab = sides["replica"]
-    if REPLICA_SURFACE not in lab.surfaces:
+    if not any(is_replica_surface(s) for s in lab.surfaces):
         raise ValueError(
             f"{replica} was collected on {', '.join(lab.surfaces)}, not on the replica "
             "surface; this gate asks whether a laboratory round tracks a live one, and "
             "comparing two live rounds is a different question with a different answer"
         )
-    if REPLICA_SURFACE in sides["live"].surfaces:
+    if any(is_replica_surface(s) for s in sides["live"].surfaces):
         raise ValueError(
             f"{live} is itself a replica round, so there is no live surface here to be "
             "tracked and passing this gate would prove only that the instrument repeats"
         )
-
-    def detections(played) -> dict[str, tuple[int, ...]]:
-        return {s.prompt_id: s.detections(brand) for s in group_runs(played.runs)}
 
     # Only the model version is treated as a confound. The surfaces differ by
     # construction here, which is the comparison rather than a flaw in it, and
@@ -714,8 +749,8 @@ def ablate(
     )
 
     verdict = replica_gate(
-        detections(sides["live"]),
-        detections(lab),
+        _detections(sides["live"], brand),
+        _detections(lab, brand),
         margin=margin,
         confidence=confidence,
         brands=brands,
@@ -731,6 +766,154 @@ def ablate(
     else:
         console.say("  nothing causal is read off this replica until that changes.")
     return ABLATE_EXIT[verdict.verdict]
+
+
+# -- lift -------------------------------------------------------------------
+
+#: What this round could say about the source that was removed. `negligible` is
+#: not an error and not a pass: it is a decision, and the decision is that the
+#: source is not worth chasing. `no_contrast` is separated from it because two
+#: arms that never differed look identical to arithmetic and mean something
+#: entirely different.
+LIFT_EXIT = {MOVES: 0, NEGLIGIBLE: 1, EFFECT_UNDECIDED: 4, NO_CONTRAST: 5}
+
+#: Returned whatever the arithmetic said, when the result may not be called a
+#: lift. A caller branching on 0 is asking about a customer's surface, and
+#: without a gate that passed there is no answer to that question on this
+#: screen, only a true statement about a laboratory.
+NOT_TRANSPORTABLE = 6
+
+
+def _arm_surface(played, snapshot_id: str, expected: str, role: str) -> None:
+    """Refuse an arm whose recorded treatment is not the one being claimed.
+
+    The ledger stores the digest of the material an arm was shown, so the list
+    given on the command line is checked against the evidence rather than
+    believed. Without this the treatment of an ablation would be an assertion
+    typed next to the result it produces.
+    """
+    surfaces = played.surfaces
+    if surfaces == (REPLICA_SURFACE,):
+        raise ValueError(
+            f"{snapshot_id} was written before rounds recorded which sources they were "
+            "asked under, so nothing on disk says this is the "
+            f"{role} arm. it can be read, it cannot be verified, and a contrast whose "
+            "treatment rests on the command line is not evidence"
+        )
+    if surfaces != (expected,):
+        found = ", ".join(surfaces) or "nothing"
+        raise ValueError(
+            f"{snapshot_id} was collected under {found}, and the {role} arm of this "
+            f"ablation is {expected}. either the source list passed here is not the one "
+            "that round was asked under, or the two arms have been swapped"
+        )
+
+
+def lift(
+    console: Console,
+    *,
+    ledger_dir: Path,
+    held: str,
+    dropped: str,
+    brand: str,
+    source: str,
+    sources: Sequence[str],
+    margin: float,
+    live: str | None = None,
+    gate_margin: float | None = None,
+    confidence: float = 0.95,
+    brands: int = 1,
+    family: bool = True,
+) -> int:
+    """What one source was worth, between the arm that carried it and the arm that did not.
+
+    `sources` is the full list the held arm was asked under and `source` is the
+    one taken out of it. Both are checked against what the rounds recorded, so
+    the treatment behind the number is read off the evidence rather than taken
+    on trust.
+
+    `live` is optional and its absence is loud. Supplied, the replica gate runs
+    first and a passing verdict is what lets the difference be called a lift.
+    Absent, the same difference is printed as what it is without one: a measured
+    fact about two laboratory arms.
+    """
+    store = Ledger(ledger_dir)
+    console.say(f"lulu lift — {ledger_dir}")
+    console.say()
+
+    remaining = without(sources, source)
+    roles = [("held", held), ("dropped", dropped)]
+    if live is not None:
+        roles.insert(0, ("live", live))
+    try:
+        rounds = {
+            role: _verified(store, console, role, snapshot_id) for role, snapshot_id in roles
+        }
+    except BrokenChain:
+        return CHAIN_BROKEN
+
+    _arm_surface(rounds["held"], held, replica_surface(sources), "held")
+    _arm_surface(rounds["dropped"], dropped, replica_surface(remaining), "dropped")
+
+    console.say()
+    console.say(f"  source list  {len(sources)} pages, in the order the model saw them")
+    for i, url in enumerate(sources, start=1):
+        console.say(f"    [{i}] {url}{'   <- removed in the dropped arm' if url == source else ''}")
+
+    gate = None
+    if live is not None:
+        if any(is_replica_surface(s) for s in rounds["live"].surfaces):
+            raise ValueError(
+                f"{live} is itself a replica round, so there is no live surface here for the "
+                "gate to check and passing it would prove only that the instrument repeats"
+            )
+        gate_confounds = model_confounds(
+            Snapshot(label="live", samples=group_runs(rounds["live"].runs)),
+            Snapshot(label="held", samples=group_runs(rounds["held"].runs)),
+        )
+        gate = replica_gate(
+            _detections(rounds["live"], brand),
+            _detections(rounds["held"], brand),
+            margin=margin if gate_margin is None else gate_margin,
+            confidence=confidence,
+            brands=brands,
+            family=family,
+            confounded_by=tuple(f"{e} (model version)" for e in gate_confounds),
+        )
+        console.say()
+        for line in gate.as_text().splitlines():
+            console.say(f"  {line}" if line else "")
+
+    # The two arms differ in their source list by construction, which is the
+    # comparison itself, so the surface is not read as a confound here. The
+    # model version is: two arms answered by different builds of a model are a
+    # contrast between two things at once.
+    arm_confounds = model_confounds(
+        Snapshot(label="held", samples=group_runs(rounds["held"].runs)),
+        Snapshot(label="dropped", samples=group_runs(rounds["dropped"].runs)),
+    )
+    effect = source_effect(
+        _detections(rounds["held"], brand),
+        _detections(rounds["dropped"], brand),
+        source=source,
+        margin=margin,
+        gate=gate,
+        confidence=confidence,
+        brands=brands,
+        family=family,
+        confounded_by=tuple(f"{e} (model version)" for e in arm_confounds),
+    )
+    console.say()
+    for line in effect.as_text().splitlines():
+        console.say(f"  {line}" if line else "")
+    console.say()
+    if not effect.is_lift:
+        console.say(
+            "  this round measured a laboratory, and no number here is a claim about "
+            "what a customer sees."
+        )
+        return NOT_TRANSPORTABLE
+    return LIFT_EXIT[effect.verdict]
 
 
 # -- entry point ------------------------------------------------------------
@@ -777,6 +960,44 @@ def build_parser() -> argparse.ArgumentParser:
     p_ablate.add_argument("--brands", type=int, default=1, help="how many brands are held at once")
     p_ablate.add_argument("--per-brand", action="store_true")
     p_ablate.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds live in")
+
+    p_lift = sub.add_parser(
+        "lift", help="what one source was worth, between the arm that carried it and the arm that did not"
+    )
+    p_lift.add_argument("--held", required=True, help="the replica round asked with the full list")
+    p_lift.add_argument("--dropped", required=True, help="the replica round asked without one source")
+    p_lift.add_argument("--brand", required=True, help="which brand the two arms are scored for")
+    p_lift.add_argument(
+        "--source", required=True, help="the one page removed from the list in the dropped arm"
+    )
+    p_lift.add_argument(
+        "--sources",
+        action="append",
+        required=True,
+        metavar="URL",
+        help="one page of the full list, repeated once per page, in the order the model saw them",
+    )
+    p_lift.add_argument(
+        "--live",
+        default=None,
+        help="a live round; supplying it runs the gate, and only a gate that passes allows the word lift",
+    )
+    p_lift.add_argument(
+        "--margin",
+        type=float,
+        default=5.0,
+        help="how many points a source may be worth and still count as not worth chasing",
+    )
+    p_lift.add_argument(
+        "--gate-margin",
+        type=float,
+        default=None,
+        help="margin the replica gate is held to; the same as --margin unless given",
+    )
+    p_lift.add_argument("--confidence", type=float, default=0.95)
+    p_lift.add_argument("--brands", type=int, default=1, help="how many brands are held at once")
+    p_lift.add_argument("--per-brand", action="store_true")
+    p_lift.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds live in")
 
     p_verify = sub.add_parser("verify", help="re-derive every chain on disk and report what moved")
     p_verify.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
@@ -855,6 +1076,22 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 replica=args.replica,
                 brand=args.brand,
                 margin=args.margin / 100.0,
+                confidence=args.confidence,
+                brands=args.brands,
+                family=not args.per_brand,
+            )
+        if args.command == "lift":
+            return lift(
+                console,
+                ledger_dir=Path(args.ledger),
+                held=args.held,
+                dropped=args.dropped,
+                brand=args.brand,
+                source=args.source,
+                sources=tuple(args.sources),
+                margin=args.margin / 100.0,
+                live=args.live,
+                gate_margin=None if args.gate_margin is None else args.gate_margin / 100.0,
                 confidence=args.confidence,
                 brands=args.brands,
                 family=not args.per_brand,

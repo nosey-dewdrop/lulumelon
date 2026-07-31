@@ -21,9 +21,12 @@ from lulumelon.collect import (
     Prompt,
     ReplicaProvider,
     Usage,
+    is_replica_surface,
     replay,
     replica_prompt,
+    replica_surface,
     run_round,
+    source_fingerprint,
     without,
 )
 from lulumelon.collect.detect import Brand
@@ -88,8 +91,23 @@ def test_the_other_arm_differs_in_one_source_and_nothing_else():
 
     assert set(full.sources) - set(dropped.sources) == {SOURCES[1]}
     assert full.instruction_version == dropped.instruction_version
-    assert full.surface == dropped.surface
     assert full.name == dropped.name
+
+
+def test_the_two_arms_do_not_share_a_label():
+    """They are both laboratory rounds and they are not the same condition.
+
+    Filing them under one surface would leave two treatments indistinguishable
+    once they are on disk, and an ablation whose arms cannot be told apart
+    afterwards is a result nobody can check, including us.
+    """
+    full = ReplicaProvider(base=FakeProvider(), sources=SOURCES)
+    dropped = full.dropping(SOURCES[1])
+
+    assert full.surface != dropped.surface
+    assert is_replica_surface(full.surface) and is_replica_surface(dropped.surface)
+    assert full.surface == replica_surface(SOURCES)
+    assert dropped.surface == replica_surface(without(SOURCES, SOURCES[1]))
 
 
 def test_a_repeated_source_is_refused_because_it_is_an_unchosen_treatment():
@@ -108,13 +126,23 @@ def test_a_replica_provider_without_sources_is_refused():
 def test_the_answer_comes_back_labelled_as_a_replica_whatever_the_base_says():
     base = FakeProvider(surface="api")
     answer = ReplicaProvider(base=base, sources=SOURCES).ask("who should I use?")
-    assert answer.surface == REPLICA_SURFACE
+    assert is_replica_surface(answer.surface)
+    assert answer.surface != "api"
     assert base.surface == "api", "the base provider is not mutated"
 
 
 def test_the_replica_surface_is_a_declared_surface():
     """Anything outside `SURFACES` is a provider bug, including ours."""
     assert REPLICA_SURFACE in SURFACES
+    assert ReplicaProvider(base=FakeProvider(), sources=SOURCES).surface.startswith(
+        f"{REPLICA_SURFACE}-"
+    )
+
+
+def test_a_surface_cannot_be_handed_to_a_replica():
+    """A label that can be passed in is a label that can be passed in wrong."""
+    with pytest.raises(TypeError):
+        ReplicaProvider(base=FakeProvider(), sources=SOURCES, surface="api")
 
 
 def test_a_replica_round_reaches_the_ledger_under_its_own_surface(tmp_path):
@@ -133,7 +161,7 @@ def test_a_replica_round_reaches_the_ledger_under_its_own_surface(tmp_path):
     )
     assert REPLICA_SURFACE in result.snapshot_id
     records = list(ledger.read(result.snapshot_id))
-    assert {r.surface for r in records} == {REPLICA_SURFACE}
+    assert {r.surface for r in records} == {replica_surface(SOURCES)}
     assert ledger.verify(result.snapshot_id) == []
 
 
@@ -153,6 +181,47 @@ def test_a_replica_round_is_never_a_single_condition_with_a_live_one(tmp_path):
     )
     mixed = replay(ledger, live.snapshot_id).runs + replay(ledger, lab.snapshot_id).runs
     assert len({r.surface for r in mixed}) == 2
+
+
+# -- the treatment is on disk, not on the command line ----------------------
+
+
+def test_the_order_of_the_list_is_inside_the_fingerprint():
+    """Position in a supplied list is a treatment, so a reorder is a new arm."""
+    assert source_fingerprint(SOURCES) != source_fingerprint(tuple(reversed(SOURCES)))
+
+
+def test_removing_a_source_changes_the_fingerprint():
+    assert source_fingerprint(SOURCES) != source_fingerprint(without(SOURCES, SOURCES[1]))
+
+
+def test_the_same_list_fingerprints_the_same_way_every_time():
+    assert source_fingerprint(SOURCES) == source_fingerprint(list(SOURCES))
+
+
+def test_an_edited_instruction_changes_the_fingerprint_without_anyone_bumping_a_version():
+    """The version asks a person to remember. This does not need them to."""
+    edited = source_fingerprint(SOURCES, instruction="{sources}\n\nQuestion: {question}!")
+    assert edited != source_fingerprint(SOURCES)
+
+
+def test_a_bumped_version_changes_the_fingerprint_too():
+    assert source_fingerprint(SOURCES, instruction_version=2) != source_fingerprint(SOURCES)
+
+
+def test_a_round_written_before_digests_is_readable_and_not_verifiable():
+    assert is_replica_surface(REPLICA_SURFACE)
+    assert is_replica_surface(replica_surface(SOURCES))
+    assert not is_replica_surface("api")
+    assert not is_replica_surface("replicant")
+
+
+def test_the_fingerprint_does_not_carry_the_customers_list():
+    """One-way, so the ledger proves which list was used without storing it."""
+    surface = replica_surface(SOURCES)
+    for url in SOURCES:
+        assert url not in surface
+    assert len(surface.rsplit("-", 1)[1]) == 12
 
 
 # -- the instrument is versioned so two rounds can be told apart ------------

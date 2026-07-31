@@ -400,3 +400,256 @@ def test_the_same_inputs_produce_the_same_screen():
     first = effect(held=held, dropped=dropped, gate=passing_gate())
     second = effect(held=held, dropped=dropped, gate=passing_gate())
     assert first.as_text() == second.as_text()
+
+
+# -- the command that puts the sentence on one screen -----------------------
+
+import io  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from lulumelon.cli import Console, lift  # noqa: E402
+from lulumelon.collect import (  # noqa: E402
+    Brand,
+    FakeProvider,
+    Ledger,
+    Prompt,
+    ReplicaProvider,
+    replica_prompt,
+    run_round,
+    without,
+)
+
+SRC = (
+    "https://a.example/guide",
+    "https://b.example/list",
+    "https://c.example/review",
+)
+DROP = SRC[1]
+MARX = (Brand(name="marx", aliases=()),)
+
+#: Four prompt shapes, each asked four times. Rates vary from prompt to prompt
+#: on both sides, so the intervals the command prints come from a round with
+#: something in it to resample rather than from four identical questions.
+LIVE_ROWS = (
+    ("marx.", "marx.", "marx.", "nobody."),
+    ("marx.", "marx.", "nobody.", "nobody."),
+    ("marx.", "marx.", "marx.", "marx."),
+    ("marx.", "nobody.", "nobody.", "nobody."),
+)
+HELD_ROWS = LIVE_ROWS
+DROPPED_ROWS = (
+    ("marx.", "marx.", "nobody.", "nobody."),
+    ("marx.", "nobody.", "nobody.", "nobody."),
+    ("marx.", "marx.", "nobody.", "nobody."),
+    ("marx.", "nobody.", "nobody.", "nobody."),
+)
+SILENT_ROWS = (("nobody.",) * 4,)
+
+
+class Recorder:
+    def __init__(self) -> None:
+        self.out, self.err = io.StringIO(), io.StringIO()
+        self.console = Console(out=self.out, err=self.err)
+
+    @property
+    def text(self) -> str:
+        return self.out.getvalue() + self.err.getvalue()
+
+
+def three_rounds(
+    tmp_path,
+    *,
+    live_rows=LIVE_ROWS,
+    held_rows=HELD_ROWS,
+    dropped_rows=DROPPED_ROWS,
+    n=30,
+    k=4,
+    dropped_model=None,
+):
+    """A live round and both replica arms, over the same prompts, in one ledger."""
+    led = Ledger(tmp_path)
+    prompts = [Prompt(id=f"p{i}", text=f"who should I use for job {i}?") for i in range(n)]
+
+    def script(rows, wrap=lambda text: text):
+        return {wrap(p.text): rows[i % len(rows)] for i, p in enumerate(prompts)}
+
+    live = run_round(
+        ledger=led,
+        provider=FakeProvider(surface="api", script=script(live_rows)),
+        prompts=prompts, brands=MARX, k=k, subject="marx",
+    )
+    base = FakeProvider(surface="api")
+    full = ReplicaProvider(base=base, sources=SRC)
+    base.script = script(held_rows, lambda text: replica_prompt(text, SRC))
+    held = run_round(
+        ledger=led, provider=full, prompts=prompts, brands=MARX, k=k, subject="marx"
+    )
+
+    other = FakeProvider(surface="api", model=dropped_model or "fake-1")
+    arm = ReplicaProvider(base=other, sources=without(SRC, DROP))
+    other.script = script(dropped_rows, lambda text: replica_prompt(text, arm.sources))
+    dropped = run_round(
+        ledger=led, provider=arm, prompts=prompts, brands=MARX, k=k, subject="marx"
+    )
+    return led, live.snapshot_id, held.snapshot_id, dropped.snapshot_id
+
+
+def run_lift(tmp_path, held_id, dropped_id, **kw):
+    rec = Recorder()
+    args = dict(
+        ledger_dir=Path(tmp_path),
+        held=held_id,
+        dropped=dropped_id,
+        brand="marx",
+        source=DROP,
+        sources=SRC,
+        margin=0.05,
+    )
+    args.update(kw)
+    return lift(rec.console, **args), rec.text
+
+
+def test_the_command_prints_both_levels_and_the_gap_and_exits_zero(tmp_path):
+    _, live, held, dropped = three_rounds(tmp_path)
+    code, text = run_lift(tmp_path, held, dropped, live=live)
+
+    assert code == 0
+    assert "REPLICA GATE: STANDS IN" in text
+    assert "ABLATION: MOVES" in text
+    assert "source held      62.5%" in text
+    assert "source dropped   37.5%" in text
+    assert "difference       +25.0 points" in text
+    assert "NAMED: lift" in text
+    assert "over 30 paired prompts" in text
+
+
+def test_the_list_is_printed_in_order_with_the_removed_page_marked(tmp_path):
+    _, live, held, dropped = three_rounds(tmp_path)
+    _, text = run_lift(tmp_path, held, dropped, live=live)
+    for i, url in enumerate(SRC, start=1):
+        assert f"[{i}] {url}" in text
+    assert f"[2] {DROP}   <- removed in the dropped arm" in text
+
+
+def verdict_block(text: str) -> str:
+    """Everything from the verdict onwards, so the command's own name is not read as one."""
+    return text[text.index("ABLATION:"):]
+
+
+def test_with_no_live_round_the_word_never_reaches_the_screen(tmp_path):
+    """The arithmetic still runs. What it may be called does not."""
+    _, _, held, dropped = three_rounds(tmp_path)
+    code, text = run_lift(tmp_path, held, dropped)
+
+    assert code == 6, "a laboratory result must not exit zero"
+    assert "NAMED: arm difference" in text
+    assert "lift" not in verdict_block(text).lower()
+    assert "difference       +25.0 points" in text
+
+
+def test_a_gate_that_does_not_pass_takes_the_word_from_the_command_too(tmp_path):
+    _, live, held, dropped = three_rounds(tmp_path, live_rows=SILENT_ROWS)
+    code, text = run_lift(tmp_path, held, dropped, live=live)
+    assert code == 6
+    assert "REPLICA GATE: DIFFERS" in text
+    assert "NAMED: arm difference" in text
+    assert "lift" not in verdict_block(text).lower()
+
+
+@pytest.mark.parametrize("margin,expected", [(0.40, 1), (0.25, 4)])
+def test_the_margin_decides_which_answer_the_command_gives(tmp_path, margin, expected):
+    """Twenty-five points is worth chasing at five and not at forty.
+
+    At a margin of exactly twenty-five the interval straddles it, and the
+    command says it cannot tell rather than picking the side it is nearer.
+    """
+    _, live, held, dropped = three_rounds(tmp_path)
+    code, _ = run_lift(tmp_path, held, dropped, live=live, margin=margin, gate_margin=0.05)
+    assert code == expected
+
+
+def test_two_arms_that_never_differed_do_not_exit_as_a_finding(tmp_path):
+    _, live, held, dropped = three_rounds(tmp_path, dropped_rows=HELD_ROWS)
+    code, text = run_lift(tmp_path, held, dropped, live=live)
+    assert code == 5
+    assert "ABLATION: NO CONTRAST" in text
+    assert "not a measured zero" in text
+
+
+# -- the treatment is checked against the evidence --------------------------
+
+
+def test_swapping_the_two_arms_is_refused_by_the_ledger(tmp_path):
+    _, _, held, dropped = three_rounds(tmp_path)
+    with pytest.raises(ValueError, match="the two arms have been swapped"):
+        run_lift(tmp_path, dropped, held)
+
+
+def test_a_source_list_that_is_not_the_one_asked_is_refused(tmp_path):
+    _, _, held, dropped = three_rounds(tmp_path)
+    with pytest.raises(ValueError, match="was collected under"):
+        run_lift(tmp_path, held, dropped, sources=SRC + ("https://d.example/extra",))
+
+
+def test_reordering_the_list_is_a_different_arm(tmp_path):
+    """Position in a supplied list is a treatment, and the ledger knows it."""
+    _, _, held, dropped = three_rounds(tmp_path)
+    reordered = (SRC[1], SRC[0], SRC[2])
+    with pytest.raises(ValueError, match="was collected under"):
+        run_lift(tmp_path, held, dropped, sources=reordered)
+
+
+def test_a_round_written_before_digests_is_read_and_not_verified(tmp_path):
+    """An old evidence file stays readable, and stops short of proving itself."""
+    led = Ledger(tmp_path)
+    prompts = [Prompt(id=f"p{i}", text=f"q{i}") for i in range(4)]
+    legacy = run_round(
+        ledger=led,
+        provider=FakeProvider(surface="replica", script={p.text: LIVE_ROWS[0] for p in prompts}),
+        prompts=prompts, brands=MARX, k=4, subject="marx",
+    )
+    _, _, _, dropped = three_rounds(tmp_path)
+    with pytest.raises(ValueError, match="it cannot be verified"):
+        run_lift(tmp_path, legacy.snapshot_id, dropped)
+
+
+def test_a_live_round_cannot_be_handed_in_as_the_live_side_twice(tmp_path):
+    _, _, held, dropped = three_rounds(tmp_path)
+    with pytest.raises(ValueError, match="itself a replica round"):
+        run_lift(tmp_path, held, dropped, live=held)
+
+
+def test_a_broken_chain_produces_no_number_at_all(tmp_path):
+    led, live, held, dropped = three_rounds(tmp_path)
+    path = led.path_of(held)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[0] = lines[0].replace("marx.", "marx!")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    code, text = run_lift(tmp_path, held, dropped, live=live)
+    assert code == 3
+    assert "CHAIN BROKEN" in text
+    assert "ABLATION" not in text
+
+
+def test_a_second_model_version_between_the_arms_travels_onto_the_screen(tmp_path):
+    """The two arms may differ in one source. They may not differ in the model."""
+    _, live, held, dropped = three_rounds(tmp_path, dropped_model="fake-2")
+    _, text = run_lift(tmp_path, held, dropped, live=live)
+    assert "CONFOUNDED" in text
+    assert "did not differ only in the source that was removed" in text
+
+
+def test_the_sentence_the_readme_quotes_is_the_one_the_command_prints(tmp_path):
+    """The README quotes this command's output, so it is read back off a run."""
+    import re
+
+    _, live, held, dropped = three_rounds(tmp_path)
+    _, text = run_lift(tmp_path, held, dropped, live=live)
+
+    low = re.search(r"source dropped\s+([\d.]+)%", text).group(1)
+    high = re.search(r"source held\s+([\d.]+)%", text).group(1)
+    gap = re.search(r"difference\s+([+-][\d.]+) points", text).group(1)
+
+    readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+    assert f"`{low}% without it, {high}%\nwith it, {gap} points`" in readme

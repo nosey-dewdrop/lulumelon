@@ -26,10 +26,25 @@ of the question. What the wording does is put the material in front of the
 model the way a retrieval step would, and then ask the question it would have
 been asked anyway.
 
-**A replica is its own surface.** Rounds collected this way are recorded under
-`replica`, so a snapshot mixing them with live answers is not a single
-condition and `mirror` refuses to pool it. The one place the two are compared
-is the gate, which exists to compare them and says so on screen.
+**A replica is its own surface, and so is each arm of one.** Rounds collected
+this way are recorded under a surface beginning `replica`, so a snapshot mixing
+them with live answers is not a single condition and `mirror` refuses to pool
+it. The one place the two are compared is the gate, which exists to compare
+them and says so on screen.
+
+The rest of that surface string is a digest of the exact material the arm was
+shown. Without it, two replica rounds sitting in a ledger are indistinguishable:
+the list a round was asked under lives only in the process that asked it, so an
+ablation's treatment would be a claim on the command line rather than a fact in
+the evidence file, and `without`'s refusal to remove nothing would guard the
+collection and nothing afterwards. With it, a later reader supplies the list it
+believes was used and the ledger either agrees or does not.
+
+The digest covers the wording as well as the sources, so an edit to the
+instruction changes it whether or not anybody remembered to bump the version
+beside it. The version number is there to be read; the digest is what binds.
+And because it is one-way, the ledger ends up proving which list was used
+without storing the customer's list.
 
 **An ablation that removes nothing is refused.** `without` raises when the
 source it was told to drop is not in the list. A silent no-op would produce two
@@ -40,15 +55,23 @@ return.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from typing import Sequence
 
 from .ask import Answer, Provider
 
-#: The surface a replica round is recorded under. Not one of the live doors,
-#: because it is not a door: nobody reaches an answer engine this way, and a
-#: number collected here must never be presented as what a user sees.
+#: The surface family a replica round is recorded under. Not one of the live
+#: doors, because it is not a door: nobody reaches an answer engine this way,
+#: and a number collected here must never be presented as what a user sees.
+#: A round's own surface extends this with the digest of what it was shown.
 REPLICA_SURFACE = "replica"
+
+#: Hex characters kept from the digest. Enough that two different lists
+#: colliding is not a thing that happens; short enough to read off a filename,
+#: since the surface goes into the snapshot id.
+FINGERPRINT_CHARS = 12
 
 #: Version of the wording below. Recorded with every replica round. Bump it for
 #: any edit at all, including punctuation: a replica is only comparable with
@@ -89,6 +112,62 @@ def replica_prompt(question: str, sources: Sequence[str]) -> str:
     return INSTRUCTION.format(sources=listed, question=question.strip())
 
 
+def source_fingerprint(
+    sources: Sequence[str],
+    *,
+    instruction_version: int = INSTRUCTION_VERSION,
+    instruction: str = INSTRUCTION,
+) -> str:
+    """A short, order-sensitive digest of exactly what one arm was shown.
+
+    Order is inside the digest because position in a supplied list is part of
+    the treatment, so the same three pages in a different order are a different
+    arm and have to be a different string.
+
+    The wording is inside it too. `INSTRUCTION_VERSION` asks a person to
+    remember; this does not need them to. Two arms built by instruments that
+    differ by a comma are not the same experiment, and here they cannot claim
+    to be.
+    """
+    if not sources:
+        raise ValueError("a replica arm with no sources has no treatment to fingerprint")
+    canonical = json.dumps(
+        [instruction_version, instruction, list(sources)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return digest[:FINGERPRINT_CHARS]
+
+
+def replica_surface(
+    sources: Sequence[str],
+    *,
+    instruction_version: int = INSTRUCTION_VERSION,
+    instruction: str = INSTRUCTION,
+) -> str:
+    """The surface one replica arm records itself under.
+
+    Reads as `replica-v1-3f2a...`: the family, the instrument version for a
+    human, and the digest that actually binds the round to its treatment.
+    """
+    fingerprint = source_fingerprint(
+        sources, instruction_version=instruction_version, instruction=instruction
+    )
+    return f"{REPLICA_SURFACE}-v{instruction_version}-{fingerprint}"
+
+
+def is_replica_surface(surface: str) -> bool:
+    """True for any laboratory surface, including rounds written before digests.
+
+    A bare `replica` is accepted here because it is one, and refusing to read it
+    would make an old evidence file unreadable rather than unverifiable. What it
+    cannot do is prove which list it was asked under, and the caller that needs
+    that proof asks for it separately rather than inferring it from this.
+    """
+    return surface == REPLICA_SURFACE or surface.startswith(f"{REPLICA_SURFACE}-")
+
+
 def without(sources: Sequence[str], drop: str) -> tuple[str, ...]:
     """The same list with one source removed, or an error saying it was not there.
 
@@ -120,8 +199,8 @@ class ReplicaProvider:
 
     base: Provider
     sources: tuple[str, ...]
-    surface: str = REPLICA_SURFACE
     instruction_version: int = INSTRUCTION_VERSION
+    surface: str = field(init=False)
     name: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -137,6 +216,12 @@ class ReplicaProvider:
                 f"the source list repeats {seen}: a page supplied twice is a page given "
                 "twice the room, which is a treatment nobody chose"
             )
+        # Derived, never accepted. A surface that can be passed in is a label
+        # that can be passed in wrong, and the one mistake worth engineering
+        # against here is two arms filed under one treatment.
+        self.surface = replica_surface(
+            self.sources, instruction_version=self.instruction_version
+        )
         self.name = self.base.name
 
     def ask(self, question: str) -> Answer:
@@ -161,10 +246,14 @@ class ReplicaProvider:
         )
 
     def dropping(self, source: str) -> "ReplicaProvider":
-        """The other arm: the same instrument with one source taken out."""
+        """The other arm: the same instrument with one source taken out.
+
+        The surface is not carried over. Handing the child its parent's label
+        would file two different treatments under one name, which is the exact
+        thing the label was added to prevent.
+        """
         return ReplicaProvider(
             base=self.base,
             sources=without(self.sources, source),
-            surface=self.surface,
             instruction_version=self.instruction_version,
         )

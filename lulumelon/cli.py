@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,9 +100,17 @@ def check_model_for(provider: str) -> str:
 #: the round will be collected under rather than a number chosen here.
 SEARCHES_PER_CALL = DEFAULT_MAX_SEARCHES
 
-#: Short and dull on purpose: a check call is billed like any other, so it asks
-#: for as few output tokens as a question can.
-CHECK_PROMPT = "Reply with the single word: ok"
+#: The check call asks a question that cannot be answered without looking
+#: something up, and caps the reply at a few words.
+#:
+#: A cheaper prompt was tried first and it proved less. "Reply with the word
+#: ok" shows that the key is accepted and nothing else, and the two ways this
+#: product actually fails on a new account are that the search tool is switched
+#: off for the organisation and that the search runs but returns nothing. Both
+#: of those pass a keys-only check and then break a whole round later. So the
+#: diagnostic exercises the path it is diagnosing, and the extra searches are
+#: cents against finding out on the first real measurement.
+CHECK_PROMPT = "Search the web, then answer in under ten words: what is today's date?"
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,20 +158,75 @@ def init(
     cwd: Path,
     home: Path,
     provider: str = "perplexity",
+    from_env: bool = False,
+    from_file: Path | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> int:
-    """Walk one person through storing one key, and confirm where it went."""
+    """Walk one person through storing one key, and confirm where it went.
+
+    **There has to be a way in that does not need a terminal.** The prompt this
+    used to insist on cannot hide what is typed unless it owns a tty, and the
+    places people actually run setup from now include editors, agent shells and
+    CI, none of which give it one. Asking anyway ended in a traceback with the
+    key half typed, which is the worst of both: nothing stored, and a secret
+    possibly echoed on its way to failing.
+
+    So the secret can arrive from the environment or from a file instead, and
+    the interactive path is what happens when a tty is there to make it safe.
+    Neither of the other two puts the key in shell history, which is the thing
+    the hidden prompt was protecting against in the first place.
+    """
     spec = spec_for(provider)
     console.say(f"lulu init — setting up {spec.name}")
     console.say()
-    console.say(f"1. Open {spec.key_page}")
-    console.say("2. Sign in, open the API Keys tab, and create a key.")
-    console.say("3. The key is shown once. Copy it, then paste it below.")
-    console.say()
-    console.say(f"   A {spec.name} key starts with {spec.key_prefix!r} ({spec.key_prefix_source}).")
-    console.say("   Nothing you type is echoed, logged, or sent anywhere except to the provider.")
-    console.say()
 
-    key = secret(f"Paste your {spec.name} API key: ").strip()
+    key = ""
+    if from_file is not None:
+        try:
+            key = from_file.read_text(encoding="utf-8").strip()
+        except OSError as e:
+            console.warn(f"Could not read {from_file}: {e}")
+            return 1
+        if not key:
+            console.warn(f"{from_file} is empty, so nothing was stored.")
+            return 1
+        console.say(f"Read the key from {from_file}. Delete that file once this finishes.")
+    elif from_env:
+        source = os.environ if env is None else env
+        for name in spec.env_names:
+            if source.get(name, "").strip():
+                key = source[name].strip()
+                console.say(f"Read the key from the environment variable {name}.")
+                break
+        if not key:
+            console.warn(
+                f"None of {', '.join(spec.env_names)} is set, so there was nothing to read."
+            )
+            return 1
+    else:
+        console.say(f"1. Open {spec.key_page}")
+        console.say("2. Sign in, open the API Keys tab, and create a key.")
+        console.say("3. The key is shown once. Copy it, then paste it below.")
+        console.say()
+        console.say(f"   Keys for {spec.name} start with {spec.key_prefix!r} ({spec.key_prefix_source}).")
+        console.say("   Nothing you type is echoed, logged, or sent anywhere except to the provider.")
+        console.say()
+        try:
+            key = secret(f"Paste your {spec.name} API key: ").strip()
+        except (EOFError, OSError):
+            # No tty, so the prompt could neither read the key nor promise to
+            # hide it. Say which of the other two doors to use rather than
+            # leaving a stack trace where the instructions should be.
+            console.warn("This shell has no terminal, so a hidden prompt is not possible here.")
+            console.warn("")
+            console.warn("Two ways in that do not echo the key and do not put it in shell history:")
+            console.warn(f"  1. Run the same command in a real terminal window.")
+            console.warn(f"  2. Put the key in a file, then run:")
+            console.warn(f"       lulu init --provider {spec.name} --from-file /path/to/keyfile")
+            console.warn(f"     and delete the file afterwards.")
+            console.warn("")
+            console.warn(f"  Already exported {spec.env_var}?  lulu init --provider {spec.name} --from-env")
+            return 1
     if not key:
         console.warn("No key entered, so nothing was stored.")
         return 1
@@ -245,13 +309,10 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | N
             f"  tokens ${price.input_per_mtok_usd:g} in / ${price.output_per_mtok_usd:g} out per million, "
             f"plus a fee of {price.fee_text}."
         )
-    console.say(f"Asking {spec.name} one question now.")
+    console.say(f"Asking {spec.name} one question that needs a search now.")
     console.say()
 
-    # One search at most. The call exists to prove the key spends and that the
-    # search tool is enabled on this account, and on an engine billed per search
-    # the default cap would let a diagnostic cost three times what it needs to.
-    answer = provider_for(spec.name, key, model=model, max_searches=1).ask(CHECK_PROMPT)
+    answer = provider_for(spec.name, key, model=model).ask(CHECK_PROMPT)
 
     if not answer.ok:
         console.say(f"The call failed after {answer.latency_ms} ms.")
@@ -264,6 +325,19 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | N
     console.say(f"It worked, in {answer.latency_ms} ms.")
     console.say(f"  model as reported by the response: {answer.model}")
     console.say(f"  reply: {answer.text.strip()[:120]}")
+
+    # The two failures a keys-only check would have called a success. Both are
+    # the product's own premise not holding on this account, so they are stated
+    # here rather than discovered on the first round that cost real money.
+    if answer.usage.searches is not None:
+        console.say(f"  searches it ran: {answer.usage.searches}")
+    if answer.citations:
+        console.say(f"  sources it returned: {len(answer.citations)}, first is {answer.citations[0]}")
+    else:
+        console.warn("  NO SOURCES. The call succeeded and came back with nothing to cite.")
+        console.warn("  This product measures which pages an answer travels with, so a round")
+        console.warn("  collected in this state would record every question as having none.")
+
     counted = answer.usage.input_tokens is not None and answer.usage.output_tokens is not None
     if counted:
         console.say(f"  tokens: {answer.usage.input_tokens} in, {answer.usage.output_tokens} out")
@@ -276,7 +350,16 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | N
         console.say("  cost: unknown, because no price for this model has been read from the provider")
         return 0
     elif counted:
-        cost = estimate(price, input_tokens=answer.usage.input_tokens, output_tokens=answer.usage.output_tokens)
+        cost = estimate(
+            price,
+            input_tokens=answer.usage.input_tokens,
+            output_tokens=answer.usage.output_tokens,
+            # What it actually cost, from what the provider says it did. On a
+            # per-search fee the call count is not the fee count, and quoting
+            # one call here would understate the bill by however many times the
+            # model chose to look.
+            fee_units=answer.usage.searches if answer.usage.searches is not None else 1,
+        )
     else:
         # No metered figure and no token counts. The request fee is still known
         # and is the larger term, so it is reported as the floor it is rather
@@ -947,6 +1030,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_init = sub.add_parser("init", help="store an API key and say where it was stored")
     p_init.add_argument("--provider", default="perplexity", help="which engine the key is for")
+    p_init.add_argument(
+        "--from-file",
+        default=None,
+        metavar="PATH",
+        help="read the key from this file instead of prompting; delete the file afterwards",
+    )
+    p_init.add_argument(
+        "--from-env",
+        action="store_true",
+        help="read the key from the provider's environment variable instead of prompting",
+    )
 
     p_doctor = sub.add_parser("doctor", help="find the key, test it, and price the call")
     p_doctor.add_argument("--provider", default="perplexity", help="which engine to check")
@@ -1075,6 +1169,8 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 cwd=cwd,
                 home=home,
                 provider=args.provider,
+                from_env=args.from_env,
+                from_file=Path(args.from_file) if args.from_file else None,
             )
         if args.command == "plan":
             return plan(
@@ -1138,6 +1234,11 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
         return 2
     except KeyboardInterrupt:
         console.warn("Stopped. Nothing was stored.")
+        return 130
+    except EOFError:
+        # A shell with no input left. Reported rather than raised, because the
+        # traceback would land where the next instruction should be.
+        console.warn("The input ended before the command finished. Nothing was stored.")
         return 130
 
 

@@ -235,3 +235,60 @@ def test_empty_input_is_an_error_not_a_zero() -> None:
         cluster_bootstrap_ci([])
     with pytest.raises(ValueError):
         cluster_bootstrap_ci([[], []])
+
+
+def test_the_collapsed_path_and_the_general_one_return_the_same_interval() -> None:
+    """The default statistic is resampled on collapsed means, and must not drift.
+
+    Handing in a callable that computes the same quantity routes through the
+    general loop instead. Anything other than an exact match would mean one
+    number for a caller who named the statistic and another for a caller who
+    took the default, on the same data and the same seed.
+    """
+    from lulumelon.mirror.intervals import _prompt_weighted_mean
+
+    rng = np.random.default_rng(11)
+    for n, k in ((5, 2), (17, 4), (40, 9)):
+        clusters = [list(rng.integers(0, 2, size=k).astype(float)) for _ in range(n)]
+        for confidence in (0.95, 0.99):
+            fast = cluster_bootstrap_ci(
+                clusters, resamples=800, confidence=confidence, seed=3
+            )
+            general = cluster_bootstrap_ci(
+                clusters,
+                lambda cs: _prompt_weighted_mean(cs),
+                resamples=800,
+                confidence=confidence,
+                seed=3,
+            )
+            assert (fast.point, fast.low, fast.high) == (
+                general.point,
+                general.low,
+                general.high,
+            )
+
+
+def test_the_resample_count_follows_the_confidence_level() -> None:
+    """A percentile cannot be read off a tail that was never populated."""
+    from lulumelon.mirror.intervals import TAIL_DRAWS, resamples_for
+
+    assert resamples_for(0.95) == 4000
+    assert resamples_for(0.99) == 20_000
+    for confidence in (0.90, 0.95, 0.99, 0.995, 1.0 - 0.05 / 8):
+        tail = resamples_for(confidence) * (1.0 - confidence) / 2.0
+        assert tail >= TAIL_DRAWS
+
+
+def test_a_wider_family_never_asks_for_fewer_draws() -> None:
+    from lulumelon.mirror.intervals import resamples_for
+
+    counts = [resamples_for(1.0 - 0.05 / m) for m in (1, 2, 5, 10)]
+    assert counts == sorted(counts)
+
+
+@pytest.mark.parametrize("bad", [0.0, 1.0, -0.1, 1.5])
+def test_resamples_for_rejects_impossible_confidence(bad: float) -> None:
+    from lulumelon.mirror.intervals import resamples_for
+
+    with pytest.raises(ValueError):
+        resamples_for(bad)

@@ -33,6 +33,32 @@ def z_for(confidence: float) -> float:
     return float(stats.norm.ppf(0.5 + confidence / 2.0))
 
 
+#: Draws a tail must contain before a percentile read off it means anything.
+#: A hundred is the usual working figure for a stable endpoint; below about
+#: twenty the endpoint is mostly which draw happened to land furthest out.
+TAIL_DRAWS = 100
+
+
+def resamples_for(confidence: float, *, floor: int = 2000, tail_draws: int = TAIL_DRAWS) -> int:
+    """Bootstrap draws needed for the endpoints of `confidence` to be populated.
+
+    A percentile interval does not compute its endpoints, it reads them off the
+    bootstrap distribution, so each tail has to contain enough draws to place
+    one. At 95% with 2000 resamples a tail holds about fifty draws, which is
+    thin but workable. Hold five intervals at once and the family-wide level
+    moves to 99%, where those same 2000 draws leave five draws per tail and the
+    endpoint is mostly luck. The resample count therefore follows the confidence
+    level instead of sitting at a constant, because the constant is only ever
+    right for the one confidence level it was chosen at.
+    """
+    if not 0.0 < confidence < 1.0:
+        raise ValueError(f"confidence must be in (0, 1), got {confidence}")
+    if floor < 1 or tail_draws < 1:
+        raise ValueError("floor and tail_draws must both be positive")
+    half = (1.0 - confidence) / 2.0
+    return max(floor, math.ceil(tail_draws / half))
+
+
 @dataclass(frozen=True, slots=True)
 class Interval:
     """A point estimate that refuses to travel without its uncertainty."""
@@ -144,11 +170,22 @@ def cluster_bootstrap_ci(
     n = len(non_empty)
     point = statistic(non_empty)
 
-    draws = np.empty(resamples, dtype=float)
     idx_matrix = rng.integers(0, n, size=(resamples, n))
-    for b in range(resamples):
-        picked = [non_empty[i] for i in idx_matrix[b]]
-        draws[b] = statistic(picked)
+    if statistic is _prompt_weighted_mean:
+        # The default statistic is the mean of the per-cluster means, so the
+        # clusters can be collapsed once and the resampling done on the means.
+        # Same draws, same order, same arithmetic; the loop below is the same
+        # expression evaluated one row at a time. It is kept for statistics
+        # that cannot be collapsed, and skipped for the one that can, because
+        # a family-wide interval needs ten times the draws and paying for them
+        # in a Python loop is how a correction gets dropped for being slow.
+        means = np.array([c.mean() for c in non_empty], dtype=float)
+        draws = means[idx_matrix].mean(axis=1)
+    else:
+        draws = np.empty(resamples, dtype=float)
+        for b in range(resamples):
+            picked = [non_empty[i] for i in idx_matrix[b]]
+            draws[b] = statistic(picked)
 
     alpha = (1.0 - confidence) / 2.0
     low, high = np.quantile(draws, [alpha, 1.0 - alpha])

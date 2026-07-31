@@ -45,7 +45,12 @@ from typing import Protocol
 from ..keys import redact
 
 #: Values allowed in `Run.surface`. Anything else is a bug in a provider.
-SURFACES = ("logged_in", "logged_out", "api", "unspecified")
+#:
+#: `replica` is not a door anybody reaches an engine through. It marks a round
+#: collected with the sources supplied as context, which is a laboratory
+#: condition, and it is a surface so that `mirror` treats a snapshot mixing it
+#: with live answers as the mixed condition it is rather than pooling the two.
+SURFACES = ("logged_in", "logged_out", "api", "replica", "unspecified")
 
 UNKNOWN_MODEL = "unknown"
 

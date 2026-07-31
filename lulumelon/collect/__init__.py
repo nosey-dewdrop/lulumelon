@@ -21,10 +21,21 @@ from .ledger import (
     storable,
 )
 from .replay import Replay, replay
+from .replica import (
+    INSTRUCTION,
+    INSTRUCTION_VERSION,
+    REPLICA_SURFACE,
+    ReplicaProvider,
+    replica_prompt,
+    without,
+)
 from .session import Prompt, RoundResult, run_round, utc_now
 
 __all__ = [
     "GENESIS",
+    "INSTRUCTION",
+    "INSTRUCTION_VERSION",
+    "REPLICA_SURFACE",
     "HASHED_FIELDS",
     "SCHEMA_VERSION",
     "SURFACES",
@@ -39,6 +50,7 @@ __all__ = [
     "Provider",
     "Record",
     "Replay",
+    "ReplicaProvider",
     "RoundResult",
     "UnknownSchemaVersion",
     "Usage",
@@ -47,8 +59,10 @@ __all__ = [
     "normalise",
     "occurrences",
     "replay",
+    "replica_prompt",
     "run_round",
     "scrub",
     "storable",
     "utc_now",
+    "without",
 ]

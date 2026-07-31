@@ -232,6 +232,25 @@ def test_doctor_prices_from_the_published_table_when_the_provider_is_silent(tmp_
     assert "read 2026-07-31" in text
 
 
+def test_doctor_survives_a_response_that_reports_no_usage_at_all(tmp_path: Path, monkeypatch):
+    """The first-run experience of a user whose provider renamed a field.
+
+    There is nothing to add the token term from, so the fee is reported as the
+    floor it is. Padding it out with zero tokens would print a number that
+    reads like an invoice and is missing a term.
+    """
+    (tmp_path / ".env").write_text(f"PERPLEXITY_API_KEY={KEY}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        answering({"model": "sonar", "choices": [{"message": {"content": "ok"}}]}),
+    )
+    rec = Recorder()
+    assert run_doctor(rec, tmp_path) == 0
+    assert "did not report them" in rec.text
+    assert "no call metered yet" in rec.text
+
+
 def test_doctor_turns_a_rejected_key_into_something_to_do(tmp_path: Path, monkeypatch):
     (tmp_path / ".env").write_text(f"PERPLEXITY_API_KEY={KEY}\n", encoding="utf-8")
     body = json.dumps({"error": {"message": "Invalid API key provided.", "code": 401}})

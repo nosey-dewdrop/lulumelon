@@ -123,11 +123,43 @@ class Cost:
 
 
 def estimate(price: Price, *, input_tokens: int, output_tokens: int, requests: int = 1) -> Cost:
-    """Token cost plus the per-request fee band, from the published rates."""
+    """Token cost plus the per-request fee band, from the published rates.
+
+    Both token counts are required and must be known. Passing zero for a count
+    nobody measured produces a figure that looks like an invoice and is missing
+    a term, so an unknown count is refused here and priced by `request_fees`
+    instead, which says out loud that it is a floor.
+    """
+    if input_tokens is None or output_tokens is None:
+        raise ValueError(
+            "estimate needs both token counts; an unmeasured call has no token cost to add, "
+            "so use request_fees() and let the result say it is a floor"
+        )
     tokens = (input_tokens * price.input_per_mtok_usd + output_tokens * price.output_per_mtok_usd) / MILLION
     low = tokens + requests * price.request_fee_per_k_low_usd / 1000
     high = tokens + requests * price.request_fee_per_k_high_usd / 1000
     return Cost(low_usd=low, high_usd=high, measured=False, basis=f"published rates, {price.provenance()}")
+
+
+def request_fees(price: Price, requests: int = 1) -> Cost:
+    """What the calls cost before a single token is counted.
+
+    Used when nothing has been metered yet. It is the same arithmetic as
+    `estimate` with the token term dropped, and the only difference that
+    matters is the label: this result is a floor, and a floor presented as an
+    estimate is how a quote turns into a surprise.
+
+    For a search-grounded model the floor is most of the bill. At the published
+    rates one `sonar` call is half a cent to over a cent in fees and a small
+    fraction of that in tokens, which is why the missing term is not the one
+    that decides whether a measurement is affordable.
+    """
+    return Cost(
+        low_usd=requests * price.request_fee_per_k_low_usd / 1000,
+        high_usd=requests * price.request_fee_per_k_high_usd / 1000,
+        measured=False,
+        basis=f"request fees only, no call metered yet; {price.provenance()}",
+    )
 
 
 def reported(amount_usd: float) -> Cost:

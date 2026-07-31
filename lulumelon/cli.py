@@ -42,7 +42,7 @@ from .keys import (
     spec_for,
     write_env_file,
 )
-from .prices import estimate, price_for, reported
+from .prices import estimate, price_for, reported, request_fees
 
 #: The model a check call uses. The cheapest search-grounded model on the price
 #: table, because the point of the call is to prove the key spends, not to get
@@ -212,18 +212,24 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str = C
     console.say(f"It worked, in {answer.latency_ms} ms.")
     console.say(f"  model as reported by the response: {answer.model}")
     console.say(f"  reply: {answer.text.strip()[:120]}")
-    if answer.usage.known:
+    counted = answer.usage.input_tokens is not None and answer.usage.output_tokens is not None
+    if counted:
         console.say(f"  tokens: {answer.usage.input_tokens} in, {answer.usage.output_tokens} out")
     else:
-        console.say("  tokens: the response did not report any")
+        console.say("  tokens: the response did not report them")
 
     if answer.usage.cost_usd is not None:
         cost = reported(answer.usage.cost_usd)
-    elif price is not None:
-        cost = estimate(price, input_tokens=answer.usage.input_tokens, output_tokens=answer.usage.output_tokens)
-    else:
+    elif price is None:
         console.say("  cost: unknown, because no price for this model has been read from the provider")
         return 0
+    elif counted:
+        cost = estimate(price, input_tokens=answer.usage.input_tokens, output_tokens=answer.usage.output_tokens)
+    else:
+        # No metered figure and no token counts. The request fee is still known
+        # and is the larger term, so it is reported as the floor it is rather
+        # than padded out with zero tokens and called an estimate.
+        cost = request_fees(price)
     console.say(f"  cost of this call: {cost.as_text()}")
     return 0
 

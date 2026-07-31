@@ -12,7 +12,7 @@ from pathlib import Path
 
 from lulumelon.cli import build_parser
 from lulumelon.keys import KEYCHAIN_SERVICE, spec_for
-from lulumelon.prices import PRICES, estimate, price_for
+from lulumelon.prices import PRICES, price_for, request_fees
 
 DOCS = Path(__file__).resolve().parents[2] / "docs" / "keys.md"
 TEXT = DOCS.read_text(encoding="utf-8")
@@ -53,11 +53,18 @@ def test_the_page_says_when_the_prices_were_read():
 
 
 def test_the_cost_of_a_first_measurement_is_the_one_the_code_computes():
-    """The page quotes a figure for 200 calls. It is recomputed here."""
+    """The page quotes a figure for 200 calls. It is recomputed here.
+
+    Through `request_fees`, not `estimate` with zero tokens. The page says
+    "in request fees plus a few cents of tokens", which is the truth; computing
+    it with a fabricated zero token count would have produced the same digits
+    under a label that claims the tokens were counted.
+    """
     price = price_for("perplexity", "sonar")
     assert price is not None
-    cost = estimate(price, input_tokens=0, output_tokens=0, requests=200)
+    cost = request_fees(price, requests=200)
     assert f"${cost.low_usd:.2f} to ${cost.high_usd:.2f}" in TEXT
+    assert "in request fees" in TEXT, "the page must not present a floor as a total"
 
 
 def test_every_command_the_page_tells_you_to_run_is_a_real_command():

@@ -60,6 +60,12 @@ class Usage:
     page says the final cost is metered from the response's usage field, so
     when that figure is present it is used verbatim; filling it in from a price
     table and calling it metered would turn our arithmetic into their invoice.
+
+    The names are read from Perplexity's published OpenAPI rather than guessed
+    at. They are still read defensively, in order, because the shape has gone
+    missing in production before: the fields stopped arriving on 19 December
+    2025 and were restored the same day. A spec says what should come back, not
+    what did.
     """
 
     input_tokens: int | None = None
@@ -166,20 +172,36 @@ class FakeProvider:
 
 # -- perplexity sonar -------------------------------------------------------
 
-#: Fields Perplexity has used for the source list across API versions. Read in
-#: order, first hit wins. Listed rather than assumed because a rename would
-#: otherwise show up as "this question has no sources", which is a measurement
-#: claim we would be making by accident.
-_CITATION_FIELDS = ("citations", "search_results")
+#: Fields Perplexity has used for the source list, newest first. The changelog
+#: says `citations` "has been fully deprecated and removed" in favour of
+#: `search_results`, while the published OpenAPI for the same endpoint still
+#: declares `citations`. The two documents disagree, so both are read and the
+#: current one is read first. A rename that went unnoticed would show up as
+#: "this question has no sources", which is a measurement claim we would be
+#: making by accident.
+_CITATION_FIELDS = ("search_results", "citations")
 
 
-#: Names the token counts have appeared under. Read in order, first hit wins,
-#: for the same reason the citation fields are listed: a rename must show up as
-#: "unknown", never as zero, because zero tokens is a cost claim.
+#: Token count names, read in order, first hit wins. Both pairs are documented,
+#: in different APIs: `prompt_tokens`/`completion_tokens` are required in the
+#: Sonar response, `input_tokens`/`output_tokens` are required in the Agent
+#: API's. Reading both is what lets one provider class survive the migration
+#: between them. A name we cannot find must show up as unknown, never as zero,
+#: because zero tokens is a cost claim.
 _INPUT_TOKEN_FIELDS = ("prompt_tokens", "input_tokens")
 _OUTPUT_TOKEN_FIELDS = ("completion_tokens", "output_tokens")
-#: Where the provider's own total, when it reports one, has been seen.
-_COST_PATHS = (("cost", "total_cost"), ("cost", "total_cost_usd"), ("total_cost",))
+
+#: Where the provider states the amount it billed. `usage.cost.total_cost` is
+#: required in both the Sonar and the Agent API response schemas; nothing else
+#: is documented anywhere, so nothing else is looked for. Guessing at extra
+#: names costs nothing until one of them accidentally matches.
+#:
+#: `usage.cost.request_cost` is documented too, and is the number that matters
+#: most for this product: it is the per-search charge, and the provider's own
+#: example shows it a hundred times larger than the token cost. It is not
+#: stored yet on purpose. The schema a figure lands in should be settled by a
+#: real response rather than by a specification, and no call has been made.
+_COST_PATHS = (("cost", "total_cost"),)
 
 
 def _first_int(d: dict, names: tuple[str, ...]) -> int | None:
@@ -254,8 +276,24 @@ class PerplexityProvider:
 
     Recorded honestly: this is the **api** surface. It is not what a person
     typing into a browser sees, and the published gap between those two is
-    larger than the noise we are here to measure. Treating this number as the
-    user-facing one would be the same mistake the category makes.
+    larger than the noise we are here to measure. A number collected here is a
+    number about this door.
+
+    On the endpoint. Two routes answer: `/chat/completions`, which is what this
+    code used to post to, and `/v1/sonar`, which is the one the reference
+    documents. Both are live — an unauthenticated probe returns 401 from each
+    and 404 from a made-up path, so routing happens before auth and neither is
+    gone. `/v1/sonar` is used because it is the documented one: an undocumented
+    route gets no deprecation notice, and the response shape this class parses
+    is only specified for the documented one.
+
+    Sonar itself is soft-deprecated in favour of the Agent API, with no
+    retirement date published anywhere. That migration is not made here, and
+    the reason is that the Agent API's presets are unversioned by design — the
+    docs say a preset name "always resolves to the latest recommended
+    configuration". An instrument whose units change under it when the vendor
+    ships is not an instrument, so any move there has to pin an explicit model
+    id rather than a preset.
     """
 
     #: `repr=False` is not cosmetic. A dataclass prints its fields, so a
@@ -265,7 +303,7 @@ class PerplexityProvider:
     name: str = "perplexity"
     surface: str = "api"
     model: str = "sonar"
-    endpoint: str = "https://api.perplexity.ai/chat/completions"
+    endpoint: str = "https://api.perplexity.ai/v1/sonar"
     timeout_s: float = 45.0
 
     def ask(self, prompt: str) -> Answer:

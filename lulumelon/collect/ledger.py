@@ -110,7 +110,43 @@ class UnknownSchemaVersion(LedgerFormatError):
 
 
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]{2,}\b")
-_PHONE = re.compile(r"(?<![\w.])(?:\+\d{1,3}[ .-]?)?(?:\(\d{2,4}\)[ .-]?)?\d{3}[ .-]?\d{2,4}[ .-]?\d{2,4}(?![\w.])")
+
+#: Digits a run has to carry before it is a phone number rather than a figure.
+#: Seven is the shortest subscriber number still in service; E.164 caps the
+#: whole thing, country code included, at fifteen.
+_PHONE_DIGITS = range(7, 16)
+
+#: Characters allowed between the digits of one number. A full stop is
+#: deliberately not among them: it is how a decimal is written, and a rule that
+#: took it would redact `0.005182` out of an answer about money.
+_PHONE_GROUPING = "\u00a0 ()-"
+
+#: A run of digits and grouping characters, bounded so it cannot begin inside a
+#: word, a decimal or a URL path. Whether it is a phone number is then decided
+#: by `_is_phone`, from the digits it carries: what separates a number somebody
+#: can be reached on from a figure is how many digits it has, and that is a
+#: count rather than a shape. The previous pattern here was a shape, and it left
+#: `+90 532 111 22 33` on disk as `[phone] 33`.
+_PHONE_CANDIDATE = re.compile(r"(?<![\w./=])\(?\+?\d[\d\u00a0 ()-]{4,24}\d(?!\w)")
+
+
+def _is_phone(candidate: str) -> bool:
+    """Whether one candidate run is a number somebody could be reached on.
+
+    Three ways to qualify and a bare eight-digit run is none of them: an
+    international prefix, digits written in groups, or enough digits that
+    nothing else is plausibly that long. The last clause catches `05321112233`
+    typed without spaces, and it begins at ten rather than seven because an
+    ungrouped seven-digit run is more often an identifier.
+    """
+    digits = sum(ch.isdigit() for ch in candidate)
+    if digits not in _PHONE_DIGITS:
+        return False
+    return (
+        candidate.lstrip("(").startswith("+")
+        or any(ch in _PHONE_GROUPING for ch in candidate)
+        or digits >= 10
+    )
 
 
 #: Surrogates in this range are how `surrogateescape` carries a byte that is
@@ -155,9 +191,14 @@ def scrub(text: str) -> str:
     number. Redaction happens before the hash is computed, so the unscrubbed
     text never exists on disk and never enters the chain, which also means it
     cannot be removed afterwards without reforging the tail.
+
+    A redaction that leaves part of the thing behind has not redacted it, so
+    the phone rule replaces a whole run or none of it.
     """
     text = _EMAIL.sub("[email]", text)
-    return _PHONE.sub("[phone]", text)
+    return _PHONE_CANDIDATE.sub(
+        lambda m: "[phone]" if _is_phone(m.group(0)) else m.group(0), text
+    )
 
 
 @dataclass(frozen=True, slots=True)

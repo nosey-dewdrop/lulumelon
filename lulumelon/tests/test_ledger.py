@@ -228,3 +228,49 @@ def test_contact_details_are_stripped_before_the_hash(led):
 def test_scrub_leaves_ordinary_text_alone():
     text = "Marx ranked 2nd in 2026 with 41% share of voice."
     assert scrub(text) == text
+
+
+#: Formats a contact page plausibly carries. The first one is why this list
+#: exists: the rule this replaced matched a shape three groups long, so a
+#: four-group number came out of it as `[phone] 33`, and half a phone number on
+#: disk is a phone number on disk.
+REACHABLE = [
+    "Reach them at +90 532 111 22 33.",
+    "call 0532 111 22 33 today",
+    "+1 (555) 123-4567",
+    "555-123-4567",
+    "(0212) 555 12 34",
+    "05321112233",
+    "+44 20 7946 0958",
+    "tel: +90-532-111-22-33",
+]
+
+#: Figures this product prints about itself, which a redactor counting shapes
+#: rather than digits would eat. A scrub that damages an answer damages the
+#: evidence the whole repo exists to keep, so it is held to both directions.
+FIGURES = [
+    "per call $0.005182 across 4 records",
+    "1.2 +/- 0.45 and 56.6% - 100.0%",
+    "sonar is $1 in / $1 out per 1M tokens, plus $5 to $12 per 1000 requests",
+    "snapshot marx__fake__api__20260731T205245Z__0001",
+    "https://a.example/guide/1234567",
+    "https://a.example/p?id=12345678901",
+    "icc 0.0603, 1360/2720 calls",
+    "the round asked 120 of 120 and dropped 0",
+    "0 of 5 is not 0%, it is compatible with 43.4%",
+]
+
+
+@pytest.mark.parametrize("text", REACHABLE)
+def test_a_phone_number_is_removed_whole_or_not_at_all(text: str):
+    scrubbed = scrub(text)
+    assert "[phone]" in scrubbed
+    left_behind = scrubbed.replace("[phone]", "")
+    assert not any(ch.isdigit() for ch in left_behind), (
+        f"{left_behind!r} still carries part of the number"
+    )
+
+
+@pytest.mark.parametrize("text", FIGURES)
+def test_the_figures_this_product_prints_survive_the_scrub(text: str):
+    assert scrub(text) == text

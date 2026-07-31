@@ -19,11 +19,23 @@ before it.
 **What the chain does and does not promise.** Every line present is checked
 against its own content and against the line before it, so altering a record in
 the middle of a file costs a rewrite of every record after it. That is the
-property that makes an old measurement expensive to fake. It is not a
-completeness guarantee: removing lines from the *end* of a file leaves nothing
-behind to notice, because no record states how long the round was meant to be.
-That hole is named in `tests/test_ledger.py` as a failing test rather than a
-comment, and it closes when a round learns to seal its own length.
+property that makes an old measurement expensive to fake.
+
+That much was never a completeness guarantee. Removing lines from the *end* of
+a file left nothing behind to notice, because no record stated how long the
+round was meant to be, and the next honest append sealed onto the new tail and
+made the loss permanent. So a round now closes with a record of its own:
+`status="round_end"`, carrying how many calls it made and how they came out. It
+is a link in the same chain as the answers, so it cannot be lifted off one
+round and reattached to another, and it is the first thing a cut tail takes
+with it. A round that ends without one is reported as unfinished or short.
+
+The limit of that is exact and is stated rather than glossed. It covers rounds
+written by a build that seals, which is every round from schema v3 on. A
+snapshot whose records all predate the seal is read as what it is: an honest
+file whose length was never stated, where a removal still leaves no trace.
+Reporting those as damaged would mean calling every round anybody collected
+before today tampered with, which is a louder falsehood than the one it fixes.
 
 Runs that failed are recorded with `status="error"` instead of being dropped.
 Dropping them looks tidy and quietly biases the measurement: an engine that
@@ -48,17 +60,30 @@ import json
 import math
 import os
 import re
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import dataclass, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Iterator
 
 from .ask import Usage
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 #: First link of a chain. Any value works as long as it is fixed and obvious.
 GENESIS = "0" * 64
+
+#: The status the closing record of a round carries. A status rather than a
+#: separate file, so the seal is inside the chain it is sealing: a seal kept
+#: beside the round could be deleted on its own, and one that is not hashed
+#: into the tail could be copied off a longer round onto a shorter one.
+ROUND_END = "round_end"
+
+#: First schema that closes a round with a seal. Below it a snapshot with no
+#: seal is an honest file from an older build; from it on, a snapshot with no
+#: seal is a round that did not finish or a round that lost its tail. The
+#: difference decides whether `verify` reports one, so it is a named constant
+#: rather than a literal buried in the check.
+SEALING_VERSION = 3
 
 #: Subject a diagnostic round is filed under. A check call costs money and so
 #: belongs on the record, but it is not a measurement: it asks about the
@@ -78,7 +103,7 @@ def is_diagnostic(snapshot_id: str) -> bool:
 
 # -- what each version hashed ------------------------------------------------
 #
-# Both rows are spelled out in full. Writing `_V2 = _V1 | {...}` would be
+# Every row is spelled out in full. Writing `_V2 = _V1 | {...}` would be
 # shorter and would mean that deleting one name from the v1 line silently
 # rewrites two promises at once. A row is a statement about bytes that are
 # already on disk, so it is a literal a diff can show.
@@ -101,10 +126,21 @@ _V2 = frozenset(
     }
 )
 
+_V3 = frozenset(
+    {
+        "snapshot_id", "seq", "prompt_id", "repeat", "engine", "surface",
+        "model", "asked_at", "status", "latency_ms", "answer_text",
+        "brands", "citations", "provider", "error",
+        "input_tokens", "output_tokens", "search_context", "reported_cost_usd",
+        "searches", "round_asked", "round_ok", "round_errors",
+        "prev_hash", "v",
+    }
+)
+
 #: Version -> the field names that version put inside its sha256. Frozen rows
 #: are pinned against a golden file in `tests/test_ledger_golden.py`, so an edit
 #: here fails the suite instead of turning a customer's archive red.
-HASHED_FIELDS: dict[int, frozenset[str]] = {1: _V1, 2: _V2}
+HASHED_FIELDS: dict[int, frozenset[str]] = {1: _V1, 2: _V2, 3: _V3}
 
 
 class LedgerFormatError(ValueError):
@@ -219,18 +255,39 @@ def scrub(text: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class Record:
-    """One ask, written whole.
+    """One ask, written whole, or the record that closes a round.
 
     This is a superset of `mirror.Run`. The engine consumes the analysable
     subset; the ledger keeps the rest so a number can be traced back to the
     sentence that produced it, and so a dollar figure can be traced back to the
     call that was billed.
 
-    The four usage fields default to `None`, never to `0`. A zero token count
-    is a claim that the provider metered the call and it cost nothing; `None`
-    is the absence of a claim. Keeping them apart is the difference between "we
-    did not observe this" and "we observed nothing", and only one of those is
+    The usage fields default to `None`, never to `0`. A zero token count is a
+    claim that the provider metered the call and it cost nothing; `None` is the
+    absence of a claim. Keeping them apart is the difference between "we did
+    not observe this" and "we observed nothing", and only one of those is
     honest when a provider renames a field.
+
+    **`searches` is stored from v3 on, and `request_cost` is not.** Both were
+    carried in memory and written nowhere, and the rule for settling that is
+    that a real response decides which schema a figure lands in, not a
+    specification. The first billed call this repo ever made went to Anthropic
+    and reported `server_tool_use.web_search_requests`, so the search count is
+    an observed figure, and it is the one a per-search fee multiplies: without
+    it a round priced off the ledger charges one fee per call while the live
+    budget guard charges one per search, and the two money paths disagree about
+    the same round. `usage.cost.request_cost` is documented in Perplexity's
+    published OpenAPI and has never arrived here, because no Perplexity
+    response has ever been read by this build. A column reserved for a name
+    that no response has used is worse than no column: every row would carry it
+    as `None`, which in this file means "the provider was asked and said
+    nothing", and nobody asked. It lands in the version whose first real
+    response carries it.
+
+    A record with `status="round_end"` is the seal, not an ask. It states what
+    the round did, how many calls it made and how they came out, so a file can
+    be checked against its own length. It carries no answer, so nothing
+    downstream can read it as an observation.
     """
 
     snapshot_id: str
@@ -252,6 +309,10 @@ class Record:
     output_tokens: int | None = None
     search_context: str | None = None
     reported_cost_usd: float | None = None
+    searches: int | None = None
+    round_asked: int | None = None
+    round_ok: int | None = None
+    round_errors: int | None = None
     prev_hash: str = GENESIS
     hash: str = ""
     v: int = SCHEMA_VERSION
@@ -276,6 +337,48 @@ class Record:
         if self.reported_cost_usd is not None and not math.isfinite(self.reported_cost_usd):
             raise ValueError(
                 "reported_cost_usd must be finite; a non-finite cost is neither JSON nor money"
+            )
+        if self.is_seal:
+            self._check_seal()
+        elif any(n is not None for n in (self.round_asked, self.round_ok, self.round_errors)):
+            raise ValueError(
+                "only the record that closes a round states what the round did; a single ask "
+                "carrying those counts is one call making a claim about all of them"
+            )
+
+    @property
+    def is_seal(self) -> bool:
+        """Whether this record closes a round rather than recording an ask."""
+        return self.status == ROUND_END
+
+    def _check_seal(self) -> None:
+        """Refuse a seal that seals nothing.
+
+        A seal is read as evidence about the length of a file, so the three
+        ways it could be meaningless are refused where it is built rather than
+        found later by whoever is checking an archive: a schema with nowhere to
+        put the counts, counts that do not add up, and an answer smuggled into
+        a record that everything downstream skips.
+        """
+        if "round_asked" not in HASHED_FIELDS[self.v]:
+            raise ValueError(
+                f"a v{self.v} record cannot close a round: that schema has nowhere to put the "
+                "counts, so the seal would state nothing and still look like one"
+            )
+        for name in ("round_asked", "round_ok", "round_errors"):
+            value = getattr(self, name)
+            # `type(...) is not int` again: a JSON `true` counts as one call.
+            if type(value) is not int or value < 0:
+                raise ValueError(f"a round is sealed with a count of calls; {name} is {value!r}")
+        if self.round_ok + self.round_errors != self.round_asked:
+            raise ValueError(
+                f"a seal whose parts do not add up seals nothing: {self.round_ok} answered and "
+                f"{self.round_errors} failed is not {self.round_asked} asked"
+            )
+        if self.answer_text or self.brands or self.citations:
+            raise ValueError(
+                "a seal is not an answer: it carries no text, no brands and no citations, so "
+                "nothing that reads a round can take one for an observation"
             )
 
     def payload(self) -> dict:
@@ -323,8 +426,12 @@ class Record:
             allow_nan=False,
         )
 
-    def sealed(self, prev_hash: str) -> "Record":
-        """A copy linked to `prev_hash` and carrying its own digest."""
+    def linked(self, prev_hash: str) -> "Record":
+        """A copy pointing at `prev_hash` and carrying its own digest.
+
+        Named for the chain rather than for sealing, now that a seal is a
+        particular record in this file and not a thing done to every one.
+        """
         linked = replace(self, prev_hash=prev_hash, hash="")
         return replace(linked, hash=linked.digest())
 
@@ -345,6 +452,10 @@ class Record:
             output_tokens=self.output_tokens,
             search_context=self.search_context,
             cost_usd=self.reported_cost_usd,
+            # None on a v2 row for the same reason the tokens are None on a v1
+            # row: that schema had nowhere to put it, so the silence is this
+            # build's and not the provider's.
+            searches=self.searches,
         )
 
 
@@ -399,7 +510,16 @@ def decode(raw: object) -> Record:
     d["hash"] = raw.get("hash", "")
     d["brands"] = tuple(d.get("brands") or ())
     d["citations"] = tuple(d.get("citations") or ())
-    return Record(**d)
+    try:
+        return Record(**d)
+    except LedgerFormatError:
+        raise
+    except ValueError as e:
+        # A line whose keys are all present can still be nonsense: a seal whose
+        # counts do not add up, a cost of NaN. Those are refusals about a line
+        # in a file, so they leave here as the error `read` names with a line
+        # number, rather than as a bare ValueError from a constructor.
+        raise LedgerFormatError(str(e)) from e
 
 
 class Ledger:
@@ -488,8 +608,13 @@ class Ledger:
 
         Old schema versions are read forever and written never. A build that
         could still write v1 would be a build that could quietly downgrade a
-        round, and the four fields this version added are the ones a cost claim
-        rests on.
+        round, and the fields the later versions added are the ones a cost
+        claim and a length claim rest on.
+
+        A sealed round takes nothing more. Its last record states how many
+        calls it made, so a further append would make the file disagree with
+        its own seal from the moment it landed; the next round is the next
+        snapshot, which is what this directory has always been for.
         """
         if record.v != SCHEMA_VERSION:
             raise ValueError(
@@ -498,11 +623,20 @@ class Ledger:
             )
         path = self.path_of(snapshot_id)
         is_new = not path.exists()
-        tail = self.tail_hash(snapshot_id)
-        sealed = replace(
+        # One parse of the file for all three things the new record needs: what
+        # it points at, what number it is, and whether the round is still open.
+        existing = list(self.read(snapshot_id))
+        if existing and existing[-1].is_seal:
+            raise ValueError(
+                f"{snapshot_id} is sealed: its last record states that the round made "
+                f"{existing[-1].round_asked} calls, and a round that has stated its length "
+                "cannot be given another one. open the next snapshot instead"
+            )
+        tail = existing[-1].hash if existing else GENESIS
+        written = replace(
             record,
             snapshot_id=snapshot_id,
-            seq=self.count(snapshot_id),
+            seq=len(existing),
             answer_text=scrub(storable(record.answer_text)),
             # The provider's error body reaches here with up to a few hundred
             # characters of its own words, which have quoted a contact address
@@ -510,18 +644,63 @@ class Ledger:
             error=scrub(storable(record.error)),
             prev_hash=tail,
             hash="",
-        ).sealed(tail)
+        ).linked(tail)
         # `surrogateescape` on the way out as well as in. A model answer has
         # arrived carrying an unpaired surrogate before now; refusing it here
         # would abort the round at that ask and leave a stump on disk that
         # looks exactly like a completed one.
         with open(path, "a", encoding="utf-8", errors="surrogateescape") as fh:
-            fh.write(sealed.as_line() + "\n")
+            fh.write(written.as_line() + "\n")
             fh.flush()
             os.fsync(fh.fileno())
         if is_new:
             self._fsync_dir()
-        return sealed
+        return written
+
+    def seal(
+        self, snapshot_id: str, *, asked: int, ok: int, errors: int, at: str = ""
+    ) -> Record:
+        """Close a round by writing down how many calls it made.
+
+        This is the record that makes a short file readable as short. It goes
+        through `append`, so it is hashed onto the tail of the round it closes
+        and cannot be lifted off a longer round and dropped onto this one, and
+        so a second one is refused rather than stacked.
+
+        The counts come from the caller, never from a count of the file. A seal
+        computed from what is on disk would agree with whatever is on disk,
+        including a file somebody has just shortened, which is a seal that
+        certifies its own forgery. These are the numbers the round itself
+        returned, and `verify` is where they meet the file.
+
+        Everything a seal does not know it leaves empty rather than filling in:
+        it asked no prompt, it waited on no provider, and no model answered it.
+        The round's engine and surface are on every ask in the file already,
+        and an id repeated on a record that did not observe it is one more
+        place for two versions of the same fact to disagree.
+        """
+        return self.append(
+            snapshot_id,
+            Record(
+                snapshot_id=snapshot_id,
+                seq=0,  # the ledger assigns the real one; it owns the order
+                prompt_id="",
+                repeat=0,
+                engine="",
+                surface="",
+                model="",
+                asked_at=at,
+                status=ROUND_END,
+                latency_ms=0,
+                answer_text="",
+                brands=(),
+                citations=(),
+                provider="",
+                round_asked=asked,
+                round_ok=ok,
+                round_errors=errors,
+            ),
+        )
 
     # -- reading ----------------------------------------------------------
 
@@ -560,7 +739,32 @@ class Ledger:
                 raise LedgerFormatError(f"{path}, line {i}: not valid JSON ({e})") from e
 
     def count(self, snapshot_id: str) -> int:
+        """Records on the file, seal included. Counts lines, parses nothing."""
         return sum(1 for _ in self._raw_lines(snapshot_id))
+
+    def calls(self, snapshot_id: str) -> int:
+        """Asks in this round, which is `count` minus the seal if there is one.
+
+        Kept apart from `count` rather than folded into it. One is a fact about
+        a file and the other is a fact about a measurement, and the seal is the
+        only record where those two numbers differ: counted as an ask it would
+        report every sealed round as one call longer than it was, on the same
+        screens that divide money by a call count.
+        """
+        return sum(1 for rec in self.read(snapshot_id) if not rec.is_seal)
+
+    def seal_of(self, snapshot_id: str) -> Record | None:
+        """The record closing this round, or None when it has none.
+
+        None has two meanings and the caller is the one that can tell them
+        apart: a round from a build older than `SEALING_VERSION` was never
+        going to have one, and a round from this build that has none did not
+        finish or has lost its tail. `verify` makes exactly that distinction.
+        """
+        last = None
+        for rec in self.read(snapshot_id):
+            last = rec
+        return last if last is not None and last.is_seal else None
 
     def tail_hash(self, snapshot_id: str) -> str:
         last = GENESIS
@@ -588,6 +792,12 @@ class Ledger:
         Reports rather than repairs, and never raises. An unreadable line is a
         finding, not the end of the walk: stopping there would let one planted
         byte decide where the audit ends and hide every forgery after it.
+
+        The length of the round is checked here too, against the seal the round
+        wrote for itself, which is the one thing the chain alone cannot do. The
+        three ways a file can disagree with its own seal are each named: no
+        seal on a round from a build that writes them, a seal with records
+        after it, and a seal whose counts are not the counts on the file.
         """
         problems: list[str] = []
         path = self.path_of(snapshot_id)
@@ -599,6 +809,10 @@ class Ledger:
 
         prev: str | None = GENESIS
         seen = 0
+        unreadable = 0
+        seals: list[tuple[int, Record]] = []
+        calls = answered = 0
+        can_seal = False
         for i, line in enumerate(self._raw_lines(snapshot_id)):
             seen += 1
             try:
@@ -609,7 +823,16 @@ class Ledger:
                     "cannot be checked"
                 )
                 prev = None
+                unreadable += 1
                 continue
+
+            can_seal = can_seal or rec.v >= SEALING_VERSION
+            if rec.is_seal:
+                seals.append((i, rec))
+            else:
+                calls += 1
+                if rec.status == "ok":
+                    answered += 1
 
             try:
                 if line != rec.as_line():
@@ -642,5 +865,71 @@ class Ledger:
             problems.append(
                 f"{path} has no records: the name was claimed and nothing was ever written "
                 "under it, so this is a round that did not happen rather than one that did"
+            )
+            return problems
+        return problems + self._length_problems(
+            seals, seen=seen, calls=calls, answered=answered, unreadable=unreadable, can_seal=can_seal
+        )
+
+    def _length_problems(
+        self,
+        seals: list[tuple[int, Record]],
+        *,
+        seen: int,
+        calls: int,
+        answered: int,
+        unreadable: int,
+        can_seal: bool,
+    ) -> list[str]:
+        """What the file says about its own length, against what is in it.
+
+        Split out of `verify` because it answers a different question. The walk
+        above asks whether each record is the one that was written; this asks
+        whether all of them are still here, and only a round that stated how
+        many there were can be asked that.
+        """
+        problems: list[str] = []
+        if not seals:
+            if can_seal:
+                problems.append(
+                    f"the round is not sealed: it carries records written at schema "
+                    f"v{SEALING_VERSION} or later, where a round closes with a record stating "
+                    "how many calls it made, and this one has none. it either stopped before it "
+                    "finished or lines have been removed from the end"
+                )
+            # An older snapshot says nothing about its own length and never
+            # did. Reporting that as damage would call every round collected
+            # before the seal existed tampered with, so it is left to `lulu
+            # verify` to say out loud that the check does not reach it.
+            return problems
+
+        index, seal = seals[-1]
+        if len(seals) > 1:
+            first = ", ".join(str(i) for i, _ in seals[:-1])
+            problems.append(
+                f"line {index}: a second seal; a round states its length once, and there is "
+                f"already one at line {first}"
+            )
+        if index != seen - 1:
+            problems.append(
+                f"line {index}: the seal is not the last line; {seen - 1 - index} records were "
+                "written after the round said it was over"
+            )
+        if unreadable:
+            problems.append(
+                f"the seal says the round made {seal.round_asked} calls and that cannot be "
+                f"checked here: {unreadable} lines could not be read, so the count on the file "
+                "is a count of the readable ones"
+            )
+            return problems
+        if seal.round_asked != calls:
+            problems.append(
+                f"line {index}: the seal says the round made {seal.round_asked} calls and "
+                f"{calls} are on the file"
+            )
+        if seal.round_ok != answered:
+            problems.append(
+                f"line {index}: the seal says {seal.round_ok} of those were answered and "
+                f"{answered} on the file are"
             )
         return problems

@@ -130,13 +130,17 @@ def test_an_unmetered_plan_is_labelled_a_floor_rather_than_a_total():
 # -- a pilot replaces every assumption on the screen ------------------------
 
 
-def pilot_ledger(tmp_path: Path, detections: list[list[int]], **over) -> Ledger:
+def pilot_ledger(tmp_path: Path, detections: list[list[int]], *, failures: int = 0, **over) -> Ledger:
     """A recorded round where `marx` appears exactly where `detections` says.
 
-    Written through `Ledger.append` rather than as raw lines, so the round the
-    planner reads is chained and verifies the same way a collected one does.
+    Written through `Ledger.append` rather than as raw lines, and closed with a
+    seal, so the round the planner reads is chained and verifies the same way a
+    collected one does. `failures` appends that many recorded timeouts before
+    the round closes, which is the only way to put one in: a round states its
+    length, so nothing can be added to it afterwards.
     """
     led = Ledger(tmp_path)
+    asked = 0
     for i, repeats in enumerate(detections):
         for k, hit in enumerate(repeats):
             led.append(
@@ -159,6 +163,18 @@ def pilot_ledger(tmp_path: Path, detections: list[list[int]], **over) -> Ledger:
                     **over,
                 ),
             )
+            asked += 1
+    for _ in range(failures):
+        led.append(
+            SID,
+            Record(
+                snapshot_id=SID, seq=0, prompt_id="p9", repeat=0, engine="perplexity",
+                surface="api", model="sonar", asked_at="2026-07-31T12:00:00Z", status="error",
+                latency_ms=45000, answer_text="", brands=(), citations=(),
+                provider="perplexity", error="timeout after 45s",
+            ),
+        )
+    led.seal(SID, asked=asked + failures, ok=asked, errors=failures)
     return led
 
 
@@ -187,16 +203,7 @@ def test_a_pilot_that_metered_no_tokens_leaves_the_plan_a_floor(tmp_path):
 
 
 def test_a_failed_pilot_ask_is_excluded_and_said_out_loud(tmp_path):
-    led = pilot_ledger(tmp_path, [[1, 0], [0, 1]])
-    led.append(
-        SID,
-        Record(
-            snapshot_id=SID, seq=0, prompt_id="p9", repeat=0, engine="perplexity",
-            surface="api", model="sonar", asked_at="2026-07-31T12:00:00Z", status="error",
-            latency_ms=45000, answer_text="", brands=(), citations=(),
-            provider="perplexity", error="timeout after 45s",
-        ),
-    )
+    pilot_ledger(tmp_path, [[1, 0], [0, 1]], failures=1)
     text = run(pilot=SID, brand="marx", ledger_dir=tmp_path)
     assert "1 of 5 pilot asks failed and are excluded" in text
     assert "a failed ask is missing data, not an observed absence" in text
@@ -323,8 +330,10 @@ def test_a_diagnostic_pilot_prices_the_plan_without_being_treated_as_a_sample(tm
             provider="anthropic",
             input_tokens=10046,
             output_tokens=91,
+            searches=1,
         ),
     )
+    led.seal(DIAGNOSTIC, asked=1, ok=1, errors=0)
 
     text = run(pilot=DIAGNOSTIC, ledger_dir=tmp_path, provider="anthropic")
 
@@ -345,9 +354,10 @@ def test_a_diagnostic_pilot_that_does_not_verify_plans_nothing(tmp_path):
             engine="anthropic", surface="api", model="claude-haiku-4-5-20251001",
             asked_at="2026-08-01T01:45:00Z", status="ok", latency_ms=2961,
             answer_text="1 August 2026.", brands=(), citations=(), provider="anthropic",
-            input_tokens=10046, output_tokens=91,
+            input_tokens=10046, output_tokens=91, searches=1,
         ),
     )
+    led.seal(DIAGNOSTIC, asked=1, ok=1, errors=0)
     path = led.path_of(DIAGNOSTIC)
     path.write_text(
         path.read_text(encoding="utf-8").replace('"input_tokens":10046', '"input_tokens":10'),

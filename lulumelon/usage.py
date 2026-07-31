@@ -39,15 +39,22 @@ report it" are different facts about different parties, and only the second is
 evidence about a provider. They are also kept out of every divisor: a per-call
 figure that divides a measured total by a count including rows that carry no
 cost at all reports each call as cheaper than it was.
+
+**A fee is multiplied by the unit it is charged in.** One provider bills per
+request and one bills per search, and on the second a call that searched three
+times owes three fees. The search count is on the record from schema v3 on, so
+it is what the fee runs on; before that the record cannot say, and a call whose
+count is missing is charged as one search, which is the floor and is named as
+one on screen rather than left to be read as a total.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
 from .collect.ledger import Record
-from .prices import Cost, Price, estimate, fees, price_for
+from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +65,12 @@ class ModelSpend:
     because the published rates differ by more than an order of magnitude
     across a single provider's own catalogue and the ledger already records
     which model answered.
+
+    `fee_units` is how many fees those calls owe, which is the call count on a
+    price charged per request and the search count on one charged per search.
+    `unreported_searches` is how many of them are in that second world and did
+    not say how many searches they ran, so the number is a floor by exactly
+    that many fees.
     """
 
     provider: str
@@ -69,6 +82,8 @@ class ModelSpend:
     price: Price | None
     counted_cost: Cost | None
     floor_cost: Cost | None
+    fee_units: int
+    unreported_searches: int
 
     @property
     def label(self) -> str:
@@ -214,6 +229,17 @@ class Spend:
                     f"  {bucket.label}: a floor for {_calls(bucket.silent)} that reported neither"
                 )
                 lines.append(f"    {bucket.floor_cost.as_text()}")
+            if bucket.price.fee_unit == FEE_PER_SEARCH:
+                line = (
+                    f"  {bucket.label}: charged {bucket.fee_units} search fees "
+                    f"over {_calls(bucket.calls)}"
+                )
+                if bucket.unreported_searches:
+                    line += (
+                        f", of which {bucket.unreported_searches} did not report a search count "
+                        "and are charged as one search each, which is a floor"
+                    )
+                lines.append(line)
         if self.failed:
             lines.append(
                 f"  {_calls(self.failed)} failed and {'is' if self.failed == 1 else 'are'} not "
@@ -260,6 +286,30 @@ def _high(cost: Cost | None) -> float:
 
 
 @dataclass
+class _Fees:
+    """How many fees a set of calls owes on a price charged per search.
+
+    The two halves are kept apart because they are known to different degrees.
+    `searches` is what those calls said they did; `unreported` is one fee for
+    each call that said nothing, which is the least it can have cost, since a
+    call reaching a search-billed engine ran at least one.
+    """
+
+    searches: int = 0
+    unreported: int = 0
+
+    @property
+    def units(self) -> int:
+        return self.searches + self.unreported
+
+    def add(self, searches: int | None) -> None:
+        if searches is None:
+            self.unreported += 1
+        else:
+            self.searches += searches
+
+
+@dataclass
 class _Bucket:
     """Running totals for one `(provider, model)` pair while records stream."""
 
@@ -267,6 +317,8 @@ class _Bucket:
     silent: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    counted_fees: _Fees = field(default_factory=_Fees)
+    silent_fees: _Fees = field(default_factory=_Fees)
 
 
 def spend_of(records: Iterable[Record]) -> Spend:
@@ -286,6 +338,12 @@ def spend_of(records: Iterable[Record]) -> Spend:
     buckets: dict[tuple[str, str], _Bucket] = {}
 
     for record in records:
+        if record.is_seal:
+            # The record that closes a round is not a call and was never
+            # billed. Counted here it would appear on the first line of the
+            # screen as one more call than the round made, and land in the
+            # divisor of every per-call figure under it.
+            continue
         calls += 1
         if record.status != "ok":
             failed += 1
@@ -319,8 +377,10 @@ def spend_of(records: Iterable[Record]) -> Spend:
             bucket.counted += 1
             bucket.input_tokens += usage.input_tokens
             bucket.output_tokens += usage.output_tokens
+            bucket.counted_fees.add(usage.searches)
         else:
             bucket.silent += 1
+            bucket.silent_fees.add(usage.searches)
 
     by_model = tuple(
         _priced(provider, model, bucket)
@@ -342,9 +402,18 @@ def spend_of(records: Iterable[Record]) -> Spend:
 
 
 def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
-    """Apply one model's published rate to the calls that model answered."""
+    """Apply one model's published rate to the calls that model answered.
+
+    The fee term is the one place a model's own record decides the arithmetic
+    rather than the call count: on a per-search price the number of fees is the
+    number of searches those calls reported, and quoting one fee per call there
+    understates a bill by however many times each model chose to look.
+    """
     price = price_for(provider, model)
     counted_cost = floor_cost = None
+    per_search = price is not None and price.fee_unit == FEE_PER_SEARCH
+    counted_units = bucket.counted_fees.units if per_search else bucket.counted
+    silent_units = bucket.silent_fees.units if per_search else bucket.silent
     if price is not None and bucket.counted:
         # Priced from the tokens those calls themselves reported. The metered
         # calls already carry the provider's own figure; adding a published
@@ -353,10 +422,10 @@ def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
             price,
             input_tokens=bucket.input_tokens,
             output_tokens=bucket.output_tokens,
-            fee_units=bucket.counted,
+            fee_units=counted_units,
         )
     if price is not None and bucket.silent:
-        floor_cost = fees(price, fee_units=bucket.silent)
+        floor_cost = fees(price, fee_units=silent_units)
     return ModelSpend(
         provider=provider,
         model=model,
@@ -367,6 +436,10 @@ def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
         price=price,
         counted_cost=counted_cost,
         floor_cost=floor_cost,
+        fee_units=counted_units + silent_units,
+        unreported_searches=(
+            bucket.counted_fees.unreported + bucket.silent_fees.unreported if per_search else 0
+        ),
     )
 
 

@@ -381,14 +381,20 @@ def test_a_billed_check_call_lands_one_record_that_verifies(tmp_path: Path, monk
 
     led, snapshot_id = only_round(tmp_path / "ledger")
     assert led.verify(snapshot_id) == [], "the round it wrote must re-derive"
-    (record,) = list(led.read(snapshot_id))
+    record, seal = list(led.read(snapshot_id))
 
     assert record.status == "ok"
     assert record.model == "claude-haiku-4-5", "the model as the response named it"
     assert (record.input_tokens, record.output_tokens) == (900, 30)
+    assert record.searches == 1, "the count a per-search fee multiplies, as the response gave it"
     assert record.citations == ("https://a.example/today",)
     assert record.brands == (), "no brand list was supplied, so nothing was looked for"
     assert str(led.path_of(snapshot_id)) in rec.text, "it must say where it wrote"
+
+    # One call is a round, and a round says how long it was. Without this a
+    # diagnostic reduced to an empty file reads as a call that never happened.
+    assert (seal.round_asked, seal.round_ok, seal.round_errors) == (1, 1, 0)
+    assert led.calls(snapshot_id) == 1
 
 
 def test_a_check_call_that_failed_is_recorded_with_its_reason(tmp_path: Path, monkeypatch):
@@ -405,13 +411,17 @@ def test_a_check_call_that_failed_is_recorded_with_its_reason(tmp_path: Path, mo
 
     led, snapshot_id = only_round(tmp_path / "ledger")
     assert led.verify(snapshot_id) == []
-    (record,) = list(led.read(snapshot_id))
+    record, seal = list(led.read(snapshot_id))
 
     assert record.status == "error"
     assert "401" in record.error and "invalid x-api-key" in record.error
     assert record.model == "unknown", "nothing answered, so no model can be named"
     assert record.input_tokens is None, "a call that failed reported no tokens"
     assert "recorded as an error in" in rec.text
+    # The round closes on the failing path too, and closes honestly: one call
+    # made, none answered. A seal written only where the call worked would make
+    # a refused key look like a round that lost its records.
+    assert (seal.round_asked, seal.round_ok, seal.round_errors) == (1, 0, 1)
 
 
 def test_lulu_usage_sees_the_check_call_and_prices_it(tmp_path: Path, monkeypatch):

@@ -34,6 +34,14 @@ hit its ceiling comes back shorter, with the count of what it never asked. That
 count is the only thing that tells a reader the interval is wider than the
 design asked for, because the ledger of a round cut short and the ledger of a
 small round look the same on disk.
+
+**A round closes by writing down how long it was.** Every exit from the loop
+below leads to one seal, including the exit where the budget stopped the round
+before its first call. A round the budget cut short and a round somebody has
+deleted lines from are then different files rather than the same one: the first
+states the number of calls it made and holds exactly that many, and the second
+states nothing, because the record that would have stated it is the first thing
+removing the tail of a file takes away.
 """
 
 from __future__ import annotations
@@ -190,8 +198,19 @@ def run_round(
                 output_tokens=answer.usage.output_tokens,
                 search_context=answer.usage.search_context,
                 reported_cost_usd=answer.usage.cost_usd,
+                # The number a per-search fee multiplies. Stored from v3 on,
+                # so a round priced off this file bills the searches it made
+                # rather than one per call, which is what the budget guard was
+                # already charging while it was running.
+                searches=answer.usage.searches,
             ),
         )
+
+    # After the loop and before the counts are handed back, so the round is
+    # closed on disk by the same pass that made it. A caller that had to
+    # remember to seal would eventually not, and a round nobody sealed is
+    # indistinguishable from one somebody shortened.
+    ledger.seal(snapshot_id, asked=asked, ok=ok, errors=asked - ok, at=clock())
 
     return RoundResult(
         snapshot_id=snapshot_id,

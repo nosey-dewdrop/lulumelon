@@ -85,10 +85,10 @@ class Usage:
     #: providers bill per search rather than per call, and on those this is the
     #: number the fee multiplies, so a call is not priceable without it.
     #:
-    #: Carried but not yet written to disk, deliberately, and for the same
-    #: reason `request_cost` is not: the schema a figure lands in is settled by
-    #: a real response rather than by a specification, and adding a column that
-    #: a first real call then contradicts costs a second schema version.
+    #: Written to disk from schema v3 on. It waited for a real response rather
+    #: than for a specification, and it got one: the first billed call this
+    #: repo ever made reported it. `request_cost` is still carried nowhere for
+    #: exactly the same rule, having never arrived in any response.
     searches: int | None = None
 
     @property
@@ -247,9 +247,14 @@ _OUTPUT_TOKEN_FIELDS = ("completion_tokens", "output_tokens")
 #:
 #: `usage.cost.request_cost` is documented too, and is the number that matters
 #: most for this product: it is the per-search charge, and the provider's own
-#: example shows it a hundred times larger than the token cost. It is not
-#: stored yet on purpose. The schema a figure lands in should be settled by a
-#: real response rather than by a specification, and no call has been made.
+#: example shows it a hundred times larger than the token cost. It is still not
+#: read and still not stored, and schema v3 opened and closed without it. The
+#: schema a figure lands in is settled by a real response rather than by a
+#: specification, and this endpoint has never answered this build: the only
+#: calls it has ever billed went to the other provider, which publishes no cost
+#: figure at all. A column standing empty for a name nobody has seen would read
+#: as a figure that was collected and came back absent, which is a different
+#: claim about a provider from the true one, that nobody has asked it yet.
 _COST_PATHS = (("cost", "total_cost"),)
 
 

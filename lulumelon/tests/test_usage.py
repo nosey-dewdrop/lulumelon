@@ -311,9 +311,17 @@ def test_a_round_that_reported_no_tokens_has_no_rate():
 
 
 def _round(tmp_path: Path, *records: Record) -> Ledger:
+    """One finished round on disk: these calls, then the seal that closes it.
+
+    Sealed rather than left open, because `lulu usage` prices nothing off a
+    round that does not verify and an unsealed round no longer does: on disk it
+    is the same object as one whose last calls were deleted.
+    """
     led = Ledger(tmp_path)
     for record in records:
         led.append(SID, record)
+    answered = sum(1 for record in records if record.status == "ok")
+    led.seal(SID, asked=len(records), ok=answered, errors=len(records) - answered)
     return led
 
 
@@ -389,11 +397,91 @@ def test_a_dated_model_is_priced_at_its_own_rate_through_a_whole_round():
     thousand: $0.020501. That is what the provider actually charged, so this
     arithmetic is checked against a bill rather than against itself.
 
-    It agrees because that call ran exactly one search, and this arithmetic
-    charges one fee per call. A call that searched twice cost a fee more than
-    it reports, and closing that needs the search count on the record, which is
-    a field schema v2 does not have.
+    It agrees because that call ran exactly one search, and the record says so.
     """
-    spend = spend_of([counted(10046, 91, model="claude-haiku-4-5-20251001", provider="anthropic")])
+    spend = spend_of(
+        [counted(10046, 91, model="claude-haiku-4-5-20251001", provider="anthropic", searches=1)]
+    )
     assert spend.unpriced == 0
     assert spend.low_usd == pytest.approx(0.020501)
+
+
+# -- a fee charged per search is multiplied by the searches -----------------
+
+HAIKU = dict(model="claude-haiku-4-5", provider="anthropic")
+
+
+def test_a_call_that_searched_three_times_pays_three_fees():
+    """The figure the ledger could not reconstruct until v3 stored the count.
+
+    One call, 1000 in and 200 out at $1 and $5 per million is $0.002 of tokens.
+    The fee is $10 per thousand searches and this call ran three, so the bill
+    is $0.032 rather than the $0.012 a per-call fee would have printed: nearly
+    three times under, on the line headed COST.
+    """
+    spend = spend_of([counted(1000, 200, searches=3, **HAIKU)])
+    assert spend.by_model[0].fee_units == 3
+    assert spend.low_usd == pytest.approx(0.002 + 3 * 0.01)
+    assert spend.low_usd / (0.002 + 0.01) == pytest.approx(2.6667, rel=1e-3)
+
+
+def test_the_ledger_and_the_budget_guard_agree_about_one_round(tmp_path):
+    """The two money paths, run over the same calls, to the same total.
+
+    One of them charges while the round is running and one prices it off the
+    file afterwards, and until the search count was written down they could not
+    agree: the guard multiplied the fee by the searches each call reported and
+    the ledger had no way to know there had been more than one. A meter that
+    disagrees with itself by a factor of the number of searches is not a meter.
+    """
+    from lulumelon.collect import Brand, Budget, FakeProvider, Ledger, Prompt, Usage, run_round
+
+    led = Ledger(tmp_path)
+    budget = Budget(price=price_for("anthropic", "claude-haiku-4-5"), limit_usd=5.0, max_searches=3)
+    result = run_round(
+        ledger=led,
+        provider=FakeProvider(
+            name="anthropic",
+            model="claude-haiku-4-5",
+            script={"q": ("Marx does.",)},
+            usage=Usage(input_tokens=1000, output_tokens=200, searches=3),
+        ),
+        prompts=[Prompt(id="p1", text="q")],
+        brands=[Brand(name="marx", aliases=())],
+        k=4,
+        subject="marx",
+        clock=lambda: "2026-08-01T02:00:00Z",
+        budget=budget,
+    )
+
+    spend = spend_of(led.read(result.snapshot_id))
+    assert spend.by_model[0].fee_units == 12, "four calls, three searches each"
+    assert spend.low_usd == pytest.approx(budget.spent_usd)
+    assert spend.low_usd == pytest.approx(4 * (0.002 + 0.03))
+
+
+def test_a_call_that_did_not_say_how_often_it_searched_is_charged_one_and_says_so():
+    """One search is the least it can have been, and a floor is labelled one.
+
+    Charging the search cap instead would be the guard's arithmetic, which is
+    right while money can still be stopped and wrong afterwards: this screen
+    reports what was billed, and inventing searches nobody reported inflates a
+    customer's own invoice back at them.
+    """
+    spend = spend_of([counted(1000, 200, **HAIKU), counted(1000, 200, searches=2, **HAIKU)])
+    bucket = spend.by_model[0]
+    assert (bucket.fee_units, bucket.unreported_searches) == (3, 1)
+    assert spend.low_usd == pytest.approx(0.004 + 3 * 0.01)
+
+    text = spend.as_text()
+    assert "charged 3 search fees over 2 calls" in text
+    assert "1 did not report a search count" in text
+    assert "which is a floor" in text
+
+
+def test_a_fee_charged_per_request_is_not_multiplied_by_anything():
+    """The other provider bills once per call however often it looked."""
+    spend = spend_of([counted(1000, 500, searches=4), counted(1000, 500, searches=4)])
+    assert spend.by_model[0].fee_units == 2, "two calls, two request fees"
+    assert spend.low_usd == pytest.approx(3000 / 1_000_000 + 2 * 0.005)
+    assert "search fees" not in spend.as_text()

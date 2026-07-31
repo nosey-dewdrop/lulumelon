@@ -74,7 +74,7 @@ def test_every_ask_is_written_once(led):
 
     assert result.asked == 6
     assert result.errors == 0
-    assert led.count(result.snapshot_id) == 6
+    assert led.calls(result.snapshot_id) == 6
     assert led.verify(result.snapshot_id) == []
 
 
@@ -94,7 +94,7 @@ def test_a_failed_ask_is_recorded_not_retried(led):
 
     assert result.asked == 6
     assert result.errors == 2
-    assert led.count(result.snapshot_id) == 6, "failed asks stay in the ledger"
+    assert led.calls(result.snapshot_id) == 6, "failed asks stay in the ledger"
 
     statuses = [r.status for r in led.read(result.snapshot_id)]
     assert statuses.count("error") == 2
@@ -189,9 +189,35 @@ def test_asking_twice_never_overwrites_the_first_round(led):
     )
 
     assert first.snapshot_id != second.snapshot_id
-    assert led.count(first.snapshot_id) == 2
+    assert led.calls(first.snapshot_id) == 2
     assert led.verify(first.snapshot_id) == []
     assert led.verify(second.snapshot_id) == []
+
+
+def test_a_completed_round_ends_with_one_seal_saying_what_it_did(led):
+    """The round's own account of itself, written where it can be checked.
+
+    The counts on the last line are the counts `run_round` returned, so a
+    reader who never watched this process run can still tell how many calls the
+    round made and how many came back. Exactly one seal, and it is last: a file
+    that says it is over and then goes on saying things is not a round.
+    """
+    provider = FakeProvider(script={P1.text: ("Marx leads.",)}, fail_on=(1,))
+    result = run_round(
+        ledger=led, provider=provider, prompts=[P1, P2], brands=BRANDS, k=2,
+        subject="marx", clock=ticking_clock(),
+    )
+
+    records = list(led.read(result.snapshot_id))
+    assert [r.is_seal for r in records] == [False, False, False, False, True]
+
+    seal = led.seal_of(result.snapshot_id)
+    assert (seal.round_asked, seal.round_ok, seal.round_errors) == (
+        result.asked, result.ok, result.errors
+    )
+    assert (seal.round_asked, seal.round_ok, seal.round_errors) == (4, 3, 1)
+    assert seal.asked_at, "the seal records when the round closed"
+    assert led.verify(result.snapshot_id) == []
 
 
 def test_the_collector_computes_no_score(led):
@@ -226,7 +252,7 @@ def test_a_budget_nobody_could_exhaust_leaves_the_round_alone(led):
     assert guarded.planned == unguarded.planned == 6
     assert guarded.unasked == 0
     assert not guarded.stopped_for_budget
-    assert led.count(guarded.snapshot_id) == led.count(unguarded.snapshot_id) == 6
+    assert led.calls(guarded.snapshot_id) == led.calls(unguarded.snapshot_id) == 6
 
 
 def test_a_round_that_runs_out_stops_short_and_says_how_short(led):
@@ -246,9 +272,21 @@ def test_a_round_that_runs_out_stops_short_and_says_how_short(led):
     assert result.errors == 0
     assert "stopped for budget, 4 never asked" in result.as_text()
 
-    assert led.count(result.snapshot_id) == 12, "the ledger holds the asks that happened"
+    assert led.calls(result.snapshot_id) == 12, "the ledger holds the asks that happened"
     assert led.verify(result.snapshot_id) == [], "stopping leaves no half-written record"
     assert budget.spent_usd == pytest.approx(0.24)
+
+    # A round stopped by its budget closes like any other, and says twelve
+    # rather than sixteen. That is what separates it from a round of sixteen
+    # with four lines cut off the end: this one states a length and holds it,
+    # and the cut one has nothing left that states anything.
+    seal = led.seal_of(result.snapshot_id)
+    assert (seal.round_asked, seal.round_ok, seal.round_errors) == (12, 12, 0)
+
+    path = led.path_of(result.snapshot_id)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join(lines[:12]) + "\n", encoding="utf-8")
+    assert any("not sealed" in p for p in led.verify(result.snapshot_id))
 
 
 def test_a_budget_for_three_unmetered_calls_makes_exactly_three(led):
@@ -264,13 +302,13 @@ def test_a_budget_for_three_unmetered_calls_makes_exactly_three(led):
     assert result.asked == 3
     assert result.planned == 6
     assert result.stopped_for_budget
-    assert led.count(result.snapshot_id) == 3
+    assert led.calls(result.snapshot_id) == 3
     assert budget.unmetered_calls == 3
     assert budget.spent_usd == pytest.approx(0.24)
 
 
 def test_a_round_that_cannot_afford_its_first_ask_asks_nothing(led):
-    # a snapshot with no records in it is still a snapshot, and it is a better
+    # a snapshot with no asks in it is still a snapshot, and it is a better
     # outcome than one call made to discover the budget was never enough.
     budget = Budget(price=OPUS, limit_usd=0.01, max_searches=1)
     result = run_round(
@@ -282,5 +320,15 @@ def test_a_round_that_cannot_afford_its_first_ask_asks_nothing(led):
     assert result.unasked == 4
     assert result.stopped_for_budget
     assert result.error_rate == 0.0, "asking nothing is not failing"
-    assert led.count(result.snapshot_id) == 0
+    assert led.calls(result.snapshot_id) == 0
     assert budget.spent_usd == 0.0
+
+    # It is sealed all the same, and the seal is the whole difference between
+    # a round that ran and asked nothing and a name that was claimed and never
+    # written to. The second is reported; this is not.
+    assert (led.seal_of(result.snapshot_id).round_asked) == 0
+    assert led.verify(result.snapshot_id) == []
+    assert any(
+        "has no records" in p
+        for p in led.verify(led.next_snapshot_id("marx", "fake", "api"))
+    )

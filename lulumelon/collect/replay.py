@@ -33,7 +33,8 @@ from .ledger import Ledger, is_diagnostic
 class Replay:
     """A snapshot, split into what can be measured and what cannot.
 
-    `dropped` counts records with a non-ok status. `surfaces` and `models` are
+    `dropped` counts asks with a non-ok status, and the record that closes a
+    round is not an ask, so it is in neither number. `surfaces` and `models` are
     the distinct values seen in the round: more than one of either means the
     snapshot mixes conditions, and `mirror.compare` will refuse to compare it
     with anything. Surfaced here so that refusal is not a surprise later.
@@ -89,6 +90,13 @@ def replay(ledger: Ledger, snapshot_id: str) -> Replay:
     models: dict[str, None] = {}
 
     for rec in ledger.read(snapshot_id):
+        if rec.is_seal:
+            # The record that says how long the round was is not one of the
+            # asks it counts. Left to the branch below it would be excluded as
+            # a failure, and `dropped` is printed as the number of asks that
+            # did not come back: one seal would report every round as having
+            # lost a call it never made.
+            continue
         if rec.status != "ok":
             dropped += 1
             continue

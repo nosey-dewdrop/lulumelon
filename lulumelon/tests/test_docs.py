@@ -172,9 +172,10 @@ def test_the_readme_layout_names_every_module_and_no_others():
 def test_the_test_counts_in_the_readme_are_the_counts_that_run():
     """Two numbers that go stale by themselves, so they are read back.
 
-    Collected rather than passed: the suite carries one deliberately red test,
-    and a README that quoted the passing count would go stale the day it turns
-    green.
+    Collected rather than passed. The suite has carried a deliberately red test
+    before, standing on a hole in the ledger until it was closed, and a README
+    quoting the passing count would have gone stale on the day it turned green.
+    The count that does not depend on today's colours is the one to quote.
     """
     collected = subprocess.run(
         [sys.executable, "-m", "pytest", "--collect-only", "-q", "lulumelon/tests"],

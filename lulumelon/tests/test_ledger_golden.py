@@ -74,6 +74,21 @@ V1_KEYS = frozenset(
 )
 
 
+#: Written 2026-08-01 by the build at commit 4e3784f, the last one that wrote
+#: schema v2: usage fields, and no record closing the round. Three records: a
+#: metered answer, one that reported tokens and no amount, and a failure.
+V2_SNAPSHOT = "marx__perplexity__api__20260801T020000Z__0002"
+
+V2_HASHES = (
+    "baa15127b15af086f89c710b96734b2636de30ace47885ec3d01884447184d24",
+    "91788c09a3e887aa3bf88bf9c5864ef9f9c7033cbfe6764c52ad51373d59e514",
+    "e7a2b9e4869e95ee9508d1e8994b59b1ecd4cf3c1e14a10957c2ea64c4e87a77",
+)
+
+#: Every key v2 wrote, hash included. Four more than v1 and not one fewer.
+V2_KEYS = V1_KEYS | {"input_tokens", "output_tokens", "search_context", "reported_cost_usd"}
+
+
 @pytest.fixture
 def archive(tmp_path):
     """The golden file, copied somewhere a test is allowed to write."""
@@ -81,8 +96,14 @@ def archive(tmp_path):
     return Ledger(tmp_path)
 
 
-def _lines() -> list[dict]:
-    text = (FIXTURES / f"{V1_SNAPSHOT}.jsonl").read_text(encoding="utf-8")
+@pytest.fixture
+def v2_archive(tmp_path):
+    shutil.copy(FIXTURES / f"{V2_SNAPSHOT}.jsonl", tmp_path / f"{V2_SNAPSHOT}.jsonl")
+    return Ledger(tmp_path)
+
+
+def _lines(snapshot: str = V1_SNAPSHOT) -> list[dict]:
+    text = (FIXTURES / f"{snapshot}.jsonl").read_text(encoding="utf-8")
     return [json.loads(line) for line in text.splitlines() if line.strip()]
 
 
@@ -134,3 +155,47 @@ def test_the_contact_detail_scrubbed_in_2026_is_still_absent(archive):
     raw = (FIXTURES / f"{V1_SNAPSHOT}.jsonl").read_text(encoding="utf-8")
     assert "hello@marx.finance" not in raw
     assert "[email]" in raw
+
+
+# -- schema two, frozen the day schema three opened -------------------------
+
+
+def test_a_snapshot_written_by_the_build_before_seals_still_verifies(v2_archive):
+    """The version that had usage fields and no way to close a round.
+
+    It ends without a seal because nothing could write one when it was
+    collected, and it must not read as damaged for that. A round nobody
+    touched, reported as short, would teach a customer that the checker is
+    noisy, and a noisy checker is one nobody reads on the day it is right.
+    """
+    assert v2_archive.verify(V2_SNAPSHOT) == []
+    assert v2_archive.seal_of(V2_SNAPSHOT) is None
+
+
+def test_the_golden_v2_hashes_are_the_ones_that_build_produced():
+    assert tuple(d["hash"] for d in _lines(V2_SNAPSHOT)) == V2_HASHES
+
+
+def test_recomputing_the_golden_v2_hashes_today_gives_the_same_answer(v2_archive):
+    assert tuple(rec.digest() for rec in v2_archive.read(V2_SNAPSHOT)) == V2_HASHES
+
+
+def test_the_field_set_of_schema_two_is_frozen():
+    for i, line in enumerate(_lines(V2_SNAPSHOT)):
+        assert frozenset(line) == V2_KEYS, f"line {i} does not carry v2's key set"
+
+
+def test_every_golden_v2_line_declares_the_schema_version_it_was_written_under():
+    assert [line["v"] for line in _lines(V2_SNAPSHOT)] == [2, 2, 2]
+
+
+def test_the_usage_v2_recorded_is_still_read_as_usage(v2_archive):
+    """The four fields that version added, and the one it had nowhere to put."""
+    metered, counted, failed = v2_archive.read(V2_SNAPSHOT)
+    assert metered.usage().cost_usd == 0.005182
+    assert (counted.usage().input_tokens, counted.usage().output_tokens) == (131, 58)
+    assert counted.usage().cost_usd is None
+    assert failed.usage().known is False
+    assert all(
+        rec.usage().searches is None for rec in v2_archive.read(V2_SNAPSHOT)
+    ), "v2 had no column for it, so the silence is this build's and not the provider's"

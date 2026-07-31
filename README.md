@@ -76,7 +76,7 @@ lulumelon/
     ask.py        provider boundary; Perplexity Sonar and a deterministic stub
     session.py    one round: k asks per prompt, failures recorded not retried
     budget.py     a ceiling checked before each call, so a round stops short
-    ledger.py     append-only, hash-chained, nothing edited in place
+    ledger.py     append-only, hash-chained, and each round states its length
     detect.py     brand matching by declared literals, no model in the loop
     audit.py      whether the answer engines are allowed to read the site
     replica.py    the same question with the source list supplied, on purpose
@@ -101,7 +101,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 539 tests, offline
+    python3 -m pytest lulumelon/tests   # 565 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -149,6 +149,14 @@ at all, and the price of both ends. Point it at a recorded round with
 
     lulu usage     # what the rounds on disk cost, from the provider's figures
     lulu verify    # re-derive every chain, and say what that check does not cover
+
+Every round closes with a record saying how many calls it made and how they
+came out, hashed into the same chain as the answers. That is what makes a short
+file readable as short: a round somebody has cut lines off the end of has lost
+the only sentence that said how long it was, and `lulu verify` says so. It also
+says which rounds the check does not reach, which is any collected before the
+seal existed, because a file that never stated its length cannot be shown to be
+missing anything.
 
     lulu ablate --live ROUND --replica ROUND --brand marx --margin 5
 

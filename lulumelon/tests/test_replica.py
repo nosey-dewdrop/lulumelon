@@ -160,8 +160,8 @@ def test_a_replica_round_reaches_the_ledger_under_its_own_surface(tmp_path):
         subject="marx",
     )
     assert REPLICA_SURFACE in result.snapshot_id
-    records = list(ledger.read(result.snapshot_id))
-    assert {r.surface for r in records} == {replica_surface(SOURCES)}
+    asks = [r for r in ledger.read(result.snapshot_id) if not r.is_seal]
+    assert {r.surface for r in asks} == {replica_surface(SOURCES)}
     assert ledger.verify(result.snapshot_id) == []
 
 
@@ -263,7 +263,7 @@ def test_both_arms_can_be_collected_end_to_end_against_the_stub(tmp_path):
     )
 
     assert with_source.errors == 0 and without_source.errors == 0
-    named = [r.brands for r in ledger.read(with_source.snapshot_id)]
-    unnamed = [r.brands for r in ledger.read(without_source.snapshot_id)]
+    named = [r.brands for r in ledger.read(with_source.snapshot_id) if not r.is_seal]
+    unnamed = [r.brands for r in ledger.read(without_source.snapshot_id) if not r.is_seal]
     assert named == [("marx",)] * 3
     assert unnamed == [()] * 3

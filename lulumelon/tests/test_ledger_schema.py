@@ -5,20 +5,24 @@ any of them needs editing to accommodate a schema change, the change altered a
 promise rather than extending a format, and that is the thing to notice.
 
 What this file covers is the new failure surface: a version's field set, the
-refusal to read a line as a version it does not claim to be, and the four
-numbers a cost claim will rest on.
+refusal to read a line as a version it does not claim to be, the numbers a cost
+claim rests on, and the record a round closes with, which is how a file that
+has lost lines off the end says so.
 """
 
 from __future__ import annotations
 
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from lulumelon.collect import (
+    GENESIS,
     HASHED_FIELDS,
+    ROUND_END,
     SCHEMA_VERSION,
     Ledger,
     LedgerFormatError,
@@ -26,6 +30,7 @@ from lulumelon.collect import (
     UnknownSchemaVersion,
     Usage,
     decode,
+    replay,
 )
 from lulumelon.collect.ask import FakeProvider
 from lulumelon.collect.detect import Brand
@@ -33,6 +38,29 @@ from lulumelon.collect.session import Prompt, run_round
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 V1_SNAPSHOT = "marx__perplexity__api__20260731T120000Z__0001"
+
+#: The round the previous build wrote, kept as evidence in
+#: `test_ledger_golden.py`. Read here for the one question this file asks of
+#: it: what a checker that knows about seals says about a file that has none.
+V2_SNAPSHOT = "marx__perplexity__api__20260801T020000Z__0002"
+
+
+def _reforge(path: Path) -> None:
+    """Rewrite a whole file as a clean chain, the way a determined forger must.
+
+    Nothing here is secret, so the digests can always be recomputed. This does
+    exactly that, renumbering and relinking every record from genesis, and it
+    is what the hash chain really costs somebody: not impossibility, a rewrite
+    of the entire tail. The tests that use it are about what survives it.
+    """
+    prev = GENESIS
+    out = []
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
+        record = replace(decode(json.loads(line)), seq=i, prev_hash=prev, hash="")
+        linked = record.linked(prev)
+        out.append(linked.as_line())
+        prev = linked.hash
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
 def rec(**over) -> Record:
@@ -93,6 +121,29 @@ def test_the_field_set_of_every_frozen_version_is_a_literal():
             "prev_hash", "v",
         }
     )
+    assert HASHED_FIELDS[3] == frozenset(
+        {
+            "snapshot_id", "seq", "prompt_id", "repeat", "engine", "surface",
+            "model", "asked_at", "status", "latency_ms", "answer_text",
+            "brands", "citations", "provider", "error",
+            "input_tokens", "output_tokens", "search_context", "reported_cost_usd",
+            "searches", "round_asked", "round_ok", "round_errors",
+            "prev_hash", "v",
+        }
+    )
+
+
+def test_the_figure_no_response_has_ever_carried_is_not_a_column():
+    """`request_cost` is documented by a provider and has never arrived here.
+
+    A column for it would sit at `None` on every row, and `None` in this file
+    means the provider was asked and said nothing. Nobody has asked: the
+    endpoint that documents the field has never answered this build. The rule
+    is that a real response settles which schema a figure lands in, and the
+    response that settled `searches` into v3 is one that carried it.
+    """
+    assert not any("request_cost" in row for row in HASHED_FIELDS.values())
+    assert "searches" in HASHED_FIELDS[3]
 
 
 def test_a_version_only_ever_adds_fields():
@@ -107,7 +158,8 @@ def test_the_current_schema_is_the_highest_row_in_the_table():
 
 def test_a_record_hashes_exactly_the_keys_its_version_declares():
     assert set(rec(v=1).payload()) == HASHED_FIELDS[1]
-    assert set(rec().payload()) == HASHED_FIELDS[2]
+    assert set(rec(v=2).payload()) == HASHED_FIELDS[2]
+    assert set(rec().payload()) == HASHED_FIELDS[3]
 
 
 def test_relabelling_a_records_version_changes_its_hash():
@@ -123,9 +175,18 @@ def test_a_snapshot_from_before_these_fields_still_verifies(archive):
 
 
 def test_a_new_record_appends_onto_an_old_snapshot(archive):
+    """One file, two schemas, one chain, and it still re-derives.
+
+    The old records were never rewritten to look like the new ones, which is
+    what keeps their hashes the ones the customer was given. The seal at the
+    end is a v3 record closing a round whose first four calls are v1, and the
+    count it states is a count of all of them.
+    """
     archive.append(V1_SNAPSHOT, rec(prompt_id="p3", input_tokens=101, output_tokens=42))
+    archive.seal(V1_SNAPSHOT, asked=5, ok=4, errors=1)
     assert archive.verify(V1_SNAPSHOT) == []
-    assert [r.v for r in archive.read(V1_SNAPSHOT)] == [1, 1, 1, 1, 2]
+    assert [r.v for r in archive.read(V1_SNAPSHOT)] == [1, 1, 1, 1, 3, 3]
+    assert archive.calls(V1_SNAPSHOT) == 5
 
 
 def test_an_old_record_reports_its_usage_as_never_recorded_not_as_zero(archive):
@@ -319,7 +380,7 @@ def test_usage_travels_from_the_answer_into_the_written_record(led):
         subject="marx",
         clock=lambda: "2026-07-31T12:00:00Z",
     )
-    written = list(led.read(result.snapshot_id))
+    written = [r for r in led.read(result.snapshot_id) if not r.is_seal]
     assert [r.input_tokens for r in written] == [118, 118]
     assert [r.output_tokens for r in written] == [64, 64]
     assert [r.search_context for r in written] == ["low", "low"]
@@ -360,13 +421,14 @@ def test_an_answer_with_a_broken_character_does_not_abort_the_round(led):
         subject="marx",
         clock=lambda: "2026-07-31T12:00:00Z",
     )
-    assert result.asked == 3 and led.count(result.snapshot_id) == 3
+    assert result.asked == 3 and led.calls(result.snapshot_id) == 3
     assert led.verify(result.snapshot_id) == []
 
 
 def test_a_reported_cost_survives_the_round_trip(led):
     awkward = 0.006100000000000001
-    written = led.append("s__e__api__x__0001", rec(reported_cost_usd=awkward))
+    led.append("s__e__api__x__0001", rec(reported_cost_usd=awkward))
+    led.seal("s__e__api__x__0001", asked=1, ok=1, errors=0)
     assert next(iter(led.read("s__e__api__x__0001"))).reported_cost_usd == awkward
     assert led.verify("s__e__api__x__0001") == []
 
@@ -428,18 +490,271 @@ def test_verify_command_states_the_limit_of_the_check(archive, tmp_path):
     assert "cut tail leaves no trace" in text
 
 
-# -- the hole that is still open -------------------------------------------
+# -- the hole that was open: a round now states its own length --------------
 
 
-@pytest.mark.xfail(reason="no record states how long a round was, so a cut tail leaves no trace", strict=True)
-def test_truncating_a_snapshot_is_reported(archive):
-    """Known open. Kept as a failing test rather than a comment.
+def a_round(led: Ledger, k: int = 2, **over) -> str:
+    """Two prompts asked `k` times through the stub, and closed the way a
+    collected round is closed. The provider never leaves this process."""
+    result = run_round(
+        ledger=led,
+        provider=FakeProvider(name="perplexity", script={"q1": ("Marx does.",)}, **over),
+        prompts=[Prompt(id="p1", text="q1"), Prompt(id="p2", text="q2")],
+        brands=[Brand(name="marx", aliases=())],
+        k=k,
+        subject="marx",
+        clock=lambda: "2026-08-01T02:00:00Z",
+    )
+    return result.snapshot_id
 
-    Deleting lines from the end of a file returns a clean verify, and the next
-    honest append seals onto the new tail, so the loss becomes permanently
-    undetectable. It closes when a round seals its own length.
+
+def _cut_to(path, lines: int) -> None:
+    text = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join(text[:lines]) + "\n", encoding="utf-8")
+
+
+def test_truncating_a_snapshot_is_reported(led):
+    """The hole this ledger shipped with, closed for every round it writes.
+
+    Deleting lines from the end used to return a clean verify, and the next
+    honest append linked onto the new tail, so the loss became permanent and
+    invisible in one move. A round now ends with a record stating how many
+    calls it made, and that record is the first thing a cut tail removes.
+
+    It stands on a round this build collected rather than on the v1 fixture it
+    used to stand on, and that is not a softer test, it is the only true one:
+    a file whose records never stated their own length cannot be shown to be
+    short, and the alternative reading of "report every snapshot that has no
+    seal" reports every round anybody collected before today as tampered with.
+    That limit is the test below this one, stated rather than glossed.
     """
+    snapshot_id = a_round(led)
+    assert led.calls(snapshot_id) == 4
+    _cut_to(led.path_of(snapshot_id), 2)
+
+    problems = led.verify(snapshot_id)
+    assert problems != []
+    assert any("not sealed" in p for p in problems)
+
+
+def test_a_round_written_before_seals_existed_cannot_be_shown_to_be_short(archive, tmp_path):
+    """The exact limit of the check, kept in front of us instead of implied.
+
+    The same cut on a snapshot from an older build reads clean, because
+    nothing in it ever said how long it was. Reporting it would mean reporting
+    every honest archive collected before this change as damaged, so the
+    command says which rounds the length check does not reach and the number
+    of them, and the caveat prints for those rounds only.
+    """
+    from lulumelon.cli import verify as run_verify
+
     path = archive.path_of(V1_SNAPSHOT)
+    _cut_to(path, 2)
+    assert archive.verify(V1_SNAPSHOT) == []
+
+    console, out = _console()
+    assert run_verify(console, ledger_dir=tmp_path) == 0
+    text = out.getvalue()
+    assert "length never sealed" in text
+    assert "does not cover" in text
+    assert "cut tail leaves no trace" in text
+
+
+def test_a_round_from_the_build_before_this_one_is_not_reported_as_forged(tmp_path):
+    """A v2 file, written by v2, read by v3: unsealed and undamaged.
+
+    This is the failure mode a length check invites. Every round in every
+    customer's archive predates the seal, and a checker that called them all
+    short would be wrong about all of them on the day it shipped.
+    """
+    from lulumelon.cli import verify as run_verify
+
+    shutil.copy(FIXTURES / f"{V2_SNAPSHOT}.jsonl", tmp_path / f"{V2_SNAPSHOT}.jsonl")
+    led = Ledger(tmp_path)
+
+    assert led.verify(V2_SNAPSHOT) == []
+    assert led.seal_of(V2_SNAPSHOT) is None
+
+    console, out = _console()
+    assert run_verify(console, ledger_dir=tmp_path) == 0, "an old round is not a broken round"
+    text = out.getvalue()
+    assert "BROKEN" not in text
+    assert f"intact   {V2_SNAPSHOT}   3 records, length never sealed" in text
+
+
+def test_removing_only_the_seal_is_reported(led):
+    """The cheapest attack on a sealed round: take one line off the end.
+
+    Every call is still there and every link still resolves. What is gone is
+    the sentence saying how many there should be, and a round from this build
+    without that sentence is reported rather than read as complete.
+    """
+    snapshot_id = a_round(led)
+    _cut_to(led.path_of(snapshot_id), 4)
+
+    problems = led.verify(snapshot_id)
+    assert any("not sealed" in p for p in problems)
+    assert not any("prev_hash" in p for p in problems), "the chain itself is untouched"
+
+
+def test_removing_a_call_and_reforging_the_chain_is_caught_by_the_count(led):
+    """The whole-tail rewrite, which is what the hash chain costs an attacker.
+
+    Anyone can recompute these digests, so a forger who is willing to rewrite
+    every record after the one they removed gets a chain that re-derives. The
+    seal is what they cannot fix by relinking: it states four calls, the file
+    holds three, and the two are compared rather than assumed to agree.
+    """
+    snapshot_id = a_round(led)
+    path = led.path_of(snapshot_id)
     lines = path.read_text(encoding="utf-8").splitlines()
-    path.write_text("\n".join(lines[:2]) + "\n", encoding="utf-8")
-    assert archive.verify(V1_SNAPSHOT) != []
+    del lines[1]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _reforge(path)
+
+    problems = led.verify(snapshot_id)
+    assert not any("prev_hash" in p or "own hash" in p for p in problems), (
+        "the forger did the expensive part; the count is what stops them"
+    )
+    assert any("says the round made 4 calls and 3 are on the file" in p for p in problems)
+
+
+def test_a_second_seal_is_refused_by_the_ledger_and_reported_on_disk(led):
+    """A round states its length once.
+
+    Through the library the second one cannot be written at all, which is the
+    protection that matters: nothing in this repo can quietly reopen a closed
+    round. Written past the library, straight onto the file and correctly
+    linked, it is reported, because a file with two statements of its own
+    length has none.
+    """
+    snapshot_id = a_round(led)
+    with pytest.raises(ValueError, match="is sealed"):
+        led.seal(snapshot_id, asked=4, ok=4, errors=0)
+
+    path = led.path_of(snapshot_id)
+    tail = list(led.read(snapshot_id))[-1]
+    second = replace(
+        Record(
+            snapshot_id=snapshot_id, seq=5, prompt_id="", repeat=0, engine="", surface="",
+            model="", asked_at="2026-08-01T02:00:00Z", status=ROUND_END, latency_ms=0,
+            answer_text="", brands=(), citations=(), provider="",
+            round_asked=4, round_ok=4, round_errors=0,
+        ),
+        prev_hash=tail.hash,
+    ).linked(tail.hash)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(second.as_line() + "\n")
+
+    assert any("a second seal" in p for p in led.verify(snapshot_id))
+
+
+def test_a_record_written_after_the_round_closed_is_reported(led):
+    """A file that says it is over and then goes on is two rounds in one name.
+
+    The library will not do this, since `append` refuses a sealed round, so the
+    record is written straight onto the file, correctly linked, which is what
+    somebody splicing one round's answers into another would have to do.
+    """
+    snapshot_id = a_round(led)
+    path = led.path_of(snapshot_id)
+    tail = list(led.read(snapshot_id))[-1]
+    smuggled = replace(
+        rec(snapshot_id=snapshot_id, seq=5, prompt_id="p9"), prev_hash=tail.hash
+    ).linked(tail.hash)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(smuggled.as_line() + "\n")
+
+    problems = led.verify(snapshot_id)
+    assert any("1 records were written after the round said it was over" in p for p in problems)
+    assert any("says the round made 4 calls and 5 are on the file" in p for p in problems)
+
+
+def test_a_length_that_cannot_be_checked_says_so_instead_of_accusing(led):
+    """One unreadable line, and the count on the file is not the count.
+
+    Reporting "the seal says four and three are here" would be an accusation
+    built on a line nobody could read: the record may be sitting there intact
+    under a flipped byte. The unreadable line is the finding, and the length
+    check says out loud that it could not run.
+    """
+    snapshot_id = a_round(led)
+    path = led.path_of(snapshot_id)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[1] = "{not json at all"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    problems = led.verify(snapshot_id)
+    assert any("line 1" in p and "unreadable" in p for p in problems)
+    assert any("that cannot be checked here" in p for p in problems)
+    assert not any("are on the file" in p for p in problems)
+
+
+def test_a_seal_whose_parts_do_not_add_up_is_refused():
+    """A seal is one statement, and its own arithmetic is part of it."""
+    with pytest.raises(ValueError, match="do not add up"):
+        Record(
+            snapshot_id="s__e__api__x__0001", seq=0, prompt_id="", repeat=0, engine="",
+            surface="", model="", asked_at="", status=ROUND_END, latency_ms=0,
+            answer_text="", brands=(), citations=(), provider="",
+            round_asked=4, round_ok=4, round_errors=1,
+        )
+
+
+def test_a_seal_cannot_carry_an_answer():
+    """Everything downstream skips it, so an answer in one is unmeasurable."""
+    with pytest.raises(ValueError, match="not an answer"):
+        Record(
+            snapshot_id="s__e__api__x__0001", seq=0, prompt_id="", repeat=0, engine="",
+            surface="", model="", asked_at="", status=ROUND_END, latency_ms=0,
+            answer_text="", brands=("marx",), citations=(), provider="",
+            round_asked=1, round_ok=1, round_errors=0,
+        )
+
+
+def test_an_ask_cannot_state_what_the_whole_round_did():
+    with pytest.raises(ValueError, match="only the record that closes a round"):
+        rec(round_asked=4, round_ok=4, round_errors=0)
+
+
+def test_a_schema_with_nowhere_to_put_the_counts_cannot_seal():
+    with pytest.raises(ValueError, match="cannot close a round"):
+        rec(v=2, status=ROUND_END, answer_text="", brands=(), citations=())
+
+
+def test_a_seal_with_a_forged_count_is_reported_by_the_line_it_sits_on(led):
+    """The counts are inside the digest, so they cannot be edited in place."""
+    snapshot_id = a_round(led)
+    path = led.path_of(snapshot_id)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[-1] = lines[-1].replace('"round_asked":4', '"round_asked":9').replace(
+        '"round_ok":4', '"round_ok":9'
+    )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    problems = led.verify(snapshot_id)
+    assert any("own hash" in p for p in problems)
+    assert any("says the round made 9 calls and 4 are on the file" in p for p in problems)
+
+
+def test_replay_ignores_the_seal_and_the_run_count_is_unchanged(led):
+    """`mirror` counts asks. A seal counted as one would be a call nobody made."""
+    snapshot_id = a_round(led, k=3)
+    played = replay(led, snapshot_id)
+
+    assert len(played.runs) == 6
+    assert played.dropped == 0
+    assert played.total == 6 == led.calls(snapshot_id)
+    assert "6 usable of 6 asked" in played.as_text()
+
+
+def test_lulu_usage_does_not_count_the_seal_as_an_answered_call(led):
+    """The seal was never billed, and it is in no divisor on that screen."""
+    from lulumelon.usage import spend_of
+
+    snapshot_id = a_round(led, usage=Usage(input_tokens=118, output_tokens=64))
+    spend = spend_of(led.read(snapshot_id))
+
+    assert (spend.calls, spend.answered, spend.failed) == (4, 4, 0)
+    assert spend.priced == 4
+    assert "4 calls recorded: 4 answered, 0 failed" in spend.as_text()

@@ -36,18 +36,33 @@ def led(tmp_path):
     return Ledger(tmp_path)
 
 
+def round_of(led: Ledger, snapshot_id: str, records: list[Record]) -> str:
+    """Write these asks and close the round the way a collector does.
+
+    A round is only complete once it has stated how many calls it made, so a
+    test that fabricates one has to fabricate a finished one. Assembling the
+    asks and leaving the file open would be building the exact object `verify`
+    now reports: a round that stopped mid-flight or lost its tail.
+    """
+    for record in records:
+        led.append(snapshot_id, record)
+    ok = sum(1 for record in records if record.status == "ok")
+    led.seal(snapshot_id, asked=len(records), ok=ok, errors=len(records) - ok)
+    return snapshot_id
+
+
 # -- asking twice must not destroy the first answer -------------------------
 
 
 def test_second_round_is_a_new_snapshot_not_an_overwrite(led):
     now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
     first = led.next_snapshot_id("marx", "chatgpt", "logged_out", now=now)
-    led.append(first, rec())
+    round_of(led, first, [rec()])
 
     second = led.next_snapshot_id("marx", "chatgpt", "logged_out", now=now)
 
     assert first != second
-    assert led.count(first) == 1
+    assert led.calls(first) == 1
     assert led.count(second) == 0
     # Both names are taken the moment they are handed out, so the second one is
     # listed with nothing in it rather than being free for somebody else.
@@ -99,8 +114,7 @@ def test_appending_never_shortens_a_snapshot(led):
 
 def test_intact_chain_verifies_clean(led):
     sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
-    for i in range(4):
-        led.append(sid, rec(repeat=i))
+    round_of(led, sid, [rec(repeat=i) for i in range(4)])
     assert led.verify(sid) == []
 
 
@@ -210,25 +224,32 @@ def test_deleting_a_record_is_caught(led):
 
 def test_a_failed_ask_is_written_not_dropped(led):
     sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
-    led.append(sid, rec(repeat=0))
-    led.append(
+    round_of(
+        led,
         sid,
-        rec(
-            repeat=1,
-            status="error",
-            answer_text="",
-            brands=(),
-            citations=(),
-            error="timeout after 30s",
-            model="unknown",
-        ),
+        [
+            rec(repeat=0),
+            rec(
+                repeat=1,
+                status="error",
+                answer_text="",
+                brands=(),
+                citations=(),
+                error="timeout after 30s",
+                model="unknown",
+            ),
+        ],
     )
 
-    got = list(led.read(sid))
+    got = [r for r in led.read(sid) if not r.is_seal]
     assert len(got) == 2
     assert [r.status for r in got] == ["ok", "error"]
     assert got[1].error == "timeout after 30s"
     assert led.verify(sid) == []
+    # The failure is in the round's own account of itself, not only in the
+    # records: a seal that reported two answers would be a round claiming a
+    # call came back that did not.
+    assert (led.seal_of(sid).round_ok, led.seal_of(sid).round_errors) == (1, 1)
 
 
 # -- personal data never lands ---------------------------------------------
@@ -237,6 +258,7 @@ def test_a_failed_ask_is_written_not_dropped(led):
 def test_contact_details_are_stripped_before_the_hash(led):
     sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
     written = led.append(sid, rec(answer_text="Reach them at hello@marx.finance or +90 532 111 22 33."))
+    led.seal(sid, asked=1, ok=1, errors=0)
 
     assert "hello@marx.finance" not in written.answer_text
     assert "[email]" in written.answer_text

@@ -429,10 +429,17 @@ def record_check_call(
     the state this command exists to find, and a diagnostic that only records
     its successes is a diagnostic that flatters itself.
 
-    Only what the provider reported goes in, and only into fields schema v2
-    already hashes. The count of searches a call ran is not one of them, so it
-    is not written here: a column added twice costs two schema versions, and
-    the version that opens for it is a later job than this one.
+    Only what the provider reported goes in, including the count of searches it
+    ran, which schema v3 hashes and which is the number a per-search fee
+    multiplies. This is the call that proved that count arrives, so it is also
+    the call that has to record it: without it `lulu usage` prices this round
+    at one fee and the account is billed for as many searches as the model
+    chose to make.
+
+    One call is still a round, so it is closed like one. The seal states that
+    the round made one call and how it came out, which is what makes a
+    diagnostic that was cut down to nothing distinguishable from a diagnostic
+    that failed to write.
     """
     store = Ledger(ledger_dir)
     snapshot_id = store.next_snapshot_id(DIAGNOSTIC_SUBJECT, spec.name, answer.surface)
@@ -464,7 +471,15 @@ def record_check_call(
             output_tokens=answer.usage.output_tokens,
             search_context=answer.usage.search_context,
             reported_cost_usd=answer.usage.cost_usd,
+            searches=answer.usage.searches,
         ),
+    )
+    store.seal(
+        snapshot_id,
+        asked=1,
+        ok=1 if answer.ok else 0,
+        errors=0 if answer.ok else 1,
+        at=clock(),
     )
     return store.path_of(snapshot_id)
 
@@ -705,6 +720,12 @@ def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -
     What is printed at the end is the limit of the check, not a summary of how
     well it went. A verifier that reports "intact" without saying what intact
     covers is the sort of confident output this repo exists to argue with.
+
+    The limit moved and the screen has to move with it. A round that sealed its
+    own length is now checked against it, so the closing paragraph about a cut
+    tail is printed for the rounds it is still true of and for no others: a
+    caveat repeated after it stops applying teaches a reader to skip the
+    paragraph where the real one will be.
     """
     store = Ledger(ledger_dir)
     wanted = [snapshot] if snapshot else store.snapshots()
@@ -715,26 +736,46 @@ def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -
         return 0
 
     broken = 0
+    unsealed = 0
     for snapshot_id in wanted:
         problems = store.verify(snapshot_id)
-        if not problems:
-            console.say(f"  intact   {snapshot_id}   {store.count(snapshot_id)} records")
+        if problems:
+            broken += 1
+            console.say(f"  BROKEN   {snapshot_id}   {len(problems)} problems")
+            for line in problems:
+                console.say(f"           {line}")
             continue
-        broken += 1
-        console.say(f"  BROKEN   {snapshot_id}   {len(problems)} problems")
-        for line in problems:
-            console.say(f"           {line}")
+        seal = store.seal_of(snapshot_id)
+        if seal is None:
+            # Intact and shorter than the check reaches. Said on the round's
+            # own line rather than in a footnote, because this is the one state
+            # where "intact" means less than a reader would take it to mean.
+            unsealed += 1
+            console.say(
+                f"  intact   {snapshot_id}   {store.count(snapshot_id)} records, "
+                "length never sealed"
+            )
+            continue
+        console.say(
+            f"  intact   {snapshot_id}   {seal.round_asked} calls sealed, "
+            f"{seal.round_ok} answered, {seal.round_errors} failed"
+        )
 
     console.say()
     console.say(f"{len(wanted) - broken} of {len(wanted)} rounds re-derive from their own contents.")
     console.say()
     console.say("What that covers: every record present was checked against its own hash and")
     console.say("against the one before it, so altering an answer costs a rewrite of every")
-    console.say("record after it.")
-    console.say()
-    console.say("What it does not cover: records removed from the end of a file. Nothing on")
-    console.say("disk states how long a round was meant to be, so a cut tail leaves no trace.")
-    console.say("Keep your own count of what you asked for until that is closed.")
+    console.say("record after it. A sealed round is also checked against its own length: it")
+    console.say("ends with a record saying how many calls it made, so records removed from the")
+    console.say("end are reported rather than silently lost.")
+    if unsealed:
+        rounds = "1 round" if unsealed == 1 else f"{unsealed} rounds"
+        console.say()
+        console.say(f"What it does not cover: the {rounds} above whose length was never sealed.")
+        console.say("Collected before a round closed itself, so nothing in there says how long it")
+        console.say("was meant to be and a cut tail leaves no trace. Keep your own count of what")
+        console.say("you asked for those.")
     return 1 if broken else 0
 
 

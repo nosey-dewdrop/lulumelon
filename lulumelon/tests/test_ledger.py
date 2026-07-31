@@ -49,7 +49,29 @@ def test_second_round_is_a_new_snapshot_not_an_overwrite(led):
     assert first != second
     assert led.count(first) == 1
     assert led.count(second) == 0
-    assert sorted(led.snapshots()) == [first]
+    # Both names are taken the moment they are handed out, so the second one is
+    # listed with nothing in it rather than being free for somebody else.
+    assert sorted(led.snapshots()) == [first, second]
+    assert led.verify(first) == []
+    assert any("has no records" in p for p in led.verify(second))
+
+
+def test_a_name_is_taken_by_creating_the_file_not_by_returning_a_string(led):
+    """The race this format cannot otherwise report.
+
+    Two collectors that scan the same directory in the same second are both
+    told they own the next number, and two rounds interleaved into one file
+    verify clean: every link really was written in the order it landed. So the
+    name is claimed on disk, and asking again cannot hand back a name that is
+    already spoken for.
+    """
+    now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
+    handed_out = [
+        led.next_snapshot_id("marx", "chatgpt", "logged_out", now=now) for _ in range(5)
+    ]
+    assert len(set(handed_out)) == 5
+    for snapshot_id in handed_out:
+        assert led.path_of(snapshot_id).exists(), "a name nobody reserved is a name two can take"
 
 
 def test_sequence_survives_two_rounds_inside_the_same_second(led):

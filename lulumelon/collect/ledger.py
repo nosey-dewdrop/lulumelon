@@ -402,16 +402,27 @@ class Ledger:
     # -- naming -----------------------------------------------------------
 
     def next_snapshot_id(self, subject: str, engine: str, surface: str, *, now: datetime | None = None) -> str:
-        """Reserve the next unused id for this (subject, engine, surface).
+        """Take the next unused id for this (subject, engine, surface), and keep it.
 
         The sequence number is what makes a second run of the same command an
         addition rather than an overwrite. The timestamp is for humans; the
         sequence is what the guarantee rests on, because two rounds inside the
         same second must still be two rounds.
 
-        Single process only. Nothing is created here, so two collectors started
-        against one directory at the same moment are handed the same id and
-        write into one file.
+        **The name is claimed by creating the file, not by returning a string.**
+        Scanning the directory and handing back the next free number reserves
+        nothing: two collectors started against one directory in the same second
+        both scan, both see the same highest number, and both are told they own
+        it. What follows is two rounds appended into one file, interleaved,
+        under one snapshot id, and the chain over them verifies clean because
+        every link really was written in the order it landed. That is the one
+        corruption this format cannot report, so it is prevented instead: the
+        file is created `O_EXCL`, the loser of the race gets `FileExistsError`
+        and moves to the next number, and the empty file left behind is the
+        reservation.
+
+        The directory entry is fsynced, because a reservation that a crash can
+        forget is not one.
         """
         stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
         prefix = f"{subject}__{engine}__{surface}"
@@ -421,7 +432,26 @@ class Ledger:
             if (m := re.search(r"__(\d{4})\.jsonl$", p.name))
         }
         seq = max(used, default=0) + 1
-        return f"{prefix}__{stamp}__{seq:04d}"
+        while True:
+            candidate = f"{prefix}__{stamp}__{seq:04d}"
+            try:
+                fd = os.open(
+                    self.path_of(candidate), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
+                )
+            except FileExistsError:
+                seq += 1
+                continue
+            os.close(fd)
+            self._fsync_dir()
+            return candidate
+
+    def _fsync_dir(self) -> None:
+        """Make a directory entry durable, so a name survives losing power."""
+        dir_fd = os.open(self.root, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
 
     def path_of(self, snapshot_id: str) -> Path:
         return self.root / f"{snapshot_id}.jsonl"
@@ -474,11 +504,7 @@ class Ledger:
             fh.flush()
             os.fsync(fh.fileno())
         if is_new:
-            dir_fd = os.open(self.root, os.O_RDONLY)
-            try:
-                os.fsync(dir_fd)
-            finally:
-                os.close(dir_fd)
+            self._fsync_dir()
         return sealed
 
     # -- reading ----------------------------------------------------------
@@ -597,5 +623,8 @@ class Ledger:
                 prev = None
 
         if seen == 0:
-            problems.append(f"{path} has no records")
+            problems.append(
+                f"{path} has no records: the name was claimed and nothing was ever written "
+                "under it, so this is a round that did not happen rather than one that did"
+            )
         return problems

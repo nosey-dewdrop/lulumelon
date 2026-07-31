@@ -21,6 +21,7 @@ in tests without a terminal and without a key.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,9 @@ from typing import Callable, Mapping, Sequence, TextIO
 
 from .collect.ask import PerplexityProvider
 from .collect.ledger import Ledger, LedgerFormatError
+from .collect.replay import replay
+from .mirror.types import group_runs
+from .mirror.variance import decompose
 from .keys import (
     KEYCHAIN_SERVICE,
     ProviderSpec,
@@ -44,7 +48,18 @@ from .keys import (
     write_env_file,
 )
 from .prices import estimate, price_for, reported, request_fees
-from .usage import spend_of
+from .plan import (
+    Comparison,
+    critical_value,
+    draws_needed,
+    icc_of,
+    price_of,
+    prompts_for_worst_case,
+    reachable_icc,
+    total_variance,
+    variance_of,
+)
+from .usage import spend_of, token_rate
 
 #: Where rounds are written unless a caller says otherwise. Relative on
 #: purpose: a measurement belongs to the project it was made for.
@@ -366,6 +381,170 @@ def usage(
     return 1 if failed_chain else 0
 
 
+# -- plan -------------------------------------------------------------------
+
+#: ICCs the no-pilot bracket is evaluated at. Not a guess at the answer: the
+#: point of showing several is that the answer moves by more than an order of
+#: magnitude across them, which is the argument for measuring it.
+BRACKET_ICCS = (0.0, 0.02, 0.05, 0.10, 0.25)
+
+
+def plan(
+    console: Console,
+    *,
+    prompts: int,
+    half_width: float,
+    brands: int = 1,
+    confidence: float = 0.95,
+    rate: float = 0.5,
+    days: int = 30,
+    scans_per_day: int = 1,
+    family: bool = True,
+    pilot: str | None = None,
+    brand: str | None = None,
+    ledger_dir: Path | None = None,
+    provider: str = "perplexity",
+    model: str = CHECK_MODEL,
+) -> int:
+    """Size a measurement, and price both what it needs and what it replaces."""
+    z = critical_value(confidence, brands, family=family)
+    price = price_for(provider, model)
+
+    console.say("lulu plan")
+    console.say()
+    console.say("DESIGN")
+    console.say(f"  {prompts} prompts, {brands} brand{'' if brands == 1 else 's'} tracked")
+    console.say(f"  target +/-{half_width * 100:.1f} points at {int(confidence * 100)}% confidence")
+    console.say(
+        f"  z={z:.4f} "
+        + (
+            f"(held across all {brands} brands at once)"
+            if family and brands > 1
+            else "(one brand at a time)"
+        )
+    )
+    console.say("  tracking more brands does not cost more calls: every brand is read out of")
+    console.say("  the same answers. What more brands cost is a wider critical value.")
+
+    measured = _pilot_split(console, pilot, brand, ledger_dir)
+    console.say()
+
+    if measured is None:
+        variance = total_variance(rate)
+        console.say("VARIANCE, assumed")
+        console.say(
+            f"  for a yes-or-no outcome the total per-draw variance is p(1-p), which at "
+            f"p={rate:g} is {variance:.4f}."
+        )
+        console.say("  that much is arithmetic. how it splits between the model answering")
+        console.say("  differently and the questions you chose is not, and the split is what")
+        console.say("  decides whether repeats or prompts buy your precision.")
+        ceiling = reachable_icc(prompts, half_width, z, variance)
+        console.say()
+        console.say(f"  above icc {ceiling:.4f} no number of repeats reaches this target with")
+        console.say(f"  {prompts} prompts. {prompts_for_worst_case(half_width, z, variance)} prompts would reach it at any icc.")
+        console.say()
+        console.say("WHAT ONE INTERVAL COSTS, across the range the split could take")
+        designed: int | None = None
+        for icc in BRACKET_ICCS:
+            design = draws_needed(prompts, half_width, z, variance, icc)
+            console.say(f"  {design.as_text()}")
+            if icc == 0.0 and design.reachable:
+                designed = design.calls
+        console.say()
+        console.say("  that spread is the output. it is also the argument for measuring the")
+        console.say("  split rather than assuming it: one round of this size settles it, and")
+        console.say("  every number above it is then replaced by one.")
+    else:
+        variance, icc = measured
+        console.say("VARIANCE, measured from the pilot")
+        console.say(f"  total per-draw variance {variance:.4f}, icc {icc:.4f}")
+        console.say()
+        console.say("WHAT ONE INTERVAL COSTS")
+        design = draws_needed(prompts, half_width, z, variance, icc)
+        console.say(f"  {design.as_text()}")
+        designed = design.calls
+        if not design.reachable:
+            console.say(
+                f"  {prompts_for_worst_case(half_width, z, variance)} prompts would reach it "
+                "even if repeats bought nothing."
+            )
+
+    console.say()
+    console.say("DETECTING A MOVE OF THAT SIZE")
+    console.say("  two rounds compared carry both rounds' error, so each one needs to be")
+    console.say(f"  +/-{half_width / math.sqrt(2) * 100:.1f} points to call a {half_width * 100:.1f} point move real.")
+    tighter_icc = measured[1] if measured else 0.0
+    tighter = draws_needed(prompts, half_width / math.sqrt(2), z, variance, tighter_icc)
+    if measured is None:
+        console.say("  quoted at icc 0, the most optimistic end of the bracket above. any")
+        console.say("  higher split costs more, and past the ceiling it cannot be bought.")
+    if tighter.reachable:
+        console.say(f"  {tighter.calls} calls per round, {tighter.calls * 2} for the pair.")
+    else:
+        console.say(f"  unreachable at {prompts} prompts: {tighter.reason}")
+
+    console.say()
+    console.say("ASKING EVERY DAY INSTEAD")
+    daily = prompts * days * scans_per_day
+    for line in Comparison(
+        designed_calls=designed,
+        daily_calls=daily,
+        days=days,
+        scans_per_day=scans_per_day,
+        n_prompts=prompts,
+    ).as_text().splitlines():
+        console.say(f"  {line}" if line else "")
+
+    console.say()
+    console.say("PRICE")
+    tokens = _pilot_tokens(pilot, ledger_dir)
+    if tokens is None:
+        console.say("  no call has been metered, so only the request fee is counted. these are")
+        console.say("  floors, not totals.")
+    else:
+        console.say(f"  priced from a measured {tokens[0]} in / {tokens[1]} out tokens per call.")
+    for label, calls in (("one interval", designed), ("a daily schedule", daily)):
+        if calls is None:
+            console.say(f"  {label:<18} not reachable at this prompt count")
+            continue
+        cost = price_of(price, calls, tokens)
+        console.say(f"  {label:<18} {calls} calls   " + (cost.as_text() if cost else "no published price on file"))
+    return 0
+
+
+def _pilot_split(
+    console: Console, pilot: str | None, brand: str | None, ledger_dir: Path | None
+) -> tuple[float, float] | None:
+    """Total variance and ICC read from a round that actually happened."""
+    if pilot is None:
+        return None
+    if brand is None or ledger_dir is None:
+        raise ValueError("a pilot needs --brand and --ledger so its answers can be scored")
+    store = Ledger(ledger_dir)
+    problems = store.verify(pilot)
+    if problems:
+        raise ValueError(
+            f"{pilot} does not verify ({len(problems)} problems), so nothing is planned from it"
+        )
+    played = replay(store, pilot)
+    clusters = [list(sample.detections(brand)) for sample in group_runs(played.runs)]
+    split = decompose(clusters)
+    if played.dropped:
+        console.say()
+        console.say(
+            f"  note: {played.dropped} of {played.total} pilot asks failed and are excluded; "
+            "a failed ask is missing data, not an observed absence"
+        )
+    return variance_of(split), icc_of(split)
+
+
+def _pilot_tokens(pilot: str | None, ledger_dir: Path | None) -> tuple[int, int] | None:
+    if pilot is None or ledger_dir is None:
+        return None
+    return token_rate(list(Ledger(ledger_dir).read(pilot)))
+
+
 # -- entry point ------------------------------------------------------------
 
 
@@ -392,6 +571,35 @@ def build_parser() -> argparse.ArgumentParser:
     p_usage.add_argument("--snapshot", default=None, help="one round; every round by default")
     p_usage.add_argument("--provider", default="perplexity", help="which engine's price table to use")
     p_usage.add_argument("--model", default=CHECK_MODEL, help="which model's published rates to use")
+
+    p_plan = sub.add_parser("plan", help="how many calls a target precision needs, and what it costs")
+    p_plan.add_argument("--prompts", type=int, required=True, help="how many tracked questions")
+    p_plan.add_argument("--brands", type=int, default=1, help="how many brands are read from the same answers")
+    p_plan.add_argument(
+        "--half-width",
+        type=float,
+        default=5.0,
+        help="target precision in percentage points, e.g. 5 for +/-5 points",
+    )
+    p_plan.add_argument("--confidence", type=float, default=0.95)
+    p_plan.add_argument(
+        "--rate",
+        type=float,
+        default=0.5,
+        help="expected appearance rate; 0.5 is the worst case and the default",
+    )
+    p_plan.add_argument("--days", type=int, default=30, help="window the daily comparison covers")
+    p_plan.add_argument("--scans-per-day", type=int, default=1)
+    p_plan.add_argument(
+        "--per-brand",
+        action="store_true",
+        help="size one brand at a time instead of holding every brand at once",
+    )
+    p_plan.add_argument("--pilot", default=None, help="a recorded round to measure the split from")
+    p_plan.add_argument("--brand", default=None, help="which brand the pilot is scored for")
+    p_plan.add_argument("--ledger", default=DEFAULT_LEDGER, help="where the pilot round lives")
+    p_plan.add_argument("--provider", default="perplexity")
+    p_plan.add_argument("--model", default=CHECK_MODEL)
     return parser
 
 
@@ -411,6 +619,23 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 cwd=cwd,
                 home=home,
                 provider=args.provider,
+            )
+        if args.command == "plan":
+            return plan(
+                console,
+                prompts=args.prompts,
+                half_width=args.half_width / 100.0,
+                brands=args.brands,
+                confidence=args.confidence,
+                rate=args.rate,
+                days=args.days,
+                scans_per_day=args.scans_per_day,
+                family=not args.per_brand,
+                pilot=args.pilot,
+                brand=args.brand,
+                ledger_dir=Path(args.ledger),
+                provider=args.provider,
+                model=args.model,
             )
         if args.command == "usage":
             return usage(

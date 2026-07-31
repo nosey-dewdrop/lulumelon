@@ -17,6 +17,10 @@ Answered calls fall into exactly three buckets and they never merge:
                is to add a zero token term and call the sum an estimate, which
                produces the same digits under a claim nobody measured.
 
+**A count nobody reported is never printed as a zero.** The token figures and
+the line that says how many calls produced them come from `token_reporters`,
+which counts only the calls that reported both an input and an output count.
+
 **Every priced call is priced at its own model's rate.** A round can mix models
 and a ledger records which one answered each call, so the rate comes from the
 record rather than from a flag on the command that reads it. Pricing a
@@ -97,6 +101,7 @@ class Spend:
     failed: int
     metered: int
     unrecorded: int
+    token_reporters: int
     metered_input_tokens: int
     metered_output_tokens: int
     metered_usd: float
@@ -178,12 +183,12 @@ class Spend:
 
         lines.append("")
         lines.append("TOKENS, as the provider reported them")
-        if self.counted or self.metered:
+        if self.token_reporters:
             lines.append(f"  input   {self.input_tokens:,}")
             lines.append(f"  output  {self.output_tokens:,}")
-        reporting = self.answered - self.silent - self.unrecorded
         lines.append(
-            f"  reported by {reporting} of {self.answered - self.unrecorded} answered calls"
+            f"  reported by {self.token_reporters} of {self.answered - self.unrecorded} "
+            "answered calls"
         )
 
         lines.append("")
@@ -275,6 +280,7 @@ def spend_of(records: Iterable[Record]) -> Spend:
     """
     calls = answered = failed = 0
     metered = unrecorded = 0
+    token_reporters = 0
     metered_in = metered_out = 0
     metered_usd = 0.0
     buckets: dict[tuple[str, str], _Bucket] = {}
@@ -291,17 +297,25 @@ def spend_of(records: Iterable[Record]) -> Spend:
             unrecorded += 1
             continue
 
+        both_tokens = usage.input_tokens is not None and usage.output_tokens is not None
         if usage.cost_usd is not None:
             metered += 1
             metered_usd += usage.cost_usd
-            # Still summed: the provider stated these, and the total is what a
-            # customer checks their own bill against.
-            metered_in += usage.input_tokens or 0
-            metered_out += usage.output_tokens or 0
+            # Summed only when the provider reported both counts. `or 0` here
+            # would fold "the provider did not say" into "the provider said
+            # zero", print that zero under a heading claiming the provider
+            # reported it, and count the call in the denominator of that same
+            # line. The distinction the rest of this package protects dies at
+            # exactly this expression.
+            if both_tokens:
+                token_reporters += 1
+                metered_in += usage.input_tokens
+                metered_out += usage.output_tokens
             continue
 
         bucket = buckets.setdefault((record.provider, record.model), _Bucket())
-        if usage.input_tokens is not None and usage.output_tokens is not None:
+        if both_tokens:
+            token_reporters += 1
             bucket.counted += 1
             bucket.input_tokens += usage.input_tokens
             bucket.output_tokens += usage.output_tokens
@@ -319,6 +333,7 @@ def spend_of(records: Iterable[Record]) -> Spend:
         failed=failed,
         metered=metered,
         unrecorded=unrecorded,
+        token_reporters=token_reporters,
         metered_input_tokens=metered_in,
         metered_output_tokens=metered_out,
         metered_usd=metered_usd,

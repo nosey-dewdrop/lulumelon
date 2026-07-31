@@ -142,6 +142,48 @@ def test_an_empty_ledger_is_not_a_free_one():
     assert spend.exact is False, "nothing measured is not the same as nothing spent"
 
 
+# -- a count nobody reported is not a count of zero -------------------------
+
+
+def test_a_metered_call_that_reported_no_tokens_reports_no_tokens():
+    """The scenario ask.py documents: an amount arrives, the token names moved.
+
+    The old arm coerced both counts with `or 0`, so the screen read
+
+        TOKENS, as the provider reported them
+          input   0
+          output  0
+          reported by 1 of 1 answered calls
+
+    Every line of that is false. The provider reported neither count, and it
+    was counted as the call that did.
+    """
+    priced_but_uncounted = rec(reported_cost_usd=0.005182)
+    spend = spend_of([priced_but_uncounted])
+
+    assert spend.metered == 1
+    assert spend.token_reporters == 0
+    text = spend.as_text()
+    assert "reported by 0 of 1 answered calls" in text
+    assert "input   0" not in text and "output  0" not in text
+    assert spend.low_usd == pytest.approx(0.005182), "the amount is still the amount"
+
+
+def test_half_a_token_pair_is_not_a_report():
+    """One count without the other cannot be summed into either total."""
+    spend = spend_of([rec(input_tokens=118, reported_cost_usd=0.005182)])
+    assert spend.token_reporters == 0
+    assert spend.input_tokens == 0
+    assert "reported by 0 of 1" in spend.as_text()
+
+
+def test_the_reporters_line_counts_metered_and_counted_calls_alike():
+    """Both arms report tokens, so both arms are behind that number."""
+    spend = spend_of([metered(), counted(), silent(), rec(v=1)])
+    assert spend.token_reporters == 2
+    assert "reported by 2 of 3 answered calls" in spend.as_text()
+
+
 # -- what a per-call figure is allowed to divide by -------------------------
 
 

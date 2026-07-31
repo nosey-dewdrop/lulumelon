@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence, TextIO
 
 from .collect.ask import PerplexityProvider
+from .collect.ledger import Ledger, LedgerFormatError
 from .keys import (
     KEYCHAIN_SERVICE,
     ProviderSpec,
@@ -43,6 +44,11 @@ from .keys import (
     write_env_file,
 )
 from .prices import estimate, price_for, reported, request_fees
+from .usage import spend_of
+
+#: Where rounds are written unless a caller says otherwise. Relative on
+#: purpose: a measurement belongs to the project it was made for.
+DEFAULT_LEDGER = "./ledger"
 
 #: The model a check call uses. The cheapest search-grounded model on the price
 #: table, because the point of the call is to prove the key spends, not to get
@@ -311,6 +317,55 @@ def doctor(
     return check_call(console, spec, found.key)
 
 
+# -- usage ------------------------------------------------------------------
+
+
+def usage(
+    console: Console,
+    *,
+    ledger_dir: Path,
+    snapshot: str | None = None,
+    provider: str = "perplexity",
+    model: str = CHECK_MODEL,
+) -> int:
+    """What the rounds on disk cost, from what the provider said about them.
+
+    The chain is checked before a single figure is printed. An invoice computed
+    from a file that does not verify is not a cheaper invoice, it is an unknown
+    one, and printing it under a heading that says COST would be the exact
+    move this library exists to argue against.
+    """
+    store = Ledger(ledger_dir)
+    wanted = [snapshot] if snapshot else store.snapshots()
+    if not wanted:
+        console.say(f"No rounds recorded in {ledger_dir}.")
+        console.say("Nothing has been asked yet, so nothing has been spent.")
+        return 0
+
+    price = price_for(provider, model)
+    console.say(f"lulu usage — {ledger_dir}")
+
+    failed_chain = False
+    for snapshot_id in wanted:
+        console.say()
+        console.say(snapshot_id)
+        problems = store.verify(snapshot_id)
+        if problems:
+            failed_chain = True
+            console.say(f"  CHAIN BROKEN, {len(problems)} problems. No cost is computed from it.")
+            for line in problems[:5]:
+                console.say(f"    {line}")
+            if len(problems) > 5:
+                console.say(f"    ... and {len(problems) - 5} more")
+            continue
+        console.say("  chain intact")
+        console.say()
+        for line in spend_of(store.read(snapshot_id), price).as_text().splitlines():
+            console.say(f"  {line}" if line else "")
+
+    return 1 if failed_chain else 0
+
+
 # -- entry point ------------------------------------------------------------
 
 
@@ -331,6 +386,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do everything except the test call, so nothing is spent",
     )
+
+    p_usage = sub.add_parser("usage", help="what the recorded rounds cost, from the provider's own figures")
+    p_usage.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
+    p_usage.add_argument("--snapshot", default=None, help="one round; every round by default")
+    p_usage.add_argument("--provider", default="perplexity", help="which engine's price table to use")
+    p_usage.add_argument("--model", default=CHECK_MODEL, help="which model's published rates to use")
     return parser
 
 
@@ -351,7 +412,21 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 home=home,
                 provider=args.provider,
             )
+        if args.command == "usage":
+            return usage(
+                console,
+                ledger_dir=Path(args.ledger),
+                snapshot=args.snapshot,
+                provider=args.provider,
+                model=args.model,
+            )
         return doctor(console, cwd=cwd, home=home, provider=args.provider, offline=args.offline)
+    except LedgerFormatError as e:
+        # Kept above the ValueError branch it inherits from. "This evidence
+        # file cannot be read" and "you typed the argument wrong" are different
+        # problems with different remedies, and they must not share an exit code.
+        console.warn(f"The ledger could not be read: {e}")
+        return 3
     except ValueError as e:
         console.warn(str(e))
         return 2

@@ -45,3 +45,6 @@ next-env.d.ts
 # secrets never enter the repo
 .env*
 !.env.example
+
+# local intel, never published
+/reports/

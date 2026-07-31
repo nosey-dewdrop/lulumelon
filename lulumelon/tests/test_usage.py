@@ -114,7 +114,7 @@ def test_a_failed_call_is_counted_and_never_priced():
 def test_a_mixed_round_says_how_much_of_it_is_exact():
     spend = spend_of([metered(), counted(), silent()])
     assert not spend.exact
-    assert "1 of 3 answered calls metered" in spend.as_text()
+    assert "1 of 3 priced calls metered" in spend.as_text()
 
 
 def test_records_from_before_usage_existed_are_a_separate_category(tmp_path):
@@ -140,6 +140,43 @@ def test_an_empty_ledger_is_not_a_free_one():
     spend = spend_of([])
     assert spend.calls == 0
     assert spend.exact is False, "nothing measured is not the same as nothing spent"
+
+
+# -- what a per-call figure is allowed to divide by -------------------------
+
+
+def test_a_per_call_figure_divides_by_the_calls_that_carry_a_cost():
+    """The exact arithmetic that made this wrong, from the audit that found it.
+
+    One metered call at $0.005182 beside three rows written before usage was
+    recorded. Divided by `answered` the screen printed $0.001295 a call, four
+    times under, on the same screen that says those three rows are not counted.
+    """
+    spend = spend_of([metered(), rec(v=1), rec(v=1), rec(v=1)])
+    assert (spend.answered, spend.unrecorded, spend.priced) == (4, 3, 1)
+    assert spend.per_call_low_usd == pytest.approx(0.005182)
+    assert spend.low_usd / spend.answered == pytest.approx(0.0012955)
+
+
+def test_a_round_nobody_metered_is_not_reported_as_a_free_one():
+    """Every row predates usage recording, so the cost is unknown, not zero."""
+    spend = spend_of([rec(v=1), rec(v=1)])
+    assert (spend.answered, spend.priced) == (2, 0)
+    text = spend.as_text()
+    assert "unknown rather than nothing" in text
+    assert "total  $0.000000" not in text, "an unmeasured round must not print a total"
+
+
+def test_a_silent_call_stays_in_the_divisor_because_it_carries_a_request_fee():
+    """`silent` is missing tokens, not missing from the bill."""
+    spend = spend_of([metered(), silent()])
+    assert spend.priced == 2
+    assert spend.per_call_low_usd == pytest.approx((0.005182 + 0.005) / 2)
+
+
+def test_exactness_is_about_the_priced_calls_not_the_answered_ones():
+    """Old rows carry no cost, so they cannot make a metered round inexact."""
+    assert spend_of([metered(), metered(), rec(v=1)]).exact
 
 
 # -- every call is priced at the rate of the model that answered it ---------

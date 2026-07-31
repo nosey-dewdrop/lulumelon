@@ -32,7 +32,9 @@ either way would be inventing the most interesting number on the page.
 Records written before usage was recorded at all are a fourth category, kept
 apart from `silent`. "This build did not collect it" and "the provider did not
 report it" are different facts about different parties, and only the second is
-evidence about a provider.
+evidence about a provider. They are also kept out of every divisor: a per-call
+figure that divides a measured total by a count including rows that carry no
+cost at all reports each call as cheaper than it was.
 """
 
 from __future__ import annotations
@@ -122,6 +124,20 @@ class Spend:
         return sum(m.calls for m in self.by_model if m.price is None)
 
     @property
+    def priced(self) -> int:
+        """The divisor for every per-call figure, and only it.
+
+        `metered`, `counted` and `silent` each contribute to the total, so all
+        three belong underneath it. `silent` stays in because a silent call
+        still carries a request fee. `unrecorded` comes out, because those rows
+        carry no cost and the same screen already says they are not counted.
+        Dividing by `answered` instead spreads a measured total over rows that
+        were never part of it, and the error grows with the size of the archive
+        a customer is carrying.
+        """
+        return self.metered + self.counted + self.silent
+
+    @property
     def input_tokens(self) -> int:
         return self.metered_input_tokens + sum(m.input_tokens for m in self.by_model)
 
@@ -139,16 +155,16 @@ class Spend:
 
     @property
     def exact(self) -> bool:
-        """True when every answered call priced itself."""
-        return self.answered > 0 and self.metered == self.answered
+        """True when every call that carries a cost priced itself."""
+        return self.priced > 0 and self.metered == self.priced
 
     @property
     def per_call_low_usd(self) -> float:
-        return self.low_usd / self.answered if self.answered else 0.0
+        return self.low_usd / self.priced if self.priced else 0.0
 
     @property
     def per_call_high_usd(self) -> float:
-        return self.high_usd / self.answered if self.answered else 0.0
+        return self.high_usd / self.priced if self.priced else 0.0
 
     def as_text(self) -> str:
         lines = [
@@ -202,13 +218,21 @@ class Spend:
         lines.append("")
         if self.exact:
             lines.append(f"  total  ${self.low_usd:.6f}, every call metered by the provider")
-        elif self.answered:
+        elif self.priced:
             lines.append(
                 f"  total  ${self.low_usd:.6f} to ${self.high_usd:.6f}"
-                f"   ({self.metered} of {self.answered} answered calls metered)"
+                f"   ({self.metered} of {self.priced} priced calls metered)"
             )
             lines.append(
                 f"  per call  ${self.per_call_low_usd:.6f} to ${self.per_call_high_usd:.6f}"
+            )
+        elif self.answered:
+            # Every answered call predates usage recording. Printing a total of
+            # $0.000000 here would report a round nobody metered as a free one,
+            # which is the most flattering wrong number this file could produce.
+            lines.append(
+                "  no total: not one answered call carries usage, so what this round cost is "
+                "unknown rather than nothing"
             )
         if self.unpriced:
             lines.append(

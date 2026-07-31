@@ -79,7 +79,9 @@ class Price:
 
     @property
     def fee_text(self) -> str:
-        unit = f"{self.fee_unit}s"
+        # Spelled out rather than an `s` on the end. "searchs" reached a
+        # customer's screen on the first real run of this command.
+        unit = {FEE_PER_REQUEST: "requests", FEE_PER_SEARCH: "searches"}[self.fee_unit]
         if self.fee_per_k_low_usd == self.fee_per_k_high_usd:
             return f"${self.fee_per_k_low_usd:g} per thousand {unit}"
         return f"${self.fee_per_k_low_usd:g} to ${self.fee_per_k_high_usd:g} per thousand {unit}"

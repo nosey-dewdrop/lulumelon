@@ -153,3 +153,11 @@ def test_a_metered_amount_carries_no_band_and_says_who_said_it():
     exact = reported(0.005182)
     assert exact.exact and exact.measured
     assert "provider" in exact.basis
+
+
+def test_a_fee_is_described_in_words_a_reader_recognises():
+    """The first real run of setup printed "$10 per thousand searchs"."""
+    from lulumelon.prices import price_for
+
+    assert "per thousand searches" in price_for("anthropic", "claude-haiku-4-5").fee_text
+    assert "per thousand requests" in price_for("perplexity", "sonar").fee_text

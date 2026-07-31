@@ -5,14 +5,10 @@ sample actually supports.
 
 ## why it exists?
 
-A company sent me a take-home case: a multi-agent content pipeline as a durable
-workflow, every agent its own step, real parallel fan-out with a concurrency
-cap, a live external signal mid-flow, a scoring judge, schema contracts at every
-boundary, and a page showing the whole run trace, in 48 hours.
-
-It was detailed enough to be worth doing properly, and doing it properly cost me
-$77.56, about 66 million tokens and 6,084 lines of code. It also left me with a
-question I could not put down, which is what this repo is.
+I was working on a multi-agent content pipeline and spent a while inside a
+dataset of what language models had answered about a set of brands. Working
+with it left me with a question I could not put down, and this repo is me
+trying to answer it.
 
 ## the problem
 
@@ -25,15 +21,14 @@ and you can get different brands, in a different order, with a different tone.
 So one reading is one draw from a distribution, and 18.5% and 24% may be the
 same underlying reality sampled twice.
 
-I read the public methodology pages of 30 products in this category. One states
-how many times it samples a prompt. Most state how often they refresh, daily or
-weekly, which is a different quantity: running a one-shot reading every morning
-gives you thirty one-shot readings, not a sample of thirty.
+Refresh frequency and sample size are also different quantities, and it is easy
+to conflate them. Running a one-shot reading every morning gives you thirty
+one-shot readings, not a sample of thirty.
 
 This is a hard problem rather than a careless one. Sampling n times costs n
 times as much, the variance is real and inconvenient, and an interval is harder
-to sell than a single number going up. None of that makes the single number mean
-more than it does.
+to read than a single number. This repo is one attempt at it, not a verdict on
+anyone else's.
 
 ## what this does
 
@@ -96,5 +91,5 @@ the only part allowed to reach the network, and it computes nothing.
 
 ---
 
-Built by [nosey dewdrop](https://noseydewdrop.com). The case that started this is
-not reproduced here, and no other product is named.
+Built by [nosey dewdrop](https://noseydewdrop.com).
+

@@ -5,16 +5,15 @@ because the moment a renderer is allowed to compute, someone rounds a number to
 make a line fit.
 
 Shape borrowed on purpose from a terminal usage panel: sections, a plain
-breakdown, and a stated limitation at the bottom. No charts. A chart of a
-visibility score over time is the category's whole product and it is the wrong
-object, because a trend line drawn through points that each carry a fourteen
-point interval reads as movement when it is dice. Text can refuse. A line cannot.
+breakdown, and a stated limitation at the bottom. No charts. A trend line drawn
+through points that each carry a fourteen point interval reads as movement when
+it is dice, and a line has no way to say so. Text does: it can print a refusal
+where a number would mislead, and that is the whole reason this surface is text.
 
-The one structural idea taken from that reference is its best line, *what is
-contributing to your usage*, turned into the question this product exists to
-answer: **what is contributing to your interval width**. Every competitor prints
-the score. None of them print where its uncertainty comes from, which is the
-only part that tells a customer what to do next.
+The structural idea taken from that reference is its best line, *what is
+contributing to your usage*, turned into the question this library exists to
+answer: **what is contributing to your interval width**. A score on its own does
+not tell anyone what to do next; the split behind it does.
 
 Order is deliberate and it is not the order of interest. Access comes before
 measurement, because a blocked crawler explains a low number completely and a
@@ -112,10 +111,10 @@ class Panel:
     def contributing(self) -> list[str]:
         """What is contributing to your interval width.
 
-        The line the category never prints. The split decides the next move:
-        more repeats when the model's own dice dominate, more prompts when the
-        question set does. Selling a fixed number of daily reruns without
-        reading this is how a customer buys repeats when they needed prompts.
+        The split decides the next move: more repeats when the model's own dice
+        dominate, more prompts when the question set does. Buying a fixed number
+        of daily reruns without reading it is how a measurement budget goes on
+        repeats when it was prompts that were short.
         """
         v = self.report.variance
         total = v.within + v.between or 1.0

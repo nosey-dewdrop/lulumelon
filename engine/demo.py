@@ -72,7 +72,7 @@ def main() -> None:
     print(f"visibility score: {hits / len(single) * 100:.1f}%")
     print(f"average position: {np.mean([r.brands.index(TARGET) + 1 for r in single if TARGET in r.brands]):.2f}")
     print(f"you lead in {leads} of {len(single)} answers")
-    print("this is exactly what the category ships: one number, no interval, k=1")
+    print("one number, no interval, k=1: the cheap reading of the same data")
 
     rule("2. the same measurement, asked 12 times per prompt")
     snap = snapshot_from_runs("week-1", simulate(101, n_prompts, k, 0.42))

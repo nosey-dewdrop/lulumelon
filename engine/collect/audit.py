@@ -1,10 +1,10 @@
 """Whether the answer engines are even allowed to read you.
 
-Every product in this category will tell a brand its visibility is low and then
-recommend writing more content. There is a cheaper explanation that nobody
-checks first: the site is telling the crawler to go away. If GPTBot is
-disallowed in robots.txt, no amount of content changes the retrieval channel,
-because the channel is closed by construction.
+A low visibility number invites one recommendation above all others: write more.
+There is a cheaper explanation worth ruling out before spending anything, and it
+takes one HTTP request to check. If GPTBot is disallowed in robots.txt, no amount
+of content changes the retrieval channel, because the channel is closed by
+construction.
 
 That makes this the one place where the advice is not a guess. "You are blocking
 the crawler belonging to the engine you are trying to appear in, here is the

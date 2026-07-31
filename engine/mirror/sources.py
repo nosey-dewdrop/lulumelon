@@ -1,12 +1,11 @@
 """Which pages the answer engine read, and whether your name travels with them.
 
-The category ships a panel called Source Analysis that lists the domains cited
-next to your brand and stops there. A list of domains is not an answer to the
-only question a customer actually has, which is *which one of these is worth
-getting into*.
+Listing the domains an answer cited is cheap and it is where source analysis
+usually ends. The list on its own does not answer the question that follows it,
+which is *which one of these is worth getting into*.
 
-This module goes one step further and then stops on purpose, because the step
-after it is a different kind of claim.
+This module takes one step past the list and then stops on purpose, because the
+step after that one is a different kind of claim and it needs different data.
 
 **What is computed here is association, not effect.** For a given source, we
 compare how often the brand appears in the runs that cited it against the runs

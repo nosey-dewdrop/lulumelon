@@ -1,9 +1,9 @@
 """mirror: a measurement engine for non-deterministic answer engines.
 
 Ask the mirror who the fairest is and it names someone. Ask again and it may
-name someone else. Every product in this category asks once and prints the
-name. This library asks k times and reports the distribution, the interval, and
-whether the movement you are looking at could have been the dice.
+name someone else. Asking once and printing the name is the cheap reading, and
+it is one draw. This library asks k times and reports the distribution, the
+interval, and whether the movement you are looking at could have been the dice.
 
 Nothing in here calls a model. Given recorded runs it is pure arithmetic and
 fully reproducible from a seed, which is the property that makes it an

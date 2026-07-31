@@ -1,11 +1,12 @@
 """One measurement round: ask the prompts k times, write down everything.
 
-This is the loop the whole category gets wrong, and the mistakes are not subtle.
-They ask each prompt once a day, they retry until they get a reply, and they
-report the answers that survived. Each of those is a decision that moves the
-number, and none of them is usually written down.
+A collection loop makes three choices that move the resulting number, and each
+one is easy to make by accident: how many times a prompt is asked, what happens
+to an ask that fails, and whether one round is allowed to mix conditions. None
+of them announce themselves, and all three are usually invisible by the time
+anyone reads a score.
 
-What this module does instead:
+They are made explicitly here:
 
 **k is a parameter, not a default of one.** A single ask is one draw from a
 distribution. `mirror.variance.decompose` refuses to work on k=1 designs because

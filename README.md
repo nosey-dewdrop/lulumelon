@@ -59,15 +59,18 @@ cannot support.
 
 ```
 lulumelon/
-  cli.py          `lulu init` / `doctor` / `plan` / `usage` / `verify`
+  cli.py          `lulu init` / `doctor` / `plan` / `usage` / `verify` / `ablate` / `lift`
   keys.py         where a key is looked for, in order, and how it is kept quiet
   prices.py       what a call costs, from the provider's page, with the date read
   mirror/         the measurement core, calls no model
+    types.py      a run is the atom, and one run is never enough for a number
     intervals.py  Wilson and a clustered bootstrap that resamples prompts
     variance.py   splits the wobble into the model rerolling vs the prompt set
     stability.py  decides whether an ordering repeats enough to report a rank
     compare.py    before / after, and no verdict when the model moved underneath
     sources.py    which pages were cited, and whether a name travels with them
+    ablation.py   whether a replica may stand in for the surface it replaces
+    lift.py       what one source was worth, and the name that has to be earned
     report.py     one brand, with the refusals kept
   collect/        the part that asks, and the part that writes it down
     ask.py        provider boundary; Perplexity Sonar and a deterministic stub
@@ -75,10 +78,12 @@ lulumelon/
     ledger.py     append-only, hash-chained, nothing edited in place
     detect.py     brand matching by declared literals, no model in the loop
     audit.py      whether the answer engines are allowed to read the site
+    replica.py    the same question with the source list supplied, on purpose
     replay.py     ledger back into runs, handing back what it excluded
   usage.py        what a recorded round cost, from the provider's own figures
   plan.py         how many calls a target precision needs, before spending any
   panel.py        the surface a customer reads
+  demo.py         one recorded round, so the output above can be reproduced
 
 src/lib/          the TypeScript layer behind the demo terminal
   stats.ts        Wilson intervals and the sampling math; calls no model
@@ -95,7 +100,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 310 tests, offline
+    python3 -m pytest lulumelon/tests   # 454 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -139,6 +144,30 @@ smaller than the margin you plan at. Overlap would reward not looking, since two
 rates measured with too few calls overlap with everything. So there are three
 outcomes, and `this design cannot tell` is one of them, printed with the number
 of calls that would settle it and a non-zero exit code.
+
+    lulu lift --live ROUND --held ROUND --dropped ROUND --brand marx \
+              --source https://b.example/list \
+              --sources https://a.example/guide \
+              --sources https://b.example/list \
+              --sources https://c.example/review
+
+measures what that one page was worth: the appearance rate with the list held
+whole, the rate with the page taken out, and the paired gap between them with
+its interval. The sentence it exists to print reads `37.5% without it, 62.5%
+with it, +25.0 points`.
+
+The word `lift` is not the name of that number, it is a name it has to be
+granted. The contrast is causal either way, since the list is ours and one
+thing moved; what a passing gate buys is somewhere to carry it. Without
+`--live` there is no gate, the same arithmetic prints as an `arm difference`,
+and the exit code is not zero. With one, the levels are restated with the
+gate's own margin added on top, because a laboratory rate quoted as a
+customer's rate is uncertain by both.
+
+The source list is not taken on trust either. A replica round records the
+digest of the exact material it was shown, so the list given on the command
+line is checked against the evidence file, and a reordered list, a swapped pair
+of arms or an edited instruction is refused by name rather than measured.
 
 `lulu usage` keeps three bases apart and never merges them: an amount the
 provider stated, a cost computed from tokens it reported, and a floor for calls

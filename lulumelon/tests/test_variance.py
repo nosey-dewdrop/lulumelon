@@ -12,8 +12,8 @@ import math
 import numpy as np
 import pytest
 
-from mirror.intervals import z_for
-from mirror.variance import decompose, prompts_needed, runs_needed
+from lulumelon.mirror.intervals import z_for
+from lulumelon.mirror.variance import decompose, prompts_needed, runs_needed
 
 
 def _synthetic(

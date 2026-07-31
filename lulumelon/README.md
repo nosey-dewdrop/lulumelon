@@ -114,7 +114,7 @@ noise.
 ## Layout
 
 ```
-mirror/          the engine, no I/O, no model calls
+mirror/          the arithmetic, no I/O, no model calls
 tests/           68 tests including a Monte Carlo coverage check
 demo.py          runnable comparison against the single-run design
 conftest.py      path shim so the suite runs from the repo root

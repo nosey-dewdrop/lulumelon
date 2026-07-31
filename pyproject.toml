@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lulumelon"
+version = "0.1.0"
+description = "Measure how an answer engine talks about a brand, with the uncertainty attached."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Damla Su Bilge" }]
+keywords = ["llm", "measurement", "confidence-interval", "answer-engine", "brand-visibility"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+# The arithmetic needs these. Everything on the network path is standard
+# library on purpose: an HTTP client is not worth a supply chain for one POST.
+dependencies = ["numpy>=1.26", "scipy>=1.11"]
+
+[project.urls]
+Source = "https://github.com/nosey-dewdrop/lulumelon"
+
+[project.scripts]
+lulu = "lulumelon.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["lulumelon*"]
+exclude = ["lulumelon.tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["lulumelon/tests"]
+# The simulation tests resample thousands of times to check coverage. They are
+# marked so the mark is a declaration rather than a warning, and they still run
+# by default: a coverage claim nobody runs is not a claim.
+markers = ["slow: resamples enough to take seconds rather than milliseconds"]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collect.audit import audit, is_disallowed, parse_robots
+from lulumelon.collect.audit import audit, is_disallowed, parse_robots
 
 PAGE = """<html><head>
 <title>Marx</title>

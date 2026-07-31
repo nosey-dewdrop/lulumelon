@@ -58,7 +58,10 @@ cannot support.
 ## layout
 
 ```
-engine/
+lulumelon/
+  cli.py          `lulu init` and `lulu doctor`: the key path, before anything runs
+  keys.py         where a key is looked for, in order, and how it is kept quiet
+  prices.py       what a call costs, from the provider's page, with the date read
   mirror/         the measurement core, calls no model
     intervals.py  Wilson and a clustered bootstrap that resamples prompts
     variance.py   splits the wobble into the model rerolling vs the prompt set
@@ -86,8 +89,21 @@ src/lib/          the TypeScript layer
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest engine/tests    # 144 tests, offline
-    npm test                          # 45 tests, offline
+    python3 -m pytest lulumelon/tests   # 206 tests, offline
+    npm test                            # 45 tests, offline
+
+## getting started
+
+You bring your own key, so the first command is about the key and nothing else.
+[docs/keys.md](docs/keys.md) is the long version, with the exact pages and the
+published prices.
+
+    pip install -e .
+    lulu init      # asks for a key, stores it, says exactly where it put it
+    lulu doctor    # finds it, tests it with one call, and prices that call
+
+`lulu doctor` prints every place it looked, in order, whether or not it found
+anything. `lulu doctor --offline` does all of that and spends nothing.
 
 ---
 

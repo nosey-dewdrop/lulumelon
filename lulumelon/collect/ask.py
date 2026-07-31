@@ -37,12 +37,34 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from keys import redact
+from ..keys import redact
 
 #: Values allowed in `Run.surface`. Anything else is a bug in a provider.
 SURFACES = ("logged_in", "logged_out", "api", "unspecified")
 
 UNKNOWN_MODEL = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class Usage:
+    """What the provider says the call consumed, and what it says it cost.
+
+    `cost_usd` is `None` unless the response states an amount. Perplexity's
+    pricing page says the final cost is metered from the response's usage
+    field, but publishes no schema for it, so the amount is read where it is
+    found and left unknown otherwise. An unknown cost is reported as unknown;
+    filling it in from a price table and calling it metered would turn our own
+    arithmetic into the provider's invoice.
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    search_context: str = ""
+    cost_usd: float | None = None
+
+    @property
+    def known(self) -> bool:
+        return bool(self.input_tokens or self.output_tokens or self.cost_usd is not None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +85,7 @@ class Answer:
     status: str = "ok"
     error: str = ""
     citations: tuple[str, ...] = ()
+    usage: "Usage" = field(default_factory=lambda: Usage())
 
     @property
     def ok(self) -> bool:
@@ -135,6 +158,45 @@ class FakeProvider:
 #: otherwise show up as "this question has no sources", which is a measurement
 #: claim we would be making by accident.
 _CITATION_FIELDS = ("citations", "search_results")
+
+
+#: Names the token counts have appeared under. Read in order, first hit wins,
+#: for the same reason the citation fields are listed: a rename must show up as
+#: "unknown", never as zero, because zero tokens is a cost claim.
+_INPUT_TOKEN_FIELDS = ("prompt_tokens", "input_tokens")
+_OUTPUT_TOKEN_FIELDS = ("completion_tokens", "output_tokens")
+#: Where the provider's own total, when it reports one, has been seen.
+_COST_PATHS = (("cost", "total_cost"), ("cost", "total_cost_usd"), ("total_cost",))
+
+
+def _first_int(d: dict, names: tuple[str, ...]) -> int:
+    for name in names:
+        value = d.get(name)
+        if isinstance(value, (int, float)):
+            return int(value)
+    return 0
+
+
+def _reported_cost(usage: dict) -> float | None:
+    for path in _COST_PATHS:
+        node: object = usage
+        for step in path:
+            node = node.get(step) if isinstance(node, dict) else None
+        if isinstance(node, (int, float)):
+            return float(node)
+    return None
+
+
+def _usage(payload: dict) -> Usage:
+    raw = payload.get("usage")
+    if not isinstance(raw, dict):
+        return Usage()
+    return Usage(
+        input_tokens=_first_int(raw, _INPUT_TOKEN_FIELDS),
+        output_tokens=_first_int(raw, _OUTPUT_TOKEN_FIELDS),
+        search_context=str(raw.get("search_context_size") or ""),
+        cost_usd=_reported_cost(raw),
+    )
 
 
 def _urls(payload: dict) -> tuple[str, ...]:
@@ -224,6 +286,7 @@ class PerplexityProvider:
             surface=self.surface,
             latency_ms=elapsed,
             citations=_urls(payload),
+            usage=_usage(payload),
         )
 
     def _failed(self, started: float, why: str) -> Answer:

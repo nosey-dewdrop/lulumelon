@@ -25,9 +25,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from collect.audit import SiteAudit
-from mirror.report import BrandReport
-from mirror.sources import SourceAssociation
+from .collect.audit import SiteAudit
+from .mirror.report import BrandReport
+from .mirror.sources import SourceAssociation
 
 RULE = "-" * 66
 

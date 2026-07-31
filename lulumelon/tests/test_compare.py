@@ -10,13 +10,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mirror.compare import (
+from lulumelon.mirror.compare import (
     holm_adjust,
     mcnemar_detection,
     model_confounds,
     paired_difference,
 )
-from mirror.types import Run, snapshot_from_runs
+from lulumelon.mirror.types import Run, snapshot_from_runs
 
 
 def _paired_sets(
@@ -58,7 +58,7 @@ def test_pairing_beats_ignoring_the_pairing() -> None:
     treating the two rounds as unrelated samples, because prompt difficulty
     cancels.
     """
-    from mirror.intervals import cluster_bootstrap_ci
+    from lulumelon.mirror.intervals import cluster_bootstrap_ci
 
     rng = np.random.default_rng(8)
     before, after = _paired_sets(rng, n=50, k=6, p_before=0.30, p_after=0.38)
@@ -130,7 +130,7 @@ def test_surface_change_between_rounds_is_a_confound() -> None:
     ChatGPT answers, 62% logged-out and 0% via API. Swapping surface between
     two rounds can manufacture a bigger swing than anything the customer did.
     """
-    from mirror.compare import design_confounds, surface_confounds
+    from lulumelon.mirror.compare import design_confounds, surface_confounds
 
     def snap(label: str, surface: str) -> object:
         return snapshot_from_runs(
@@ -151,7 +151,7 @@ def test_surface_change_between_rounds_is_a_confound() -> None:
 
 
 def test_model_and_surface_confounds_are_reported_separately() -> None:
-    from mirror.compare import design_confounds
+    from lulumelon.mirror.compare import design_confounds
 
     a = snapshot_from_runs(
         "a",

@@ -6,7 +6,7 @@ so nothing in `mirror` is allowed to reach the network, and nothing here is
 allowed to compute a score.
 """
 
-from .ask import SURFACES, UNKNOWN_MODEL, Answer, FakeProvider, PerplexityProvider, Provider
+from .ask import SURFACES, UNKNOWN_MODEL, Answer, FakeProvider, PerplexityProvider, Provider, Usage
 from .detect import Brand, detect, normalise, occurrences
 from .ledger import GENESIS, SCHEMA_VERSION, Ledger, Record, scrub
 from .replay import Replay, replay
@@ -27,6 +27,7 @@ __all__ = [
     "Record",
     "Replay",
     "RoundResult",
+    "Usage",
     "detect",
     "normalise",
     "occurrences",

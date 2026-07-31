@@ -7,8 +7,8 @@ import json
 import urllib.error
 import urllib.request
 
-from collect.ask import UNKNOWN_MODEL, PerplexityProvider
-from keys import REDACTED
+from lulumelon.collect.ask import UNKNOWN_MODEL, PerplexityProvider
+from lulumelon.keys import REDACTED
 
 KEY = "pplx-" + "a1b2c3d4e5" * 4
 

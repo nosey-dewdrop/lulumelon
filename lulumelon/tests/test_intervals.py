@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mirror.intervals import (
+from lulumelon.mirror.intervals import (
     cluster_bootstrap_ci,
     naive_bootstrap_ci,
     wilson_interval,
@@ -146,7 +146,7 @@ def test_published_competitor_margin_matches_its_stated_constant() -> None:
 
     Their claim: ~800 conversations gives +/-5 percentage points at 95%.
     """
-    from mirror.intervals import published_binomial_moe
+    from lulumelon.mirror.intervals import published_binomial_moe
 
     assert published_binomial_moe(800) == pytest.approx(0.0347, abs=0.001)
     # The 0.98/sqrt(n) form they quote, checked directly.
@@ -162,7 +162,7 @@ def test_published_competitor_margin_undercovers_on_clustered_data() -> None:
     for how often it actually contains the truth. A 95% claim that lands well
     under 95% is not conservative, it is wrong, and this measures by how much.
     """
-    from mirror.intervals import published_binomial_moe
+    from lulumelon.mirror.intervals import published_binomial_moe
 
     rng = np.random.default_rng(20260731)
     trials = 150
@@ -217,7 +217,7 @@ def test_two_designs_the_vendor_calls_equivalent_are_not() -> None:
     assert few_prompts_many_repeats > many_prompts_few_repeats * 1.5
 
     # And both are wider than the published margin claims.
-    from mirror.intervals import published_binomial_moe
+    from lulumelon.mirror.intervals import published_binomial_moe
 
     assert few_prompts_many_repeats > published_binomial_moe(390) * 2
     assert many_prompts_few_repeats > published_binomial_moe(400)

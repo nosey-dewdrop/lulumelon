@@ -10,8 +10,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mirror.report import brand_report
-from mirror.types import PromptSample, Run, Snapshot, group_runs, snapshot_from_runs
+from lulumelon.mirror.report import brand_report
+from lulumelon.mirror.types import PromptSample, Run, Snapshot, group_runs, snapshot_from_runs
 
 
 def _runs(prompt: str, engine: str, model: str, answers: list[tuple[str, ...]]) -> list[Run]:

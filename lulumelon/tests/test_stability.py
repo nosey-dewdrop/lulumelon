@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from mirror.stability import (
+from lulumelon.mirror.stability import (
     exact_repeat_rate,
     jaccard,
     leader_repeat_rate,

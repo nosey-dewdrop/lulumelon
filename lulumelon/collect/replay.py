@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mirror.types import Run
+from ..mirror.types import Run
 
 from .ledger import Ledger
 

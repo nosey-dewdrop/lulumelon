@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from collect import Brand, FakeProvider, Ledger, Prompt, replay, run_round
+from lulumelon.collect import Brand, FakeProvider, Ledger, Prompt, replay, run_round
 
 BRANDS = (Brand("Marx", aliases=("marx.finance",)), Brand("Rival"))
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from mirror.sources import MIN_PROMPTS, associate, source_graph, source_use
-from mirror.types import Run, snapshot_from_runs
+from lulumelon.mirror.sources import MIN_PROMPTS, associate, source_graph, source_use
+from lulumelon.mirror.types import Run, snapshot_from_runs
 
 A = "https://g2.com/best-trading-agents"
 B = "https://reddit.com/r/algotrading/thread"

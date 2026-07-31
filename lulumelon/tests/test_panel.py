@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collect.audit import Finding, SiteAudit
-from mirror.report import brand_report
-from mirror.sources import source_graph
-from mirror.types import Run, snapshot_from_runs
-from panel import Panel
+from lulumelon.collect.audit import Finding, SiteAudit
+from lulumelon.mirror.report import brand_report
+from lulumelon.mirror.sources import source_graph
+from lulumelon.mirror.types import Run, snapshot_from_runs
+from lulumelon.panel import Panel
 
 BLOCKED = SiteAudit(
     base_url="https://marx.finance/",

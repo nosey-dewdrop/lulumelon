@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from keys import (
+from lulumelon.keys import (
     KEYCHAIN_SERVICE,
     REDACTED,
     Resolution,

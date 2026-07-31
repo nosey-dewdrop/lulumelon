@@ -48,3 +48,11 @@ next-env.d.ts
 
 # local intel, never published
 /reports/
+
+# python build and cache artefacts
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+/build/
+/dist/

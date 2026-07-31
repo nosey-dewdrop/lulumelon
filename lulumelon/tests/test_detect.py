@@ -7,7 +7,7 @@ deflate a competitor's.
 
 from __future__ import annotations
 
-from collect.detect import Brand, detect, normalise, occurrences
+from lulumelon.collect.detect import Brand, detect, normalise, occurrences
 
 NIKE = Brand("Nike", ("nike.com", "Nike, Inc."))
 APPLE = Brand("Apple", ("apple.com",))

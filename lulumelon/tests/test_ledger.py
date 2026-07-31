@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from collect import GENESIS, Ledger, Record, scrub
+from lulumelon.collect import GENESIS, Ledger, Record, scrub
 
 
 def rec(prompt_id: str = "m1", repeat: int = 0, **over) -> Record:

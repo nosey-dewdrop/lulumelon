@@ -125,12 +125,19 @@ class Answer:
         return self.status == "ok"
 
 
-def provider_for(name: str, api_key: str, *, model: str | None = None) -> "Provider":
+def provider_for(
+    name: str, api_key: str, *, model: str | None = None, max_searches: int | None = None
+) -> "Provider":
     """The live provider for one engine name, or a refusal that lists the rest.
 
     One place where an engine name becomes a class. Without it every command
     that spends money picks a provider by hand, and the first one somebody
     forgets to update calls the wrong engine with the right key.
+
+    `max_searches` is accepted and passed on only where it means something. A
+    caller that wants the cheapest possible call sets it to one, and on an
+    engine billed per request it changes nothing and is dropped rather than
+    raising, so a caller does not have to know which engine it got.
     """
     builders = {"perplexity": PerplexityProvider, "anthropic": AnthropicProvider}
     try:
@@ -138,7 +145,12 @@ def provider_for(name: str, api_key: str, *, model: str | None = None) -> "Provi
     except KeyError:
         known = ", ".join(sorted(builders))
         raise ValueError(f"no provider in this build can call {name!r}; it can call: {known}") from None
-    return builder(api_key=api_key, model=model) if model else builder(api_key=api_key)
+    kwargs: dict = {"api_key": api_key}
+    if model:
+        kwargs["model"] = model
+    if max_searches is not None and builder is AnthropicProvider:
+        kwargs["max_searches"] = max_searches
+    return builder(**kwargs)
 
 
 class Provider(Protocol):

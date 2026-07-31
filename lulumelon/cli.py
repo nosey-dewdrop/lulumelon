@@ -248,7 +248,10 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | N
     console.say(f"Asking {spec.name} one question now.")
     console.say()
 
-    answer = provider_for(spec.name, key, model=model).ask(CHECK_PROMPT)
+    # One search at most. The call exists to prove the key spends and that the
+    # search tool is enabled on this account, and on an engine billed per search
+    # the default cap would let a diagnostic cost three times what it needs to.
+    answer = provider_for(spec.name, key, model=model, max_searches=1).ask(CHECK_PROMPT)
 
     if not answer.ok:
         console.say(f"The call failed after {answer.latency_ms} ms.")

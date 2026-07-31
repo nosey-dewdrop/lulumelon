@@ -1,6 +1,7 @@
 """`lulu`: the commands that stand between a person and a defensible number.
 
-Two of them are about getting started, and two are about money and evidence.
+Two are about getting started, two are about money and evidence, and one is
+about whether the causal half of this product is real at all.
 
 `lulu init` asks for a key, stores it, and says out loud where it stored it.
 `lulu doctor` answers "why is it not working" in one screen: every place that
@@ -10,6 +11,9 @@ reachable at all, and what the one test call cost.
 repeats would be enough.
 `lulu usage` says what the rounds already on disk cost, and `lulu verify`
 re-derives their chains so the person relying on that can check it themselves.
+`lulu ablate` asks whether a replica round tracks the live surface closely
+enough to reason from, and returns three answers rather than two, because a
+design that cannot tell has not passed.
 
 All of them are written so nothing is guessed. Where the code cannot know
 something it says so: an unknown price is "no published price on file", not a
@@ -33,7 +37,10 @@ from typing import Callable, Mapping, Sequence, TextIO
 from .collect.ask import PerplexityProvider
 from .collect.ledger import Ledger, LedgerFormatError
 from .collect.replay import replay
-from .mirror.types import group_runs
+from .collect.replica import REPLICA_SURFACE
+from .mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
+from .mirror.compare import model_confounds
+from .mirror.types import Snapshot, group_runs
 from .mirror.variance import decompose
 from .keys import (
     KEYCHAIN_SERVICE,
@@ -637,6 +644,95 @@ def _pilot_tokens(pilot: str | None, ledger_dir: Path | None) -> tuple[int, int]
     return token_rate(list(Ledger(ledger_dir).read(pilot)))
 
 
+# -- ablate -----------------------------------------------------------------
+
+#: `ablate` reports through its exit code, because it is a gate and a gate is
+#: usually read by something other than a person. `undecided` is deliberately
+#: not 0: a design that could not tell has not passed, and a script that treats
+#: "cannot tell" as "fine" is the failure this whole command exists to prevent.
+ABLATE_EXIT = {STANDS_IN: 0, DIFFERS: 1, UNDECIDED: 4}
+
+
+def ablate(
+    console: Console,
+    *,
+    ledger_dir: Path,
+    live: str,
+    replica: str,
+    brand: str,
+    margin: float,
+    confidence: float = 0.95,
+    brands: int = 1,
+    family: bool = True,
+) -> int:
+    """Ask whether a replica round may stand in for a live one, and say why not.
+
+    This is the gate the causal half of the product rests on, so it runs before
+    anything is concluded rather than after. It reports three outcomes and the
+    third one, "this design cannot tell", is a real answer with a call count
+    attached rather than a failure to produce one.
+    """
+    store = Ledger(ledger_dir)
+    console.say(f"lulu ablate — {ledger_dir}")
+    console.say()
+
+    sides = {}
+    for role, snapshot_id in (("live", live), ("replica", replica)):
+        problems = store.verify(snapshot_id)
+        if problems:
+            console.say(f"  {snapshot_id}: CHAIN BROKEN, {len(problems)} problems.")
+            console.say("  no verdict is computed from a round that does not re-derive.")
+            return 3
+        played = replay(store, snapshot_id)
+        console.say(f"  {role:<8} {snapshot_id}")
+        console.say(f"           {played.as_text()}")
+        sides[role] = played
+
+    console.say()
+    lab = sides["replica"]
+    if REPLICA_SURFACE not in lab.surfaces:
+        raise ValueError(
+            f"{replica} was collected on {', '.join(lab.surfaces)}, not on the replica "
+            "surface; this gate asks whether a laboratory round tracks a live one, and "
+            "comparing two live rounds is a different question with a different answer"
+        )
+    if REPLICA_SURFACE in sides["live"].surfaces:
+        raise ValueError(
+            f"{live} is itself a replica round, so there is no live surface here to be "
+            "tracked and passing this gate would prove only that the instrument repeats"
+        )
+
+    def detections(played) -> dict[str, tuple[int, ...]]:
+        return {s.prompt_id: s.detections(brand) for s in group_runs(played.runs)}
+
+    # Only the model version is treated as a confound. The surfaces differ by
+    # construction here, which is the comparison rather than a flaw in it, and
+    # listing it would void every verdict this command can ever reach.
+    confounds = model_confounds(
+        Snapshot(label="live", samples=group_runs(sides["live"].runs)),
+        Snapshot(label="replica", samples=group_runs(lab.runs)),
+    )
+
+    verdict = replica_gate(
+        detections(sides["live"]),
+        detections(lab),
+        margin=margin,
+        confidence=confidence,
+        brands=brands,
+        family=family,
+        confounded_by=tuple(f"{e} (model version)" for e in confounds),
+    )
+    console.say()
+    for line in verdict.as_text().splitlines():
+        console.say(f"  {line}" if line else "")
+    console.say()
+    if verdict.passed:
+        console.say("  a lift measured on this replica may be read as a lift, at that margin.")
+    else:
+        console.say("  nothing causal is read off this replica until that changes.")
+    return ABLATE_EXIT[verdict.verdict]
+
+
 # -- entry point ------------------------------------------------------------
 
 
@@ -664,6 +760,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_usage = sub.add_parser("usage", help="what the recorded rounds cost, from the provider's own figures")
     p_usage.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
     p_usage.add_argument("--snapshot", default=None, help="one round; every round by default")
+
+    p_ablate = sub.add_parser(
+        "ablate", help="whether a replica round may stand in for a live one, and why not"
+    )
+    p_ablate.add_argument("--live", required=True, help="a round collected from the engine itself")
+    p_ablate.add_argument("--replica", required=True, help="a round collected with the sources supplied")
+    p_ablate.add_argument("--brand", required=True, help="which brand the two rounds are scored for")
+    p_ablate.add_argument(
+        "--margin",
+        type=float,
+        default=5.0,
+        help="how many points the two may differ by and still count as the same, e.g. 5",
+    )
+    p_ablate.add_argument("--confidence", type=float, default=0.95)
+    p_ablate.add_argument("--brands", type=int, default=1, help="how many brands are held at once")
+    p_ablate.add_argument("--per-brand", action="store_true")
+    p_ablate.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds live in")
 
     p_verify = sub.add_parser("verify", help="re-derive every chain on disk and report what moved")
     p_verify.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
@@ -733,6 +846,18 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 ledger_dir=Path(args.ledger),
                 provider=args.provider,
                 model=args.model,
+            )
+        if args.command == "ablate":
+            return ablate(
+                console,
+                ledger_dir=Path(args.ledger),
+                live=args.live,
+                replica=args.replica,
+                brand=args.brand,
+                margin=args.margin / 100.0,
+                confidence=args.confidence,
+                brands=args.brands,
+                family=not args.per_brand,
             )
         if args.command == "verify":
             return verify(console, ledger_dir=Path(args.ledger), snapshot=args.snapshot)

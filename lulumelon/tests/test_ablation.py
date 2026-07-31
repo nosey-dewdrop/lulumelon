@@ -17,6 +17,16 @@ from __future__ import annotations
 
 import pytest
 
+from lulumelon.cli import Console, ablate
+from lulumelon.collect import (
+    Brand,
+    FakeProvider,
+    Ledger,
+    Prompt,
+    ReplicaProvider,
+    replica_prompt,
+    run_round,
+)
 from lulumelon.mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
 
 
@@ -207,3 +217,129 @@ def test_the_verdict_is_reproducible_for_the_same_inputs():
     first = replica_gate(*args, margin=0.05)
     second = replica_gate(*args, margin=0.05)
     assert first.as_text() == second.as_text()
+
+
+# -- the command that puts one verdict on one screen ------------------------
+
+import io  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+SRC = ("https://a.example/guide", "https://b.example/list")
+MARX = (Brand(name="marx", aliases=()),)
+
+
+class Recorder:
+    def __init__(self) -> None:
+        self.out, self.err = io.StringIO(), io.StringIO()
+        self.console = Console(out=self.out, err=self.err)
+
+    @property
+    def text(self) -> str:
+        return self.out.getvalue() + self.err.getvalue()
+
+
+def two_rounds(tmp_path, live_replies, replica_replies, *, n=30, k=4, replica_model=None):
+    """A live round and a replica round over the same prompts, in one ledger."""
+    led = Ledger(tmp_path)
+    prompts = [Prompt(id=f"p{i}", text=f"who should I use for {i}?") for i in range(n)]
+
+    live = run_round(
+        ledger=led,
+        provider=FakeProvider(surface="api", script={p.text: live_replies for p in prompts}),
+        prompts=prompts, brands=MARX, k=k, subject="marx",
+    )
+    base = FakeProvider(surface="api", model=replica_model or "fake-1")
+    lab = ReplicaProvider(base=base, sources=SRC)
+    base.script = {replica_prompt(p.text, SRC): replica_replies for p in prompts}
+    replica = run_round(
+        ledger=led, provider=lab, prompts=prompts, brands=MARX, k=k, subject="marx"
+    )
+    return led, live.snapshot_id, replica.snapshot_id
+
+
+def run_ablate(tmp_path, live_id, replica_id, **kw):
+    rec = Recorder()
+    args = dict(ledger_dir=Path(tmp_path), live=live_id, replica=replica_id,
+                brand="marx", margin=0.05)
+    args.update(kw)
+    return ablate(rec.console, **args), rec.text
+
+
+SOME = ("marx is one pick.", "marx again.", "nobody.", "nobody.")
+NONE = ("nobody.", "nobody.", "nobody.", "nobody.")
+
+
+def test_a_replica_that_tracks_the_surface_passes_with_a_zero_exit(tmp_path):
+    _, live, replica = two_rounds(tmp_path, SOME, SOME)
+    code, text = run_ablate(tmp_path, live, replica)
+    assert code == 0
+    assert "REPLICA GATE: STANDS IN" in text
+    assert "may be read as a lift" in text
+
+
+def test_a_replica_that_does_not_track_the_surface_fails_with_a_nonzero_exit(tmp_path):
+    _, live, replica = two_rounds(tmp_path, SOME, NONE)
+    code, text = run_ablate(tmp_path, live, replica)
+    assert code == 1
+    assert "REPLICA GATE: DIFFERS" in text
+    assert "nothing causal is read off this replica" in text
+
+
+def test_a_round_too_small_to_decide_does_not_exit_zero(tmp_path):
+    """The whole point of the third verdict: cannot tell is not fine.
+
+    The two sides average the same rate. They disagree prompt by prompt, by
+    half in each direction, so six prompts cannot resolve a five point margin
+    and the honest answer is that this round settles nothing.
+    """
+    _, live, replica = two_rounds(
+        tmp_path,
+        ("marx.", "marx.", "nobody.", "nobody."),
+        ("marx.", "nobody."),
+        n=6, k=2,
+    )
+    code, text = run_ablate(tmp_path, live, replica)
+    assert code == 4, "an undecided gate must not report success"
+    assert "REPLICA GATE: UNDECIDED" in text
+    assert "nothing causal is read off this replica" in text
+
+
+def test_a_broken_chain_produces_no_verdict_at_all(tmp_path):
+    led, live, replica = two_rounds(tmp_path, SOME, SOME)
+    path = led.path_of(live)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[0] = lines[0].replace("marx is one pick.", "marx is one pick!")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    code, text = run_ablate(tmp_path, live, replica)
+    assert code == 3
+    assert "CHAIN BROKEN" in text
+    assert "REPLICA GATE" not in text
+
+
+def test_two_live_rounds_are_not_what_this_gate_asks(tmp_path):
+    _, live, _ = two_rounds(tmp_path, SOME, SOME)
+    with pytest.raises(ValueError, match="not on the replica surface"):
+        run_ablate(tmp_path, live, live)
+
+
+def test_a_replica_cannot_be_used_as_the_live_side(tmp_path):
+    """Passing then proves only that the instrument repeats itself."""
+    _, _, replica = two_rounds(tmp_path, SOME, SOME)
+    with pytest.raises(ValueError, match="itself a replica round"):
+        run_ablate(tmp_path, replica, replica)
+
+
+def test_a_replica_on_another_model_version_says_so_on_screen(tmp_path):
+    """Surfaces differ by construction here; model versions must not."""
+    _, live, replica = two_rounds(tmp_path, SOME, SOME, replica_model="fake-2")
+    _, text = run_ablate(tmp_path, live, replica)
+    assert "CONFOUNDED" in text
+    assert "model version" in text
+
+
+def test_the_screen_names_both_rounds_and_what_was_usable_in_them(tmp_path):
+    _, live, replica = two_rounds(tmp_path, SOME, SOME)
+    _, text = run_ablate(tmp_path, live, replica)
+    assert live in text and replica in text
+    assert "120 usable of 120 asked" in text

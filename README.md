@@ -127,6 +127,19 @@ at all, and the price of both ends. Point it at a recorded round with
     lulu usage     # what the rounds on disk cost, from the provider's figures
     lulu verify    # re-derive every chain, and say what that check does not cover
 
+    lulu ablate --live ROUND --replica ROUND --brand marx --margin 5
+
+asks the question the causal claim rests on. A live engine chooses its own
+sources, so what it retrieves and what it says cannot be held apart; a replica
+is the same model asked the same questions with the source list supplied, which
+makes the list something you can change. That is only worth anything if the
+replica behaves like the surface it stands in for, so this is an equivalence
+test rather than an overlap test: it asks whether the difference is provably
+smaller than the margin you plan at. Overlap would reward not looking, since two
+rates measured with too few calls overlap with everything. So there are three
+outcomes, and `this design cannot tell` is one of them, printed with the number
+of calls that would settle it and a non-zero exit code.
+
 `lulu usage` keeps three bases apart and never merges them: an amount the
 provider stated, a cost computed from tokens it reported, and a floor for calls
 it said nothing about. Failed calls are counted and priced at nothing, because

@@ -22,8 +22,10 @@ of filling the gap.
    "Navigate to the **API Keys** tab in the API Portal and generate a new key.")
 3. Copy it now. It is shown once.
 
-A Perplexity key starts with `pplx-`. If the key you are holding starts with
-`sk-`, it is an OpenAI or Anthropic key and it will be rejected.
+Perplexity keys are reported to start with `pplx-`. That format is not stated
+anywhere in their own documentation, so `lulu` treats it as a hint and warns
+rather than refuses. If the key you are holding starts with `sk-`, it is an
+OpenAI or Anthropic key and it will be rejected by the endpoint.
 
 If you ever lose the page: Perplexity's own 401 response points at
 <https://www.perplexity.ai/settings/api>, which is the same key list reached

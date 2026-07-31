@@ -89,7 +89,12 @@ PROVIDERS: dict[str, ProviderSpec] = {
         key_page="https://console.perplexity.ai",
         billing_page="https://console.perplexity.ai",
         key_prefix="pplx-",
-        key_prefix_source="perplexity console, key list; checked 2026-07-31",
+        # Perplexity's own documentation states no key format anywhere we could
+        # find on 2026-07-31, so this is labelled as what it is. It gates
+        # nothing and only explains a warning, and the wording is kept exact so
+        # that nobody later mistakes it for something read off a first-party
+        # page.
+        key_prefix_source="a convention reported outside the provider, not stated in perplexity's docs as of 2026-07-31",
     ),
 }
 

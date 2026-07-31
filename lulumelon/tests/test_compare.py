@@ -126,9 +126,10 @@ def test_drift_inside_one_snapshot_is_also_a_confound() -> None:
 def test_surface_change_between_rounds_is_a_confound() -> None:
     """The largest confound found, and the one nobody else records.
 
-    Measured on the same day, the same brand appeared in 30% of logged-in
-    ChatGPT answers, 62% logged-out and 0% via API. Swapping surface between
-    two rounds can manufacture a bigger swing than anything the customer did.
+    Measured on one day across three OpenAI access surfaces, one brand moved
+    32 points between logged-in and logged-out ChatGPT. Swapping surface
+    between two rounds can manufacture a bigger swing than anything the
+    customer did.
     """
     from lulumelon.mirror.compare import design_confounds, surface_confounds
 

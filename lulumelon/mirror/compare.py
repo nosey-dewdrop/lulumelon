@@ -228,8 +228,8 @@ def surface_confounds(before: Snapshot, after: Snapshot) -> tuple[str, ...]:
     """Engines whose measurement surface is not identical across snapshots.
 
     Separate from `model_confounds` because it is a bigger effect. Measured on
-    the same day, the same brand appeared in 30% of logged-in ChatGPT answers,
-    62% logged-out and 0% through the API, and the top-five brand overlap
+    one day across three OpenAI access surfaces, one brand moved 32 points
+    between logged-in and logged-out ChatGPT, and the top-five brand overlap
     between logged-in and API was 0.25 Jaccard. Switching collection surface
     between two rounds can therefore manufacture a swing far larger than
     anything the customer did.

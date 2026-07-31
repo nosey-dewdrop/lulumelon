@@ -8,12 +8,16 @@ narrow and why it records more than it is asked to.
 Three rules shape it, and each one is a measurement decision rather than a
 style preference.
 
-**The surface is part of the answer, not part of the plumbing.** Published
-measurement puts the same brand at 30% on logged-in ChatGPT, 62% logged out and
-0% through the API on the same day, an effect 1.5 to 3.6 times larger than the
-run-to-run randomness this whole library exists to quantify. A provider
-therefore has to declare which surface it speaks for, and it travels with every
-answer. A collector that leaves this implicit produces a number about itself.
+**The surface is part of the answer, not part of the plumbing.** A published
+comparison of three OpenAI access surfaces on one day, 300 trials each, found
+one brand at 30% on logged-in ChatGPT and 62% logged out, and a different brand
+at 18% logged-in and nothing at all through the API. Error measured across
+surfaces ran 1.5 to 3.6 times the error measured within one, so the door is a
+bigger variable than the run-to-run randomness this whole library exists to
+quantify. A provider therefore has to declare which surface it speaks for, and
+it travels with every answer. A collector that leaves this implicit produces a
+number about itself.
+(petralabs.com/intelligence/how-accurate-are-ai-visibility-tools, 26 Feb 2026)
 
 **The model version comes from the response, never from the request.** Asking
 for a model name and recording that name assumes the provider honoured it.

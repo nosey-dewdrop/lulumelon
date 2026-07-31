@@ -32,11 +32,14 @@ class Run:
         surface: where the question was asked. "logged_in", "logged_out",
             "api", or "unspecified".
 
-    On `surface`. A 900-trial study found the same brand appearing in 30% of
-    logged-in ChatGPT answers, 62% logged-out, and 0% through the API on the
-    same day, with top-five brand overlap between logged-in and API at 0.25
-    Jaccard. The surface effect measured larger than run-to-run randomness by
-    a factor of 1.5 to 3.6.
+    On `surface`. A study of three OpenAI access surfaces on the same day, 300
+    trials each, reported one brand at 30.0% on logged-in ChatGPT and 62.3%
+    logged out, another at 48.3% logged-in and 0% logged out, and a third at
+    18.0% logged-in and 0% through the API: a 32 point swing for the same
+    brand across doors. Top-five brand overlap between logged-in and API was
+    0.25 Jaccard. Error across surfaces measured 1.5 to 3.6 times the error
+    within one.
+    (petralabs.com/intelligence/how-accurate-are-ai-visibility-tools, Feb 2026)
 
     That makes the surface a bigger variable than the non-determinism this
     library was built to quantify, so it is recorded per run and treated as a

@@ -76,11 +76,9 @@ lulumelon/
     detect.py     brand matching by declared literals, no model in the loop
     audit.py      whether the answer engines are allowed to read the site
     replay.py     ledger back into runs, handing back what it excluded
-  panel.py        the surface a customer reads
-
-  prices.py       published rates, with the date each was read
   usage.py        what a recorded round cost, from the provider's own figures
   plan.py         how many calls a target precision needs, before spending any
+  panel.py        the surface a customer reads
 
 src/lib/          the TypeScript layer behind the demo terminal
   stats.ts        Wilson intervals and the sampling math; calls no model

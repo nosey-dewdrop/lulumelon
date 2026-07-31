@@ -104,10 +104,70 @@ def test_editing_an_answer_after_the_fact_is_caught(led):
     problems = led.verify(sid)
     assert problems, "a rewritten answer must not verify clean"
     assert any("line 0" in p and "own hash" in p for p in problems)
-    # the guarantee we sell: an edit anywhere poisons everything downstream, so
-    # a doctored history cannot be patched up one line at a time.
+    # An edit breaks exactly one link: the record that pointed at it. Claiming
+    # every later line turns red would overstate the guarantee, and a claim we
+    # cannot reproduce is the one thing this repo cannot afford. The real
+    # guarantee is the cost of hiding the break, pinned in the test below.
     assert any("line 1" in p and "prev_hash" in p for p in problems)
+    assert not any("line 2" in p for p in problems)
+
+
+def _read(path):
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+def _record_at(line: str) -> Record:
+    d = json.loads(line)
+    d["brands"] = tuple(d.get("brands", ()))
+    d["citations"] = tuple(d.get("citations", ()))
+    return Record(**d)
+
+
+def _dump(record: Record) -> str:
+    return json.dumps(
+        {**record.payload(), "hash": record.hash},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def test_patching_the_break_only_moves_it_one_line_down(led):
+    """Hiding an edit costs a rewrite of every record that follows it.
+
+    This is the property the ledger is actually for. An attacker who rewrites an
+    answer can make the next record point at the doctored one, and that link then
+    resolves. It does not help: a record's own hash covers its `prev_hash`, so
+    resealing it moves the break to the record after. Faking one old answer means
+    reforging the entire tail, which is what makes a measured history expensive
+    to fabricate after the fact.
+    """
+    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    for i in range(3):
+        led.append(sid, rec(repeat=i))
+
+    path = led.path_of(sid)
+    lines = _read(path)
+
+    doctored = json.loads(lines[0])
+    doctored["brands"] = ["marx", "planted-competitor"]
+    lines[0] = json.dumps(doctored, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+    # the attacker's repair: repoint line 1 at the doctored line 0 and reseal it
+    forged_prev = _record_at(lines[0]).digest()
+    victim = _record_at(lines[1])
+    relinked = Record(**{**victim.payload(), "prev_hash": forged_prev, "hash": ""})
+    lines[1] = _dump(Record(**{**relinked.payload(), "hash": relinked.digest()}))
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    problems = led.verify(sid)
+    # the repair worked, for exactly one line
+    assert not any("line 1" in p and "prev_hash" in p for p in problems)
+    # and immediately cost the next one
     assert any("line 2" in p and "prev_hash" in p for p in problems)
+    # line 0 still fails on its own content, which no amount of relinking fixes
+    assert any("line 0" in p and "own hash" in p for p in problems)
 
 
 def test_deleting_a_record_is_caught(led):

@@ -214,7 +214,7 @@ def replica_gate(
             ),
         )
 
-    design = _design_that_would_decide(
+    design = design_that_would_decide(
         live, replica, margin=margin, confidence=confidence, brands=brands, family=family
     )
     return Gate(
@@ -236,14 +236,14 @@ def _calls_in(side: Mapping[str, Sequence[float]]) -> int:
     return sum(len(v) for v in side.values())
 
 
-def _design_that_would_decide(
+def design_that_would_decide(
     live: Mapping[str, Sequence[float]],
     replica: Mapping[str, Sequence[float]],
     *,
     margin: float,
     confidence: float,
-    brands: int,
-    family: bool,
+    brands: int = 1,
+    family: bool = True,
 ):
     """How large each side would have to be to resolve `margin`.
 
@@ -252,6 +252,10 @@ def _design_that_would_decide(
     `margin / sqrt(2)`, because the difference of two rounds carries both
     rounds' error and a margin resolved at full width on each side is not
     resolved at all on the difference.
+
+    Public because two different comparisons in this package have to answer the
+    same question, and a second copy of this arithmetic would eventually give a
+    different answer to the same round.
     """
     shared = sorted(set(live) & set(replica))
     clusters = [list(live[k]) + list(replica[k]) for k in shared]

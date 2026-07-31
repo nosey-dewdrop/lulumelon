@@ -10,6 +10,7 @@ fully reproducible from a seed, which is the property that makes it an
 instrument rather than a dashboard.
 """
 
+from .ablation import Gate, replica_gate
 from .compare import (
     Verdict,
     design_confounds,
@@ -19,7 +20,14 @@ from .compare import (
     paired_difference,
     surface_confounds,
 )
-from .intervals import Interval, cluster_bootstrap_ci, naive_bootstrap_ci, wilson_interval
+from .intervals import (
+    Interval,
+    cluster_bootstrap_ci,
+    naive_bootstrap_ci,
+    resamples_for,
+    wilson_interval,
+)
+from .lift import SourceEffect, ablation_series, source_effect
 from .report import BrandReport, brand_report
 from .stability import Stability, jaccard, rbo, stability_of
 from .types import PromptSample, Run, Snapshot, group_runs, snapshot_from_runs
@@ -28,13 +36,16 @@ from .variance import DesignRequirement, VarianceSplit, decompose, prompts_neede
 __all__ = [
     "BrandReport",
     "DesignRequirement",
+    "Gate",
     "Interval",
     "PromptSample",
     "Run",
     "Snapshot",
+    "SourceEffect",
     "Stability",
     "VarianceSplit",
     "Verdict",
+    "ablation_series",
     "brand_report",
     "cluster_bootstrap_ci",
     "decompose",
@@ -48,8 +59,11 @@ __all__ = [
     "paired_difference",
     "prompts_needed",
     "rbo",
+    "replica_gate",
+    "resamples_for",
     "runs_needed",
     "snapshot_from_runs",
+    "source_effect",
     "stability_of",
     "surface_confounds",
     "wilson_interval",

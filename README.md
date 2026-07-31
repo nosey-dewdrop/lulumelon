@@ -82,11 +82,33 @@ src/lib/
   runner.ts       plan / estimate / execute a sampled run
   llm/            provider interface, deterministic stub, live transport
 tests/            45 tests, no network and no API key
+
+engine/
+  mirror/         the measurement core, calls no model
+    intervals.py  Wilson and a clustered bootstrap that resamples prompts
+    variance.py   splits the wobble into the model rerolling vs the prompt set
+    stability.py  decides whether an ordering repeats enough to report a rank
+    compare.py    before / after, and no verdict when the model moved underneath
+    sources.py    which pages were cited, and whether a name travels with them
+    report.py     one brand, with the refusals kept
+  collect/        the part that asks, and the part that writes it down
+    ask.py        provider boundary; Perplexity Sonar and a deterministic stub
+    session.py    one round: k asks per prompt, failures recorded not retried
+    ledger.py     append-only, hash-chained, nothing edited in place
+    detect.py     brand matching by declared literals, no model in the loop
+    audit.py      whether the answer engines are allowed to read the site
+    replay.py     ledger back into runs, handing back what it excluded
+  panel.py        the surface a customer reads
+  tests/          144 tests, no network and no API key
 ```
 
-`stats.ts` is the core and is pure: given successes and n it returns an
-interval, so the claim the library makes can be checked without spending a
-token. `npm test` runs everything offline.
+Two halves. `stats.ts` and `mirror/` are pure: given successes and n they return
+an interval, so the claim the library makes can be checked without spending a
+token. `collect/` is the only part allowed to reach the network, and it computes
+nothing.
+
+    npm test                          # 45, offline
+    python3 -m pytest engine/tests    # 144, offline
 
 ---
 

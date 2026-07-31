@@ -53,6 +53,7 @@ from .keys import (
 from .prices import estimate, price_for, reported, request_fees
 from .plan import (
     Comparison,
+    Design,
     critical_value,
     draws_needed,
     icc_of,
@@ -482,6 +483,10 @@ def plan(
     measured = _pilot_split(console, pilot, brand, ledger_dir)
     console.say()
 
+    #: Every design this prompt count can actually buy, cheapest first. Kept so
+    #: the price section quotes the range rather than one end of it.
+    affordable: list[Design] = []
+
     if measured is None:
         variance = total_variance(rate)
         console.say("VARIANCE, assumed")
@@ -494,34 +499,48 @@ def plan(
         console.say("  decides whether repeats or prompts buy your precision.")
         ceiling = reachable_icc(prompts, half_width, z, variance)
         console.say()
-        console.say(f"  above icc {ceiling:.4f} no number of repeats reaches this target with")
-        console.say(f"  {prompts} prompts. {prompts_for_worst_case(half_width, z, variance)} prompts would reach it at any icc.")
+        if math.isfinite(ceiling):
+            console.say(f"  above icc {ceiling:.4f} no number of repeats reaches this target with")
+            console.say(f"  {prompts} prompts. {prompts_for_worst_case(half_width, z, variance)} prompts would reach it at any icc.")
+        else:
+            # p(1-p) is zero only at p=0 and p=1, where a draw has no variance
+            # and every design meets every target. Printing the ceiling as
+            # "inf" would read as a very large icc a design could still fall
+            # under, and the worst-case prompt count as "0 prompts", which
+            # reads as a measurement that costs nothing.
+            console.say(f"  at p={rate:g} a draw carries no variance at all, so every split reaches")
+            console.say("  this target at the minimum design. that is arithmetic about a rate you")
+            console.say("  supplied, not a finding, and a rate of exactly 0 or 1 is the one input")
+            console.say("  here that no number of calls can confirm.")
         console.say()
         console.say("WHAT ONE INTERVAL COSTS, across the range the split could take")
-        designed: int | None = None
         for icc in BRACKET_ICCS:
             design = draws_needed(prompts, half_width, z, variance, icc)
             console.say(f"  {design.as_text()}")
-            if icc == 0.0 and design.reachable:
-                designed = design.calls
+            if design.reachable:
+                affordable.append(design)
         console.say()
         console.say("  that spread is the output. it is also the argument for measuring the")
         console.say("  split rather than assuming it: one round of this size settles it, and")
         console.say("  every number above it is then replaced by one.")
     else:
         variance, icc = measured
+        ceiling = reachable_icc(prompts, half_width, z, variance)
         console.say("VARIANCE, measured from the pilot")
         console.say(f"  total per-draw variance {variance:.4f}, icc {icc:.4f}")
         console.say()
         console.say("WHAT ONE INTERVAL COSTS")
         design = draws_needed(prompts, half_width, z, variance, icc)
         console.say(f"  {design.as_text()}")
-        designed = design.calls
-        if not design.reachable:
+        if design.reachable:
+            affordable.append(design)
+        else:
             console.say(
                 f"  {prompts_for_worst_case(half_width, z, variance)} prompts would reach it "
                 "even if repeats bought nothing."
             )
+
+    designed = affordable[0].calls if affordable else None
 
     console.say()
     console.say("DETECTING A MOVE OF THAT SIZE")
@@ -557,12 +576,32 @@ def plan(
         console.say("  floors, not totals.")
     else:
         console.say(f"  priced from a measured {tokens[0]} in / {tokens[1]} out tokens per call.")
-    for label, calls in (("one interval", designed), ("a daily schedule", daily)):
+
+    # Both ends of the reachable range, each carrying the icc it was quoted at.
+    # Printing only the cheapest end is the most optimistic number on the page,
+    # and printing it unlabelled beside a section that does label its own
+    # assumption invites it to be read as the price rather than as one end of a
+    # spread the whole command exists to show.
+    rows: list[tuple[str, int | None]] = []
+    if not affordable:
+        rows.append(("one interval", None))
+    else:
+        ends = affordable if len(affordable) == 1 else [affordable[0], affordable[-1]]
+        rows.extend((f"one interval, icc {d.icc:.2f}", d.calls) for d in ends)
+    rows.append(("a daily schedule", daily))
+
+    for label, calls in rows:
         if calls is None:
-            console.say(f"  {label:<18} not reachable at this prompt count")
+            console.say(f"  {label:<24} not reachable at this prompt count")
             continue
         cost = price_of(price, calls, tokens)
-        console.say(f"  {label:<18} {calls} calls   " + (cost.as_text() if cost else "no published price on file"))
+        console.say(f"  {label:<24} {calls} calls   " + (cost.as_text() if cost else "no published price on file"))
+
+    if math.isfinite(ceiling):
+        console.say()
+        console.say(f"  above icc {ceiling:.4f} this design has no price at any budget: with")
+        console.say(f"  {prompts} prompts the prompt set alone carries more error than the")
+        console.say("  target, so no number of repeats closes it and no amount of money buys it.")
     return 0
 
 

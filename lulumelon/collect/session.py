@@ -134,6 +134,15 @@ def run_round(
                     citations=answer.citations,
                     provider=provider.name,
                     error=answer.error,
+                    # Written from what the provider reported, and left unknown
+                    # when it reported nothing. This is the only place a call's
+                    # cost enters the permanent record; a round collected
+                    # without it can never be priced afterwards, because the
+                    # response it would have been priced from is gone.
+                    input_tokens=answer.usage.input_tokens,
+                    output_tokens=answer.usage.output_tokens,
+                    search_context=answer.usage.search_context,
+                    reported_cost_usd=answer.usage.cost_usd,
                 ),
             )
 

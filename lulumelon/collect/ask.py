@@ -31,6 +31,7 @@ quietly retries until it gets a reply reports only the survivors.
 from __future__ import annotations
 
 import json
+import math
 import time
 import urllib.error
 import urllib.request
@@ -49,22 +50,27 @@ UNKNOWN_MODEL = "unknown"
 class Usage:
     """What the provider says the call consumed, and what it says it cost.
 
-    `cost_usd` is `None` unless the response states an amount. Perplexity's
-    pricing page says the final cost is metered from the response's usage
-    field, but publishes no schema for it, so the amount is read where it is
-    found and left unknown otherwise. An unknown cost is reported as unknown;
-    filling it in from a price table and calling it metered would turn our own
-    arithmetic into the provider's invoice.
+    Every field is `None` until the response states it. Not `0`: a zero token
+    count is a claim that the call was metered and consumed nothing, and a
+    provider that renames a field would otherwise hand us that claim for free.
+    The difference between "we did not observe this" and "we observed nothing"
+    is the difference between an unknown cost and a wrong invoice.
+
+    `cost_usd` is the provider's own figure, never ours. Perplexity's pricing
+    page says the final cost is metered from the response's usage field, so
+    when that figure is present it is used verbatim; filling it in from a price
+    table and calling it metered would turn our arithmetic into their invoice.
     """
 
-    input_tokens: int = 0
-    output_tokens: int = 0
-    search_context: str = ""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    search_context: str | None = None
     cost_usd: float | None = None
 
     @property
     def known(self) -> bool:
-        return bool(self.input_tokens or self.output_tokens or self.cost_usd is not None)
+        """True when the provider stated at least one of these."""
+        return any(x is not None for x in (self.input_tokens, self.output_tokens, self.cost_usd))
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +125,11 @@ class FakeProvider:
     collection path be exercised in CI with no key and no spend. `script` maps a
     prompt to the replies it should cycle through, so a test can set up a brand
     that appears in three answers out of five without patching anything.
+
+    `usage` exists so the populated path is reachable without a network. A stub
+    that always reports nothing would let the lines that carry token counts
+    into the ledger be deleted with the whole suite still green, and those are
+    the numbers a cost claim rests on.
     """
 
     name: str = "fake"
@@ -127,6 +138,7 @@ class FakeProvider:
     script: dict[str, tuple[str, ...]] = field(default_factory=dict)
     citations: tuple[str, ...] = ()
     fail_on: tuple[int, ...] = ()
+    usage: Usage = field(default_factory=Usage)
     _calls: int = 0
 
     def ask(self, prompt: str) -> Answer:
@@ -148,6 +160,7 @@ class FakeProvider:
             surface=self.surface,
             latency_ms=1,
             citations=self.citations,
+            usage=self.usage,
         )
 
 
@@ -169,12 +182,21 @@ _OUTPUT_TOKEN_FIELDS = ("completion_tokens", "output_tokens")
 _COST_PATHS = (("cost", "total_cost"), ("cost", "total_cost_usd"), ("total_cost",))
 
 
-def _first_int(d: dict, names: tuple[str, ...]) -> int:
+def _first_int(d: dict, names: tuple[str, ...]) -> int | None:
+    """The first of `names` the response actually carries, or None.
+
+    `None` and not `0`, so a rename shows up as unknown rather than as a
+    metered zero. Booleans are refused on the way past: `isinstance(True, int)`
+    is True in Python, so a field carrying `true` would otherwise be recorded
+    as one token.
+    """
     for name in names:
         value = d.get(name)
+        if type(value) is bool:
+            continue
         if isinstance(value, (int, float)):
             return int(value)
-    return 0
+    return None
 
 
 def _reported_cost(usage: dict) -> float | None:
@@ -182,7 +204,9 @@ def _reported_cost(usage: dict) -> float | None:
         node: object = usage
         for step in path:
             node = node.get(step) if isinstance(node, dict) else None
-        if isinstance(node, (int, float)):
+        if type(node) is bool:
+            continue
+        if isinstance(node, (int, float)) and math.isfinite(node):
             return float(node)
     return None
 
@@ -191,10 +215,14 @@ def _usage(payload: dict) -> Usage:
     raw = payload.get("usage")
     if not isinstance(raw, dict):
         return Usage()
+    context = raw.get("search_context_size")
     return Usage(
         input_tokens=_first_int(raw, _INPUT_TOKEN_FIELDS),
         output_tokens=_first_int(raw, _OUTPUT_TOKEN_FIELDS),
-        search_context=str(raw.get("search_context_size") or ""),
+        # Read the key rather than coalescing it. `or ""` turns "the provider
+        # said nothing" into "the provider said empty", permanently, in the one
+        # field that decides which request-fee band applies.
+        search_context=str(context) if context is not None else None,
         cost_usd=_reported_cost(raw),
     )
 

@@ -39,6 +39,19 @@ once, so `B` brands cost what one does. What `B` changes is the critical value:
 `B` brands is `B` intervals, and a leaderboard is one claim about all of them,
 so a family-wide claim uses a Bonferroni `z` and pays for the stronger
 statement in calls rather than pretending it is free.
+
+**An axis this does not yet size, and why not.** A variance-components study of
+brand answers (arXiv:2607.13304, July 2026) attributes about 35% of the
+movement to repeated draws and 26-32% to the language the question is asked in,
+and finds a block of three extra languages worth roughly fifteen times a block
+of five extra repeats. If that transfers, budget spent on repeats is budget
+spent on the smaller axis. It has not been shown to transfer: the paper's
+outcome is sentiment polarity, 92% of which scored exactly neutral, and it
+names the was-the-brand-named refit as unrun future work whose ICCs would be
+"outcome-conditional". Its corpus is also collected at temperature 0.3, which
+its own limitations say makes the value of repeats a lower bound. So the
+language axis is a live lead and not a plan, and this module does not price
+what nobody has measured.
 """
 
 from __future__ import annotations

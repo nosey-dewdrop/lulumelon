@@ -78,12 +78,20 @@ lulumelon/
     replay.py     ledger back into runs, handing back what it excluded
   panel.py        the surface a customer reads
 
-src/lib/          the TypeScript layer
+  prices.py       published rates, with the date each was read
+  usage.py        what a recorded round cost, from the provider's own figures
+  plan.py         how many calls a target precision needs, before spending any
+
+src/lib/          the TypeScript layer behind the demo terminal
   stats.ts        Wilson intervals and the sampling math; calls no model
   mentions.ts     extracts brand mentions and ranks from a model answer
   visibility.ts   turns samples into per-brand rates, intervals and ranks
-  runner.ts       plan / estimate / execute a sampled run
 ```
+
+The measurement engine lives in Python and only in Python. A sampling plan that
+answers differently depending on which language you asked it in is not an
+instrument, so there is one implementation of it rather than two that agree
+until they do not.
 
 `mirror/` and `stats.ts` are pure: given successes and n they return an interval,
 so the claim this makes can be checked without spending a token. `collect/` is

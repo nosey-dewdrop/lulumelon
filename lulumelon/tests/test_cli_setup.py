@@ -241,3 +241,85 @@ def test_the_key_never_reaches_the_screen_even_when_the_call_fails(monkeypatch):
     rec = Recorder()
     assert check_call(rec.console, ANTHROPIC, KEY) == 1
     assert KEY not in rec.text
+
+
+# -- one command, no questions ----------------------------------------------
+
+from lulumelon.cli import provider_of, read_key, setup  # noqa: E402
+
+
+class FakeStdin(io.StringIO):
+    def __init__(self, text: str, tty: bool) -> None:
+        super().__init__(text)
+        self._tty = tty
+
+    def isatty(self) -> bool:
+        return self._tty
+
+
+def stub_check(seen: list):
+    def check(console, spec, key, **kw):
+        seen.append((spec.name, key))
+        console.say("check ran")
+        return 0
+
+    return check
+
+
+def test_the_engine_is_read_off_the_key_rather_than_asked_for():
+    assert provider_of(KEY) == "anthropic"
+    assert provider_of("pplx-" + "z" * 40) == "perplexity"
+    assert provider_of("ghp_something") is None
+
+
+def test_setup_stores_and_checks_in_one_command(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("lulumelon.cli.keychain_available", lambda *a: False)
+    seen: list = []
+    rec = Recorder()
+
+    code = setup(rec.console, key=KEY, cwd=tmp_path, home=tmp_path, check=stub_check(seen))
+
+    assert code == 0
+    assert seen == [("anthropic", KEY)], "the check has to run in the same breath"
+    assert "check ran" in rec.text
+    text = rec.text
+    assert "Stored your anthropic key" in text
+    assert KEY not in text, "the key must never reach the screen"
+    assert KEY in (tmp_path / ".lulu" / "env").read_text(encoding="utf-8")
+
+
+def test_setup_asks_nothing(tmp_path: Path, monkeypatch):
+    """No prompt, no menu, no provider flag. The failure being fixed was a
+    person stopping at a question the tool could answer itself."""
+    monkeypatch.setattr("lulumelon.cli.keychain_available", lambda *a: False)
+    rec = Recorder()
+    setup(rec.console, key=KEY, cwd=tmp_path, home=tmp_path, check=stub_check([]))
+    assert "?" not in rec.text
+    assert "Choose" not in rec.text
+
+
+def test_a_key_that_matches_no_engine_says_which_ones_exist(tmp_path: Path):
+    rec = Recorder()
+    code = setup(rec.console, key="ghp_notours", cwd=tmp_path, home=tmp_path, check=stub_check([]))
+    assert code == 1
+    assert "sk-ant-" in rec.text and "pplx-" in rec.text
+    assert "--provider" in rec.text
+
+
+def test_an_empty_key_names_the_one_line_that_works(tmp_path: Path):
+    rec = Recorder()
+    assert setup(rec.console, key="   ", cwd=tmp_path, home=tmp_path, check=stub_check([])) == 1
+    assert "pbpaste | lulu setup" in rec.text
+
+
+def test_a_piped_key_needs_no_terminal():
+    rec = Recorder()
+    got = read_key(rec.console, FakeStdin(KEY + "\n", tty=False), refuses)
+    assert got == KEY
+
+
+def test_a_terminal_gets_the_hidden_prompt():
+    rec = Recorder()
+    got = read_key(rec.console, FakeStdin("", tty=True), lambda p: KEY)
+    assert got == KEY
+    assert "not be shown" in rec.text

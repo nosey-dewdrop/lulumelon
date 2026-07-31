@@ -100,7 +100,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 502 tests, offline
+    python3 -m pytest lulumelon/tests   # 509 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -109,9 +109,20 @@ You bring your own key, so the first command is about the key and nothing else.
 [docs/keys.md](docs/keys.md) is the long version, with the exact pages and the
 published prices.
 
-    pip install -e .
-    lulu init      # asks for a key, stores it, says exactly where it put it
-    lulu doctor    # finds it, tests it with one call, and prices that call
+    lulu setup     # paste the key when it asks, or pipe it in: pbpaste | lulu setup
+
+That is the whole of it. One command, no questions. It reads which engine the
+key belongs to off the key, stores it in the OS keychain where there is one and
+in a file with owner-only permissions where there is not, says where it went,
+and then spends about a cent proving that the key works, that the search tool is
+switched on for your account, and that a search actually comes back with pages.
+
+The key is never printed, never put in shell history, and never written into the
+repository. Nothing is asked, because every question in a setup step is a place
+to get stuck, and this one had three.
+
+    lulu doctor    # why is it not working, on one screen
+    lulu init      # the older wizard, when you want to choose where it goes
 
 `lulu doctor` prints every place it looked, in order, whether or not it found
 anything. `lulu doctor --offline` does all of that and spends nothing.

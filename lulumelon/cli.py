@@ -56,6 +56,7 @@ from .mirror.types import Snapshot, group_runs
 from .mirror.variance import decompose
 from .keys import (
     KEYCHAIN_SERVICE,
+    PROVIDERS,
     ProviderSpec,
     Resolution,
     ensure_gitignored,
@@ -130,6 +131,99 @@ class Console:
 
     def warn(self, line: str) -> None:
         print(line, file=self.err, flush=True)
+
+
+# -- setup ------------------------------------------------------------------
+
+
+def provider_of(key: str) -> str | None:
+    """Which engine a key belongs to, read off the key itself.
+
+    So that nobody has to be asked. A person who has just copied a key knows
+    where they copied it from and should not have to translate that into a flag
+    for a tool that can see the answer in front of it.
+    """
+    for name, spec in sorted(PROVIDERS.items()):
+        if spec.key_prefix and key.startswith(spec.key_prefix):
+            return name
+    return None
+
+
+def read_key(console: Console, stdin: TextIO, secret: Callable[[str], str]) -> str:
+    """The key, through whichever of the two doors this shell actually has.
+
+    Piped in where there is no terminal, typed invisibly where there is.
+    Neither puts it in shell history, and neither asks the person to work out
+    which case they are in.
+    """
+    if not stdin.isatty():
+        return stdin.read().strip()
+    console.say("Paste your API key and press enter. It will not be shown.")
+    try:
+        return secret("key: ").strip()
+    except (EOFError, OSError):
+        return ""
+
+
+def setup(
+    console: Console,
+    *,
+    key: str,
+    cwd: Path,
+    home: Path,
+    provider: str | None = None,
+    check: Callable[..., int] | None = None,
+) -> int:
+    """Store one key and prove it works, with nothing to decide on the way.
+
+    This replaces a wizard that asked three questions, and it exists because
+    the person it was written for could not finish it. Every question was a
+    decision the tool was better placed to make than the customer, and every
+    one of them was a place to stop. A setup step that offers options fails on
+    whichever option the reader picks wrong.
+
+    So the engine is read off the key, the safest storage the machine has is
+    used without a menu, and the check call runs in the same breath. What is
+    left to the person is the part only they can do, which is having a key.
+    """
+    key = key.strip()
+    if not key:
+        console.warn("No key arrived, so nothing was stored.")
+        console.warn("On macOS, with the key on your clipboard:  pbpaste | lulu setup")
+        return 1
+
+    name = provider or provider_of(key)
+    if name is None:
+        known = ", ".join(f"{s.name} keys start with {s.key_prefix!r}" for s in PROVIDERS.values())
+        console.warn(f"This key matches no engine this build can call. {known}.")
+        console.warn("If it is right anyway, name the engine with --provider.")
+        return 1
+    spec = spec_for(name)
+
+    for problem in inspect_key(spec, key):
+        console.warn(f"note: {problem}")
+
+    # No menu. The keychain where the machine has one, a file with owner-only
+    # permissions where it does not, and the answer printed rather than asked.
+    if keychain_available():
+        try:
+            keychain_write(KEYCHAIN_SERVICE, spec.name, key)
+        except (RuntimeError, ValueError) as e:
+            console.warn(f"The keychain refused it: {redact(str(e), key)}")
+            return 1
+        where = f"the OS keychain, service {KEYCHAIN_SERVICE}, account {spec.name}"
+        reread = f"security find-generic-password -s {KEYCHAIN_SERVICE} -a {spec.name} -w"
+    else:
+        _, home_file = env_file_candidates(cwd, home)
+        path = write_env_file(home_file, spec.env_var, key)
+        where = f"{path}, permissions 600, owner only"
+        reread = f"grep {spec.env_var} {path}"
+
+    console.say(f"Stored your {spec.name} key in {where}.")
+    console.say(f"Fingerprint {fingerprint(key)}. Read it back yourself with:  {reread}")
+    console.say()
+
+    return (check or check_call)(console, spec, key)
 
 
 # -- init -------------------------------------------------------------------
@@ -1028,7 +1122,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_init = sub.add_parser("init", help="store an API key and say where it was stored")
+    p_setup = sub.add_parser(
+        "setup", help="store an API key and prove it works, in one command with no questions"
+    )
+    p_setup.add_argument(
+        "--provider",
+        default=None,
+        help="only needed when the key does not start the way its engine's keys do",
+    )
+
+    p_init = sub.add_parser("init", help="the older wizard, which asks where to store the key")
     p_init.add_argument("--provider", default="perplexity", help="which engine the key is for")
     p_init.add_argument(
         "--from-file",
@@ -1159,6 +1262,16 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
     cwd, home = Path.cwd(), Path.home()
 
     try:
+        if args.command == "setup":
+            import getpass
+
+            return setup(
+                console,
+                key=read_key(console, sys.stdin, getpass.getpass),
+                cwd=cwd,
+                home=home,
+                provider=args.provider,
+            )
         if args.command == "init":
             import getpass
 

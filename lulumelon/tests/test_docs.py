@@ -21,7 +21,7 @@ from pathlib import Path
 from lulumelon.cli import build_parser
 from lulumelon.keys import KEYCHAIN_SERVICE, spec_for
 from lulumelon.mirror.intervals import wilson_interval
-from lulumelon.prices import PRICES, price_for, request_fees
+from lulumelon.prices import PRICES, fees, price_for
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs" / "keys.md"
@@ -52,29 +52,31 @@ def test_the_published_prices_match_the_table_in_the_code():
         for value in (
             price.input_per_mtok_usd,
             price.output_per_mtok_usd,
-            price.request_fee_per_k_low_usd,
-            price.request_fee_per_k_high_usd,
+            price.fee_per_k_low_usd,
+            price.fee_per_k_high_usd,
         ):
             assert f"${value:g}" in row, f"{model}: ${value:g} is in the code but not in its row"
 
 
 def test_the_page_says_when_the_prices_were_read():
     for price in PRICES.values():
-        assert price.source in TEXT
+        for source in price.sources:
+            assert source in TEXT, f"{price.model} cites {source} and the page does not"
     assert "31 July 2026" in TEXT
+    assert "1 August 2026" in TEXT
 
 
 def test_the_cost_of_a_first_measurement_is_the_one_the_code_computes():
     """The page quotes a figure for 200 calls. It is recomputed here.
 
-    Through `request_fees`, not `estimate` with zero tokens. The page says
+    Through `fees`, not `estimate` with zero tokens. The page says
     "in request fees plus a few cents of tokens", which is the truth; computing
     it with a fabricated zero token count would have produced the same digits
     under a label that claims the tokens were counted.
     """
     price = price_for("perplexity", "sonar")
     assert price is not None
-    cost = request_fees(price, requests=200)
+    cost = fees(price, fee_units=200)
     assert f"${cost.low_usd:.2f} to ${cost.high_usd:.2f}" in TEXT
     assert "in request fees" in TEXT, "the page must not present a floor as a total"
 

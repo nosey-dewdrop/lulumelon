@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence, TextIO
 
-from .collect.ask import PerplexityProvider
+from .collect.ask import DEFAULT_MAX_SEARCHES, provider_for
 from .collect.ledger import Ledger, LedgerFormatError
 from .collect.replay import replay
 from .collect.replica import (
@@ -68,7 +68,7 @@ from .keys import (
     spec_for,
     write_env_file,
 )
-from .prices import estimate, price_for, reported, request_fees
+from .prices import FEE_PER_SEARCH, estimate, fees, price_for, reported
 from .plan import (
     Comparison,
     Design,
@@ -87,10 +87,17 @@ from .usage import spend_of, token_rate
 #: purpose: a measurement belongs to the project it was made for.
 DEFAULT_LEDGER = "./ledger"
 
-#: The model a check call uses. The cheapest search-grounded model on the price
-#: table, because the point of the call is to prove the key spends, not to get
-#: a good answer.
-CHECK_MODEL = "sonar"
+#: The model a check call uses when nothing names one. Per provider, on the
+#: spec, because the cheapest search-grounded model has a different name on
+#: every price table and a default borrowed across providers is a 404.
+def check_model_for(provider: str) -> str:
+    return spec_for(provider).check_model
+
+
+#: Searches a planned call is assumed to run, for providers that bill per
+#: search. It is the collector's own cap, so the plan prices the same ceiling
+#: the round will be collected under rather than a number chosen here.
+SEARCHES_PER_CALL = DEFAULT_MAX_SEARCHES
 
 #: Short and dull on purpose: a check call is billed like any other, so it asks
 #: for as few output tokens as a question can.
@@ -226,8 +233,9 @@ def report_lookup(console: Console, spec: ProviderSpec, found: Resolution) -> No
         console.say(f"Get one at {spec.key_page}, then run:  lulu init")
 
 
-def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str = CHECK_MODEL) -> int:
+def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str | None = None) -> int:
     """Spend the smallest possible amount to find out whether the key works."""
+    model = model or spec.check_model
     price = price_for(spec.name, model)
     if price is None:
         console.say(f"No published price on file for {spec.name}/{model}, so the cost of this call is unknown.")
@@ -235,14 +243,12 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str = C
         console.say(f"One {model} call is billed at {price.provenance()}:")
         console.say(
             f"  tokens ${price.input_per_mtok_usd:g} in / ${price.output_per_mtok_usd:g} out per million, "
-            f"plus a request fee of ${price.request_fee_per_k_low_usd:g} to "
-            f"${price.request_fee_per_k_high_usd:g} per thousand requests."
+            f"plus a fee of {price.fee_text}."
         )
     console.say(f"Asking {spec.name} one question now.")
     console.say()
 
-    provider = PerplexityProvider(api_key=key, model=model)
-    answer = provider.ask(CHECK_PROMPT)
+    answer = provider_for(spec.name, key, model=model).ask(CHECK_PROMPT)
 
     if not answer.ok:
         console.say(f"The call failed after {answer.latency_ms} ms.")
@@ -272,7 +278,7 @@ def check_call(console: Console, spec: ProviderSpec, key: str, *, model: str = C
         # No metered figure and no token counts. The request fee is still known
         # and is the larger term, so it is reported as the floor it is rather
         # than padded out with zero tokens and called an estimate.
-        cost = request_fees(price)
+        cost = fees(price)
     console.say(f"  cost of this call: {cost.as_text()}")
     return 0
 
@@ -476,10 +482,12 @@ def plan(
     brand: str | None = None,
     ledger_dir: Path | None = None,
     provider: str = "perplexity",
-    model: str = CHECK_MODEL,
+    model: str | None = None,
+    searches_per_call: int = SEARCHES_PER_CALL,
 ) -> int:
     """Size a measurement, and price both what it needs and what it replaces."""
     z = critical_value(confidence, brands, family=family)
+    model = model or check_model_for(provider)
     price = price_for(provider, model)
 
     console.say("lulu plan")
@@ -589,11 +597,19 @@ def plan(
     console.say()
     console.say("PRICE")
     tokens = _pilot_tokens(pilot, ledger_dir)
+    console.say(f"  {provider}/{model}, {price.fee_text}." if price else f"  {provider}/{model}, no published price on file.")
     if tokens is None:
-        console.say("  no call has been metered, so only the request fee is counted. these are")
+        console.say("  no call has been metered, so only the fee is counted. these are")
         console.say("  floors, not totals.")
     else:
         console.say(f"  priced from a measured {tokens[0]} in / {tokens[1]} out tokens per call.")
+    per_call_fees = 1
+    if price is not None and price.fee_unit == FEE_PER_SEARCH:
+        per_call_fees = searches_per_call
+        console.say(
+            f"  this fee is charged per search, and a call is capped at {searches_per_call}, so the"
+        )
+        console.say("  figures below are ceilings. a call that searched once pays one fee.")
 
     # Both ends of the reachable range, each carrying the icc it was quoted at.
     # Printing only the cheapest end is the most optimistic number on the page,
@@ -612,7 +628,7 @@ def plan(
         if calls is None:
             console.say(f"  {label:<24} not reachable at this prompt count")
             continue
-        cost = price_of(price, calls, tokens)
+        cost = price_of(price, calls, tokens, fee_units=calls * per_call_fees)
         console.say(f"  {label:<24} {calls} calls   " + (cost.as_text() if cost else "no published price on file"))
 
     if math.isfinite(ceiling):
@@ -1029,8 +1045,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_plan.add_argument("--pilot", default=None, help="a recorded round to measure the split from")
     p_plan.add_argument("--brand", default=None, help="which brand the pilot is scored for")
     p_plan.add_argument("--ledger", default=DEFAULT_LEDGER, help="where the pilot round lives")
-    p_plan.add_argument("--provider", default="perplexity")
-    p_plan.add_argument("--model", default=CHECK_MODEL)
+    p_plan.add_argument("--provider", default="perplexity", help="which engine's price table to use")
+    p_plan.add_argument(
+        "--searches-per-call",
+        type=int,
+        default=SEARCHES_PER_CALL,
+        help="searches one call may run, for engines billed per search rather than per call",
+    )
+    p_plan.add_argument("--model", default=None, help="model to price; the provider's check model by default")
     return parser
 
 
@@ -1067,6 +1089,7 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 ledger_dir=Path(args.ledger),
                 provider=args.provider,
                 model=args.model,
+                searches_per_call=args.searches_per_call,
             )
         if args.command == "ablate":
             return ablate(

@@ -47,7 +47,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from .collect.ledger import Record
-from .prices import Cost, Price, estimate, price_for, request_fees
+from .prices import Cost, Price, estimate, fees, price_for
 
 
 @dataclass(frozen=True, slots=True)
@@ -353,10 +353,10 @@ def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
             price,
             input_tokens=bucket.input_tokens,
             output_tokens=bucket.output_tokens,
-            requests=bucket.counted,
+            fee_units=bucket.counted,
         )
     if price is not None and bucket.silent:
-        floor_cost = request_fees(price, requests=bucket.silent)
+        floor_cost = fees(price, fee_units=bucket.silent)
     return ModelSpend(
         provider=provider,
         model=model,

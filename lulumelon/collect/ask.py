@@ -81,11 +81,23 @@ class Usage:
     output_tokens: int | None = None
     search_context: str | None = None
     cost_usd: float | None = None
+    #: How many searches the provider says it ran for this one call. Only some
+    #: providers bill per search rather than per call, and on those this is the
+    #: number the fee multiplies, so a call is not priceable without it.
+    #:
+    #: Carried but not yet written to disk, deliberately, and for the same
+    #: reason `request_cost` is not: the schema a figure lands in is settled by
+    #: a real response rather than by a specification, and adding a column that
+    #: a first real call then contradicts costs a second schema version.
+    searches: int | None = None
 
     @property
     def known(self) -> bool:
         """True when the provider stated at least one of these."""
-        return any(x is not None for x in (self.input_tokens, self.output_tokens, self.cost_usd))
+        return any(
+            x is not None
+            for x in (self.input_tokens, self.output_tokens, self.cost_usd, self.searches)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +123,22 @@ class Answer:
     @property
     def ok(self) -> bool:
         return self.status == "ok"
+
+
+def provider_for(name: str, api_key: str, *, model: str | None = None) -> "Provider":
+    """The live provider for one engine name, or a refusal that lists the rest.
+
+    One place where an engine name becomes a class. Without it every command
+    that spends money picks a provider by hand, and the first one somebody
+    forgets to update calls the wrong engine with the right key.
+    """
+    builders = {"perplexity": PerplexityProvider, "anthropic": AnthropicProvider}
+    try:
+        builder = builders[name]
+    except KeyError:
+        known = ", ".join(sorted(builders))
+        raise ValueError(f"no provider in this build can call {name!r}; it can call: {known}") from None
+    return builder(api_key=api_key, model=model) if model else builder(api_key=api_key)
 
 
 class Provider(Protocol):
@@ -368,6 +396,209 @@ class PerplexityProvider:
         # The reason travels into the ledger and onto the screen, and it is
         # partly the provider's own words about a request that carried a key.
         # Scrubbing happens here, at the one place those words are created.
+        return Answer(
+            text="",
+            model=UNKNOWN_MODEL,
+            surface=self.surface,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            status="error",
+            error=redact(why, self.api_key),
+        )
+
+
+# -- anthropic messages, with the search tool -------------------------------
+
+#: The tool version this asks for, pinned rather than tracking the newest.
+#: Later versions default `allowed_callers` to the code execution tool, which
+#: turns on dynamic filtering: the model writes and runs code that filters the
+#: search results before they reach its own context. That is a good feature and
+#: a bad instrument. What the model was shown is the condition being measured,
+#: and a filter composed afresh on every call is a condition that changes
+#: between two runs of the same question with nothing on screen to say so.
+WEB_SEARCH_TOOL = "web_search_20250305"
+
+#: Version of the Messages API this speaks. Sent on every request and required.
+ANTHROPIC_API_VERSION = "2023-06-01"
+
+#: Searches one call may run before the provider refuses further ones. It is
+#: not a tuning knob. The fee is charged per search and the documentation says
+#: a comparative question can run ten or more, so an uncapped round has no
+#: knowable price; and two rounds that searched different numbers of times are
+#: two different conditions. Capping fixes both, and the cap is recorded with
+#: the round by being part of the provider that collected it.
+DEFAULT_MAX_SEARCHES = 3
+
+#: Where the count of searches performed is reported. Documented on the web
+#: search tool's own page, and the only number that makes a call priceable when
+#: the fee is per search.
+_SEARCH_COUNT_PATH = ("server_tool_use", "web_search_requests")
+
+
+def _anthropic_usage(payload: dict) -> Usage:
+    raw = payload.get("usage")
+    if not isinstance(raw, dict):
+        return Usage()
+    node: object = raw
+    for step in _SEARCH_COUNT_PATH:
+        node = node.get(step) if isinstance(node, dict) else None
+    searches = None if type(node) is bool or not isinstance(node, (int, float)) else int(node)
+    return Usage(
+        input_tokens=_first_int(raw, ("input_tokens",)),
+        output_tokens=_first_int(raw, ("output_tokens",)),
+        searches=searches,
+        # No cost figure is published in this response, and inventing one from
+        # our own table would turn our arithmetic into their invoice.
+        cost_usd=None,
+    )
+
+
+def _anthropic_text(content: list) -> str:
+    parts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+    return "".join(parts)
+
+
+def _anthropic_sources(content: list) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The pages retrieved, and the error codes any search came back with.
+
+    Retrieved rather than cited, on purpose. This response reports both: the
+    results a search returned, and the subset the answer actually quoted. They
+    are different observations, and the other engine here reports only the
+    first, so the first is what travels. Pooling one engine's retrievals with
+    another's citations would give the source graph two meanings and no label.
+
+    A failed search arrives inside a successful response, as a single error
+    object where the result list would be. Read as an empty list it becomes
+    "this question had no sources", which is a measurement claim nobody made.
+    """
+    urls: list[str] = []
+    errors: list[str] = []
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "web_search_tool_result":
+            continue
+        results = block.get("content")
+        if isinstance(results, dict):
+            errors.append(str(results.get("error_code") or "unspecified"))
+            continue
+        for item in results or []:
+            if isinstance(item, dict) and item.get("type") == "web_search_result" and item.get("url"):
+                urls.append(str(item["url"]))
+    return tuple(urls), tuple(errors)
+
+
+@dataclass
+class AnthropicProvider:
+    """Claude on the Messages API, with the web search tool switched on.
+
+    The second engine here, and the reason for a second one is not redundancy.
+    A visibility number is about one door, and the published gap between doors
+    is larger than the run-to-run noise this library exists to quantify, so an
+    engine is a condition rather than an implementation detail. One engine
+    measured well is a fact about that engine.
+
+    It qualifies for this product on the same ground the first one did: it
+    searches, and it reports the pages it retrieved as structured data rather
+    than leaving them to be scraped back out of prose.
+
+    **The fee is charged per search, not per call.** One call may run several,
+    and the provider's own guidance says a comparative question can run ten or
+    more. So `max_searches` is not a nicety, it is what makes a round's price
+    knowable in advance and what keeps two rounds the same experiment.
+
+    **A search that failed is not a search that found nothing.** The API
+    answers 200 and puts the failure inside the body, so a reader that only
+    looks at the result list records an absence of sources that never happened.
+    Those codes come back on the answer and the round is marked failed, because
+    an answer composed without the search it asked for is a different condition
+    from the one being collected.
+
+    **A paused turn is not a short answer.** The API can stop a long search turn
+    with `pause_turn` and expects the message sent back to continue. Recording
+    the fragment would enter a half-finished answer as an observation, and every
+    such fragment is one where the brand had less room to be named.
+    """
+
+    api_key: str = field(repr=False)
+    name: str = "anthropic"
+    surface: str = "api"
+    model: str = "claude-opus-5"
+    max_searches: int = DEFAULT_MAX_SEARCHES
+    max_tokens: int = 1024
+    endpoint: str = "https://api.anthropic.com/v1/messages"
+    timeout_s: float = 90.0
+
+    def __post_init__(self) -> None:
+        if self.max_searches < 1:
+            raise ValueError(
+                f"max_searches={self.max_searches} would collect answers with no search behind "
+                "them, which is the ungrounded model and a different experiment"
+            )
+
+    def ask(self, prompt: str) -> Answer:
+        body = json.dumps(
+            {
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+                "tools": [
+                    {
+                        "type": WEB_SEARCH_TOOL,
+                        "name": "web_search",
+                        "max_uses": self.max_searches,
+                    }
+                ],
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            self.endpoint,
+            data=body,
+            headers={
+                "x-api-key": self.api_key,
+                "anthropic-version": ANTHROPIC_API_VERSION,
+                "content-type": "application/json",
+            },
+            method="POST",
+        )
+
+        started = time.monotonic()
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            detail = ""
+            try:
+                detail = e.read().decode("utf-8", "replace")[:400]
+            except Exception:
+                pass
+            return self._failed(started, f"http {e.code}: {detail or e.reason}")
+        except Exception as e:  # noqa: BLE001 - recorded, never swallowed
+            return self._failed(started, f"{type(e).__name__}: {e}")
+
+        content = payload.get("content")
+        if not isinstance(content, list):
+            return self._failed(started, f"unexpected response shape: {str(payload)[:300]}")
+
+        stop = payload.get("stop_reason")
+        if stop == "pause_turn":
+            return self._failed(
+                started, "the turn paused mid-search, so this answer is a fragment rather than a reply"
+            )
+
+        urls, search_errors = _anthropic_sources(content)
+        if search_errors:
+            return self._failed(
+                started, f"the search failed inside a successful call: {', '.join(search_errors)}"
+            )
+
+        return Answer(
+            text=_anthropic_text(content),
+            model=str(payload.get("model") or UNKNOWN_MODEL),
+            surface=self.surface,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            citations=urls,
+            usage=_anthropic_usage(payload),
+        )
+
+    def _failed(self, started: float, why: str) -> Answer:
         return Answer(
             text="",
             model=UNKNOWN_MODEL,

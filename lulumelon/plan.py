@@ -61,7 +61,7 @@ from dataclasses import dataclass
 
 from .mirror.intervals import z_for
 from .mirror.variance import VarianceSplit
-from .prices import Cost, Price, estimate, request_fees
+from .prices import Cost, Price, estimate, fees
 
 #: Below this, a round cannot be decomposed at all: with one draw per prompt
 #: the model's rerun noise and the prompt-to-prompt spread are algebraically
@@ -211,23 +211,36 @@ def _times(n: int) -> str:
     return "once" if n == 1 else f"{n} times"
 
 
-def price_of(price: Price | None, calls: int, tokens: tuple[int, int] | None) -> Cost | None:
+def price_of(
+    price: Price | None,
+    calls: int,
+    tokens: tuple[int, int] | None,
+    *,
+    fee_units: int | None = None,
+) -> Cost | None:
     """What `calls` cost, priced from measured tokens when there are any.
 
-    With no measured token rate this returns the request-fee floor rather than
-    an estimate padded out with zeros. For a search-grounded model the floor is
+    With no measured token rate this returns the fee floor rather than an
+    estimate padded out with zeros. For a search-grounded model the floor is
     most of the bill, so the missing term is not the one that decides whether a
     plan is affordable, and pretending to know it would be the one number here
     that came from nowhere.
+
+    `fee_units` defaults to the call count, which is right for a provider that
+    charges once per call and wrong for one that charges once per search. A
+    caller pricing the second kind states the number itself, because this
+    function cannot see how many searches a call will run and guessing would
+    understate the bill by whatever the model decided to do.
     """
     if price is None:
         return None
+    units = calls if fee_units is None else fee_units
     if tokens is None:
-        return request_fees(price, requests=calls)
+        return fees(price, fee_units=units)
     per_input, per_output = tokens
     return estimate(
         price,
         input_tokens=per_input * calls,
         output_tokens=per_output * calls,
-        requests=calls,
+        fee_units=units,
     )

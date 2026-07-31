@@ -75,6 +75,10 @@ class ProviderSpec:
     key_prefix: str
     #: Where the prefix above was read, so the hint can be re-checked later.
     key_prefix_source: str
+    #: The model a check call asks for. Per provider, because the cheapest
+    #: search-grounded model on one price table is not a model name on another,
+    #: and a default borrowed across providers is a 404 at the worst moment.
+    check_model: str
 
     @property
     def env_names(self) -> tuple[str, ...]:
@@ -95,6 +99,23 @@ PROVIDERS: dict[str, ProviderSpec] = {
         # that nobody later mistakes it for something read off a first-party
         # page.
         key_prefix_source="a convention reported outside the provider, not stated in perplexity's docs as of 2026-07-31",
+        check_model="sonar",
+    ),
+    "anthropic": ProviderSpec(
+        name="anthropic",
+        env_var="ANTHROPIC_API_KEY",
+        env_aliases=("LULU_ANTHROPIC_API_KEY",),
+        key_page="https://console.anthropic.com/settings/keys",
+        billing_page="https://console.anthropic.com/settings/billing",
+        key_prefix="sk-ant-",
+        # First-party, unlike the other row: Anthropic's own documentation
+        # prints keys of this shape in its examples. A subscription to the
+        # assistant is not one of these; the API is billed separately and
+        # issues its own key, which is the step people miss.
+        key_prefix_source="the shape Anthropic's own docs print, read 2026-08-01",
+        # The cheapest model that can run the search tool, for the same reason
+        # as the other row: a check call exists to prove the key spends.
+        check_model="claude-haiku-4-5",
     ),
 }
 

@@ -114,7 +114,7 @@ either of them ever being printed.
 From [Perplexity's pricing page](https://docs.perplexity.ai/getting-started/pricing),
 read 31 July 2026:
 
-| model | input / 1M tokens | output / 1M tokens | request fee / 1K requests |
+| model | input / 1M tokens | output / 1M tokens | fee / 1K requests |
 |---|---|---|---|
 | sonar | $1 | $1 | $5 to $12 |
 | sonar-pro | $3 | $15 | $6 to $14 |
@@ -129,6 +129,33 @@ your behalf and then presenting the guess as an invoice.
 The fee range is why sample design is a cost decision and not a statistical
 nicety. A measurement of 40 prompts asked 5 times each is 200 calls, which is
 **$1.00 to $2.40 in request fees** plus a few cents of tokens.
+
+### The other engine
+
+`lulu` can also ask Claude, which searches through a tool and reports the pages
+it retrieved. Token rates come from
+[the model table](https://platform.claude.com/docs/en/about-claude/models/overview)
+and the fee from
+[the web search tool page](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool),
+both read 1 August 2026:
+
+| model | input / 1M tokens | output / 1M tokens | fee / 1K searches |
+|---|---|---|---|
+| claude-opus-5 | $5 | $25 | $10 |
+| claude-sonnet-5 | $3 | $15 | $10 |
+| claude-haiku-4-5 | $1 | $5 | $10 |
+
+**That fee is charged per search, not per call, and the difference is the whole
+point.** One question can send the model searching several times, and the
+provider's own guidance says a comparative one can run ten or more, so an
+uncapped call has no price anybody can know in advance. `lulu` caps it, and the
+cap is also what keeps two rounds the same experiment: a round that searched
+once and a round that searched nine times are two conditions, not one
+measurement taken twice. A search that fails is not billed.
+
+Get the key from **<https://console.anthropic.com/settings/keys>**, and note
+that a subscription to the Claude assistant is not one. The API is billed
+separately and issues its own key, and that is the step people miss.
 
 When the API reports its own cost in the response, `lulu` prints that instead
 and labels it as reported by the provider. The table above is only used when

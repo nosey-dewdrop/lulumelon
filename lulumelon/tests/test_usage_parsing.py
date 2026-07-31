@@ -15,7 +15,7 @@ import urllib.request
 import pytest
 
 from lulumelon.collect.ask import PerplexityProvider, _usage
-from lulumelon.prices import estimate, price_for, request_fees, reported
+from lulumelon.prices import estimate, fees, price_for, reported
 from lulumelon.tests.test_ask import KEY, answering, reply
 
 
@@ -136,13 +136,13 @@ def test_the_documented_endpoint_is_the_one_called(monkeypatch):
 
 def test_pricing_refuses_an_unmeasured_call():
     price = price_for("perplexity", "sonar")
-    with pytest.raises(ValueError, match="request_fees"):
+    with pytest.raises(ValueError, match="use fees"):
         estimate(price, input_tokens=None, output_tokens=12)
 
 
-def test_request_fees_say_they_are_a_floor():
+def test_fees_say_they_are_a_floor():
     price = price_for("perplexity", "sonar")
-    floor = request_fees(price, requests=200)
+    floor = fees(price, fee_units=200)
     assert floor.low_usd == pytest.approx(1.00)
     assert floor.high_usd == pytest.approx(2.40)
     assert floor.measured is False

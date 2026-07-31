@@ -89,7 +89,7 @@ src/lib/          the TypeScript layer
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 206 tests, offline
+    python3 -m pytest lulumelon/tests   # 212 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started

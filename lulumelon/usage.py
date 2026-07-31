@@ -17,6 +17,14 @@ Answered calls fall into exactly three buckets and they never merge:
                is to add a zero token term and call the sum an estimate, which
                produces the same digits under a claim nobody measured.
 
+**Every priced call is priced at its own model's rate.** A round can mix models
+and a ledger records which one answered each call, so the rate comes from the
+record rather than from a flag on the command that reads it. Pricing a
+`sonar-pro` call at the `sonar` rate understates it threefold, and a model with
+no published price would otherwise borrow the rate of whichever one the flag
+named. Those calls are counted into `unpriced` instead, reported out loud, and
+kept out of every figure.
+
 Failed calls are priced at nothing and counted out loud. Whether a rejected
 call is billed is not something the response says, and a collector that guessed
 either way would be inventing the most interesting number on the page.
@@ -33,7 +41,44 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from .collect.ledger import Record
-from .prices import Cost, Price, estimate, request_fees
+from .prices import Cost, Price, estimate, price_for, request_fees
+
+
+@dataclass(frozen=True, slots=True)
+class ModelSpend:
+    """What the calls answered by one model cost, at that model's own rate.
+
+    A round is grouped by `(provider, model)` before anything is priced,
+    because the published rates differ by more than an order of magnitude
+    across a single provider's own catalogue and the ledger already records
+    which model answered.
+    """
+
+    provider: str
+    model: str
+    counted: int
+    silent: int
+    input_tokens: int
+    output_tokens: int
+    price: Price | None
+    counted_cost: Cost | None
+    floor_cost: Cost | None
+
+    @property
+    def label(self) -> str:
+        return f"{self.provider}/{self.model}"
+
+    @property
+    def calls(self) -> int:
+        return self.counted + self.silent
+
+    @property
+    def low_usd(self) -> float:
+        return _low(self.counted_cost) + _low(self.floor_cost)
+
+    @property
+    def high_usd(self) -> float:
+        return _high(self.counted_cost) + _high(self.floor_cost)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,23 +94,48 @@ class Spend:
     answered: int
     failed: int
     metered: int
-    counted: int
-    silent: int
     unrecorded: int
-    input_tokens: int
-    output_tokens: int
+    metered_input_tokens: int
+    metered_output_tokens: int
     metered_usd: float
-    counted_cost: Cost | None
-    floor_cost: Cost | None
-    price: Price | None
+    by_model: tuple[ModelSpend, ...]
+
+    # -- what the buckets add up to ------------------------------------------
+
+    @property
+    def counted(self) -> int:
+        return sum(m.counted for m in self.by_model)
+
+    @property
+    def silent(self) -> int:
+        return sum(m.silent for m in self.by_model)
+
+    @property
+    def unpriced(self) -> int:
+        """Answered calls whose model has no published price on file.
+
+        They are counted and named rather than folded into another model's
+        rate. A figure produced from the nearest relative's price is the one
+        number on the page that came from nowhere, and it would appear under a
+        COST heading next to a live source link.
+        """
+        return sum(m.calls for m in self.by_model if m.price is None)
+
+    @property
+    def input_tokens(self) -> int:
+        return self.metered_input_tokens + sum(m.input_tokens for m in self.by_model)
+
+    @property
+    def output_tokens(self) -> int:
+        return self.metered_output_tokens + sum(m.output_tokens for m in self.by_model)
 
     @property
     def low_usd(self) -> float:
-        return self.metered_usd + _low(self.counted_cost) + _low(self.floor_cost)
+        return self.metered_usd + sum(m.low_usd for m in self.by_model)
 
     @property
     def high_usd(self) -> float:
-        return self.metered_usd + _high(self.counted_cost) + _high(self.floor_cost)
+        return self.metered_usd + sum(m.high_usd for m in self.by_model)
 
     @property
     def exact(self) -> bool:
@@ -105,21 +175,29 @@ class Spend:
         if self.metered:
             lines.append(f"  stated by the provider, over {_calls(self.metered)}")
             lines.append(f"    ${self.metered_usd:.6f}")
-        if self.counted_cost is not None:
-            lines.append(
-                f"  computed for {_calls(self.counted)} that reported tokens but no amount"
-            )
-            lines.append(f"    {self.counted_cost.as_text()}")
-        if self.floor_cost is not None:
-            lines.append(f"  a floor for {_calls(self.silent)} that reported neither")
-            lines.append(f"    {self.floor_cost.as_text()}")
+        for bucket in self.by_model:
+            if bucket.price is None:
+                lines.append(
+                    f"  {bucket.label}: {_calls(bucket.calls)} not priced, no published price "
+                    "on file for that model, so they are in no figure here"
+                )
+                continue
+            if bucket.counted_cost is not None:
+                lines.append(
+                    f"  {bucket.label}: computed for {_calls(bucket.counted)} that reported "
+                    "tokens but no amount"
+                )
+                lines.append(f"    {bucket.counted_cost.as_text()}")
+            if bucket.floor_cost is not None:
+                lines.append(
+                    f"  {bucket.label}: a floor for {_calls(bucket.silent)} that reported neither"
+                )
+                lines.append(f"    {bucket.floor_cost.as_text()}")
         if self.failed:
             lines.append(
                 f"  {_calls(self.failed)} failed and {'is' if self.failed == 1 else 'are'} not "
                 "priced: the response does not say whether a rejected call is billed"
             )
-        if self.price is None and not self.metered:
-            lines.append("  no published price on file for this model, so nothing can be priced")
 
         lines.append("")
         if self.exact:
@@ -131,6 +209,11 @@ class Spend:
             )
             lines.append(
                 f"  per call  ${self.per_call_low_usd:.6f} to ${self.per_call_high_usd:.6f}"
+            )
+        if self.unpriced:
+            lines.append(
+                f"  {self.unpriced} of the answered calls could not be priced at all, so every "
+                "figure above is a total for the rest of the round only"
             )
         return "\n".join(lines)
 
@@ -147,17 +230,30 @@ def _high(cost: Cost | None) -> float:
     return cost.high_usd if cost else 0.0
 
 
-def spend_of(records: Iterable[Record], price: Price | None) -> Spend:
-    """Total what a set of records cost, keeping the three bases apart.
+@dataclass
+class _Bucket:
+    """Running totals for one `(provider, model)` pair while records stream."""
 
-    `price` may be None. A model whose price has not been read gets "nothing
-    can be priced" rather than the rate of its nearest relative, because the
-    nearest relative is where a fifteen-fold error comes from.
+    counted: int = 0
+    silent: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+def spend_of(records: Iterable[Record]) -> Spend:
+    """Total what a set of records cost, keeping the bases and the models apart.
+
+    Takes no price. Every call is priced from the model its own record names,
+    which is the only model that was actually billed. A model whose price has
+    not been read gets "no published price on file" rather than the rate of its
+    nearest relative, because the nearest relative is where a fifteen-fold
+    error comes from.
     """
     calls = answered = failed = 0
-    metered = counted = silent = unrecorded = 0
-    metered_in = metered_out = counted_in = counted_out = 0
+    metered = unrecorded = 0
+    metered_in = metered_out = 0
     metered_usd = 0.0
+    buckets: dict[tuple[str, str], _Bucket] = {}
 
     for record in records:
         calls += 1
@@ -178,39 +274,60 @@ def spend_of(records: Iterable[Record], price: Price | None) -> Spend:
             # customer checks their own bill against.
             metered_in += usage.input_tokens or 0
             metered_out += usage.output_tokens or 0
-        elif usage.input_tokens is not None and usage.output_tokens is not None:
-            counted += 1
-            counted_in += usage.input_tokens
-            counted_out += usage.output_tokens
-        else:
-            silent += 1
+            continue
 
-    counted_cost = None
-    floor_cost = None
-    if price is not None and counted:
-        # Priced from the tokens those calls themselves reported. The metered
-        # calls already carry the provider's own figure; adding a published
-        # rate on top would bill the same tokens twice.
-        counted_cost = estimate(
-            price, input_tokens=counted_in, output_tokens=counted_out, requests=counted
-        )
-    if price is not None and silent:
-        floor_cost = request_fees(price, requests=silent)
+        bucket = buckets.setdefault((record.provider, record.model), _Bucket())
+        if usage.input_tokens is not None and usage.output_tokens is not None:
+            bucket.counted += 1
+            bucket.input_tokens += usage.input_tokens
+            bucket.output_tokens += usage.output_tokens
+        else:
+            bucket.silent += 1
+
+    by_model = tuple(
+        _priced(provider, model, bucket)
+        for (provider, model), bucket in sorted(buckets.items())
+    )
 
     return Spend(
         calls=calls,
         answered=answered,
         failed=failed,
         metered=metered,
-        counted=counted,
-        silent=silent,
         unrecorded=unrecorded,
-        input_tokens=metered_in + counted_in,
-        output_tokens=metered_out + counted_out,
+        metered_input_tokens=metered_in,
+        metered_output_tokens=metered_out,
         metered_usd=metered_usd,
+        by_model=by_model,
+    )
+
+
+def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
+    """Apply one model's published rate to the calls that model answered."""
+    price = price_for(provider, model)
+    counted_cost = floor_cost = None
+    if price is not None and bucket.counted:
+        # Priced from the tokens those calls themselves reported. The metered
+        # calls already carry the provider's own figure; adding a published
+        # rate on top would bill the same tokens twice.
+        counted_cost = estimate(
+            price,
+            input_tokens=bucket.input_tokens,
+            output_tokens=bucket.output_tokens,
+            requests=bucket.counted,
+        )
+    if price is not None and bucket.silent:
+        floor_cost = request_fees(price, requests=bucket.silent)
+    return ModelSpend(
+        provider=provider,
+        model=model,
+        counted=bucket.counted,
+        silent=bucket.silent,
+        input_tokens=bucket.input_tokens,
+        output_tokens=bucket.output_tokens,
+        price=price,
         counted_cost=counted_cost,
         floor_cost=floor_cost,
-        price=price,
     )
 
 

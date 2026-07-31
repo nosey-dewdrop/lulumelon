@@ -74,7 +74,7 @@ class Recorder:
 
 
 def test_a_metered_round_carries_no_band_at_all():
-    spend = spend_of([metered(), metered(), metered()], SONAR)
+    spend = spend_of([metered(), metered(), metered()])
     assert spend.exact
     assert spend.low_usd == spend.high_usd == pytest.approx(3 * 0.005182)
     assert "every call metered" in spend.as_text()
@@ -82,13 +82,13 @@ def test_a_metered_round_carries_no_band_at_all():
 
 def test_a_metered_call_is_not_priced_a_second_time_from_the_table():
     """The provider already charged for it. Adding our rate double-bills."""
-    only_metered = spend_of([metered(), metered()], SONAR)
-    assert only_metered.counted_cost is None
+    only_metered = spend_of([metered(), metered()])
+    assert only_metered.by_model == (), "a metered call opens no priced bucket at all"
     assert only_metered.low_usd == pytest.approx(2 * 0.005182)
 
 
 def test_calls_that_reported_tokens_are_priced_from_their_own_tokens():
-    spend = spend_of([counted(), counted()], SONAR)
+    spend = spend_of([counted(), counted()])
     assert spend.counted == 2
     # 240 input + 140 output at $1/M each, plus two request fees at $5-12/1k.
     assert spend.low_usd == pytest.approx((240 + 140) / 1_000_000 + 2 * 0.005)
@@ -96,22 +96,23 @@ def test_calls_that_reported_tokens_are_priced_from_their_own_tokens():
 
 
 def test_a_call_that_reported_nothing_is_a_floor_not_an_estimate():
-    spend = spend_of([silent()], SONAR)
+    spend = spend_of([silent()])
     assert spend.silent == 1
-    assert spend.floor_cost is not None
-    assert "no call metered yet" in spend.floor_cost.basis
+    floor = spend.by_model[0].floor_cost
+    assert floor is not None
+    assert "no call metered yet" in floor.basis
     assert "a floor for 1 call" in spend.as_text()
 
 
 def test_a_failed_call_is_counted_and_never_priced():
-    spend = spend_of([metered(), failed()], SONAR)
+    spend = spend_of([metered(), failed()])
     assert (spend.answered, spend.failed) == (1, 1)
     assert spend.low_usd == pytest.approx(0.005182)
     assert "does not say whether a rejected call is billed" in spend.as_text()
 
 
 def test_a_mixed_round_says_how_much_of_it_is_exact():
-    spend = spend_of([metered(), counted(), silent()], SONAR)
+    spend = spend_of([metered(), counted(), silent()])
     assert not spend.exact
     assert "1 of 3 answered calls metered" in spend.as_text()
 
@@ -119,23 +120,98 @@ def test_a_mixed_round_says_how_much_of_it_is_exact():
 def test_records_from_before_usage_existed_are_a_separate_category(tmp_path):
     """"This build did not collect it" is not "the provider said nothing"."""
     old = rec(v=1)
-    spend = spend_of([old, silent()], SONAR)
+    spend = spend_of([old, silent()])
     assert spend.unrecorded == 1
     assert spend.silent == 1
     assert "before this build recorded usage" in spend.as_text()
 
 
 def test_a_model_with_no_published_price_prices_nothing():
-    spend = spend_of([counted(), silent()], None)
-    assert spend.counted_cost is None and spend.floor_cost is None
+    unknown = dict(model="sonar-deep-research")
+    spend = spend_of([counted(**unknown), silent(**unknown)])
+    assert spend.by_model[0].price is None
+    assert spend.by_model[0].counted_cost is None and spend.by_model[0].floor_cost is None
     assert spend.low_usd == 0.0
+    assert spend.unpriced == 2
     assert "no published price on file" in spend.as_text()
 
 
 def test_an_empty_ledger_is_not_a_free_one():
-    spend = spend_of([], SONAR)
+    spend = spend_of([])
     assert spend.calls == 0
     assert spend.exact is False, "nothing measured is not the same as nothing spent"
+
+
+# -- every call is priced at the rate of the model that answered it ---------
+
+
+def test_a_call_is_priced_at_the_rate_of_the_model_that_answered_it():
+    """The exact figures that made this a bug rather than a preference.
+
+    Ten `sonar-pro` calls at 1200 in / 800 out each. Priced at `sonar-pro`'s
+    published rates that is $0.216000 to $0.296000. Priced at `sonar`'s, which
+    is what a round takes when the rate comes from a flag instead of from the
+    record, it is $0.070000 to $0.140000: three times under at the low end and
+    twice under at the high end, printed under a heading that says COST.
+    """
+    spend = spend_of([counted(1200, 800, model="sonar-pro") for _ in range(10)])
+
+    assert spend.low_usd == pytest.approx(0.216)
+    assert spend.high_usd == pytest.approx(0.296)
+    assert spend.by_model[0].price.model == "sonar-pro"
+
+    at_the_wrong_rate_low = (12_000 * 1.0 + 8_000 * 1.0) / 1_000_000 + 10 * 0.005
+    at_the_wrong_rate_high = (12_000 * 1.0 + 8_000 * 1.0) / 1_000_000 + 10 * 0.012
+    assert (at_the_wrong_rate_low, at_the_wrong_rate_high) == pytest.approx((0.07, 0.14))
+    assert spend.low_usd / at_the_wrong_rate_low == pytest.approx(3.0857, rel=1e-3)
+    assert spend.high_usd / at_the_wrong_rate_high == pytest.approx(2.1143, rel=1e-3)
+
+
+def test_a_round_that_used_two_models_keeps_their_rates_apart():
+    """One bucket per model, each at its own price, never one blended rate."""
+    spend = spend_of(
+        [counted(1000, 500, model="sonar"), counted(1000, 500, model="sonar-pro")]
+    )
+    assert [m.model for m in spend.by_model] == ["sonar", "sonar-pro"]
+
+    cheap, dear = spend.by_model
+    assert cheap.counted_cost.low_usd == pytest.approx(1500 / 1_000_000 + 0.005)
+    assert dear.counted_cost.low_usd == pytest.approx((3000 + 7500) / 1_000_000 + 0.006)
+    assert spend.low_usd == pytest.approx(cheap.low_usd + dear.low_usd)
+
+
+def test_an_unpriced_model_never_borrows_the_rate_of_another_one():
+    """The failure this replaces was silent, which is what made it expensive.
+
+    `sonar-deep-research` has no row in the price table. Priced from a flag it
+    took whichever model the flag named and produced a confident figure under
+    a live source link. Here it is counted, named, and in no total.
+    """
+    spend = spend_of([counted(2000, 1000, model="sonar-deep-research") for _ in range(4)])
+    assert spend.counted == 4
+    assert spend.unpriced == 4
+    assert spend.low_usd == 0.0 and spend.high_usd == 0.0
+
+    text = spend.as_text()
+    assert "perplexity/sonar-deep-research" in text
+    assert "no published price on file" in text
+    assert "4 of the answered calls could not be priced" in text
+
+
+def test_the_screen_says_which_model_carried_which_price():
+    """A cost the reader cannot attribute to a rate is a cost they must trust."""
+    text = spend_of([counted(model="sonar-pro"), silent(model="sonar")]).as_text()
+    assert "perplexity/sonar-pro: computed for 1 call" in text
+    assert "perplexity/sonar: a floor for 1 call" in text
+    assert "docs.perplexity.ai/getting-started/pricing" in text
+
+
+def test_an_unpriced_model_does_not_take_the_rest_of_the_round_down_with_it():
+    """A round is not unpriceable because one of the models in it is."""
+    spend = spend_of([counted(model="sonar"), counted(model="sonar-deep-research")])
+    assert spend.unpriced == 1
+    assert spend.low_usd == pytest.approx(190 / 1_000_000 + 0.005)
+    assert "a total for the rest of the round only" in spend.as_text()
 
 
 # -- the token rate a planner would use -------------------------------------

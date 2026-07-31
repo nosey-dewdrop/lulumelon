@@ -343,10 +343,14 @@ def usage(
     *,
     ledger_dir: Path,
     snapshot: str | None = None,
-    provider: str = "perplexity",
-    model: str = CHECK_MODEL,
 ) -> int:
     """What the rounds on disk cost, from what the provider said about them.
+
+    Takes no model. Each record names the model that answered it, and that is
+    the only model that was billed, so the rate is read per record rather than
+    chosen once by whoever runs the command. A flag here would let a round
+    collected on one model be priced at another's rate without anything on
+    screen disagreeing.
 
     The chain is checked before a single figure is printed. An invoice computed
     from a file that does not verify is not a cheaper invoice, it is an unknown
@@ -360,7 +364,6 @@ def usage(
         console.say("Nothing has been asked yet, so nothing has been spent.")
         return 0
 
-    price = price_for(provider, model)
     console.say(f"lulu usage — {ledger_dir}")
 
     failed_chain = False
@@ -378,7 +381,7 @@ def usage(
             continue
         console.say("  chain intact")
         console.say()
-        for line in spend_of(store.read(snapshot_id), price).as_text().splitlines():
+        for line in spend_of(store.read(snapshot_id)).as_text().splitlines():
             console.say(f"  {line}" if line else "")
 
     return 1 if failed_chain else 0
@@ -616,11 +619,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="do everything except the test call, so nothing is spent",
     )
 
+    # No --model and no --provider. Both are read from each record, which names
+    # the model that was actually billed; a flag would let one round be priced
+    # at another model's rate with nothing on screen to say so.
     p_usage = sub.add_parser("usage", help="what the recorded rounds cost, from the provider's own figures")
     p_usage.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
     p_usage.add_argument("--snapshot", default=None, help="one round; every round by default")
-    p_usage.add_argument("--provider", default="perplexity", help="which engine's price table to use")
-    p_usage.add_argument("--model", default=CHECK_MODEL, help="which model's published rates to use")
 
     p_verify = sub.add_parser("verify", help="re-derive every chain on disk and report what moved")
     p_verify.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
@@ -694,13 +698,7 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
         if args.command == "verify":
             return verify(console, ledger_dir=Path(args.ledger), snapshot=args.snapshot)
         if args.command == "usage":
-            return usage(
-                console,
-                ledger_dir=Path(args.ledger),
-                snapshot=args.snapshot,
-                provider=args.provider,
-                model=args.model,
-            )
+            return usage(console, ledger_dir=Path(args.ledger), snapshot=args.snapshot)
         return doctor(console, cwd=cwd, home=home, provider=args.provider, offline=args.offline)
     except LedgerFormatError as e:
         # Kept above the ValueError branch it inherits from. "This evidence

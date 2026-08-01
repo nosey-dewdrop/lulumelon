@@ -56,3 +56,8 @@ __pycache__/
 *.egg-info/
 /build/
 /dist/
+
+# a collected round is the customer's own data and the default write path is
+# ./ledger, so it stays out of the package repo rather than relying on nobody
+# running `git add -A` in a directory they just measured in
+/ledger/

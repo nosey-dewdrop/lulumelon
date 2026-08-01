@@ -61,3 +61,10 @@ __pycache__/
 # ./ledger, so it stays out of the package repo rather than relying on nobody
 # running `git add -A` in a directory they just measured in
 /ledger/
+
+# internal strategy and session state. a public product repo is not where a
+# competitor teardown or a transcript of what was said in a session belongs,
+# and .rabadon grows on every run, so it leaks more with each commit.
+/YOL-HARITASI.txt
+/HANDOFF.txt
+.rabadon/

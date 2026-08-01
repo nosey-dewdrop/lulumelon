@@ -36,6 +36,7 @@ in tests without a terminal and without a key.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import shutil
@@ -68,8 +69,26 @@ from .collect.replica import (
     replica_surface,
     without,
 )
-from .collect.session import run_round, utc_now
+from .collect.audit import http_get
+from .collect.detect import Brand, detect
+from .collect.harvest import DEFAULT_MAX_PAGES, harvest
+from .collect.propose import (
+    DEFAULT_PAGE_CHARS,
+    DEFAULT_WANTED,
+    pages_for_screening,
+    propose,
+)
+from .collect.session import Prompt, run_round, utc_now
 from .collect.subject import Subject, load_subject
+from .mirror.screen import (
+    CARRIES,
+    Candidate,
+    minimum_draws,
+    pool_variance,
+    screen,
+    screen_by_discrimination,
+    stable_ids,
+)
 from .mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
 from .mirror.compare import model_confounds
 from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
@@ -892,6 +911,385 @@ def collect(
     console.say(f"  lulu verify --ledger {ledger_dir} --snapshot {result.snapshot_id}")
     console.say(f"  lulu usage --ledger {ledger_dir} --snapshot {result.snapshot_id}")
     return ROUND_CUT_SHORT if result.stopped_for_budget else 0
+
+
+#: Returned when a draft produced a candidate pool and stopped before the round
+#: that would have measured it. A distinct code because the file on disk is
+#: real and unmeasured, which is neither a success nor a failure and would be
+#: read as one of the two under any code that already exists.
+DRAFT_UNMEASURED = 5
+
+
+def _no_rivals_refusal(subject_name: str) -> str:
+    return (
+        f"no rival name was declared, so the only name this round could screen on is "
+        f"{subject_name!r}. Screening a question set on the subject's own mentions keeps the "
+        "questions it scored well on and drops the rest, which raises the published number by "
+        "deleting the evidence against it. That is the inflation this repo exists to name, so "
+        "the round is refused rather than run with the one name available. Declare who the "
+        "customer competes with, with --rivals, and the gate measures them instead"
+    )
+
+
+def draft(
+    console: Console,
+    *,
+    site: str,
+    out: Path,
+    floor: float,
+    budget_usd: float,
+    cwd: Path,
+    home: Path,
+    ledger_dir: Path,
+    rivals: Sequence[str] = (),
+    provider: str = "anthropic",
+    model: str | None = None,
+    max_searches: int = DEFAULT_MAX_SEARCHES,
+    max_pages: int = DEFAULT_MAX_PAGES,
+    page_chars: int = DEFAULT_PAGE_CHARS,
+    wanted: int = DEFAULT_WANTED,
+    harvest_only: bool = False,
+    dry_run: bool = False,
+    fetch: Callable[[str], tuple[int, str]] | None = None,
+    env: Mapping[str, str] | None = None,
+    keychain: Callable[[str, str], str | None] | None = None,
+    build_provider: Callable[[], Provider] | None = None,
+    clock: Callable[[], str] = utc_now,
+) -> int:
+    """Turn a domain into a measured question set, asking the customer nothing else.
+
+    The acceptance gate for this whole path is that the person running it types
+    one url. Everything a question needs comes from the site itself, and every
+    question that does not survive is written down with the gate that stopped
+    it, because a set that arrived with forty candidates and kept nine is a
+    different object from one that only ever had nine.
+
+    **It costs money in two places and both are priced before either happens.**
+    One call proposes candidates, and one round asks the survivors for real.
+    The second is the expensive one and it is also the pilot: the draws that
+    decide which questions survive are the same draws the variance split is
+    read off, so the number nobody in this category publishes comes out of a
+    round that was already being paid for.
+
+    **`k` is derived from the floor, never chosen here.** A question that names
+    a rival in every one of its draws still has to clear the floor on the lower
+    bound of that clean sweep before the sweep means anything, and how many
+    draws that takes is arithmetic on the floor the caller set.
+
+    Three stopping points, each cheaper than the next: `--harvest-only` reads
+    the site and spends nothing, `--dry-run` adds the proposal call and the free
+    gates, and the full command adds the measured round.
+    """
+    if not 0.0 <= floor < 1.0:
+        raise ValueError(f"floor must be in [0, 1), got {floor}")
+
+    corpus = harvest(site, fetch=fetch or http_get, max_pages=max_pages)
+
+    console.say(f"lulu draft: {site}")
+    console.say()
+    console.say(f"  subject   {corpus.subject_name}, from {corpus.subject_name_source}")
+    console.say(f"  read      {counted(len(corpus.pages), 'page')}")
+    for page in corpus.pages:
+        console.say(f"              {page.url}")
+    if corpus.unreachable:
+        console.say(f"  missing   {counted(len(corpus.unreachable), 'page')} could not be read")
+        for miss in corpus.unreachable:
+            console.say(f"              {miss.url} ({miss.status}, {miss.reason})")
+    if corpus.disallowed:
+        console.say(
+            f"  refused   {counted(len(corpus.disallowed), 'path')} robots.txt keeps this "
+            "collector out of"
+        )
+    console.say(f"  digest    {corpus.digest[:16]}")
+
+    if corpus.is_empty:
+        console.say()
+        console.say(
+            "  nothing was read, so there is nothing to ground a question in. the lines above"
+        )
+        console.say("  say which pages were asked for and what came back.")
+        return 1
+
+    if harvest_only:
+        console.say()
+        console.say("  stopped at the corpus. no model was called and nothing was spent.")
+        return 0
+
+    # The count is derived here so it can be printed with its arithmetic, and
+    # so an unreachable floor is refused before a key is even looked for.
+    k = minimum_draws(floor)
+
+    spec = spec_for(provider)
+    model = model or spec.check_model
+    price = price_for(provider, model)
+    if price is None:
+        raise ValueError(
+            f"no published price on file for {provider}/{model}, so this draft would run "
+            "unpriced: the ceiling could not be enforced and the spend could not be checked "
+            "afterwards. price the model in prices.py, or name one that is already there"
+        )
+
+    found = resolve(spec, cwd=cwd, home=home, env=env, keychain=keychain)
+    if not found.ok:
+        console.say()
+        report_lookup(console, spec, found)
+        return 1
+    console.say(f"  key       {found.source}, fingerprint {fingerprint(found.key)}")
+
+    budget = Budget(price=price, limit_usd=budget_usd, max_searches=max_searches)
+    ceiling = budget.next_call_ceiling_usd()
+
+    console.say()
+    console.say("BEFORE ANYTHING IS SPENT")
+    console.say(f"  {wanted} candidates asked for in one call")
+    console.say(
+        f"  {counted(k, 'draw')} each afterwards, derived from a floor of {floor:.2f}: "
+        f"a clean sweep of {k}/{k} is the shortest one whose lower bound clears it"
+    )
+    console.say(f"  ${ceiling:.4f} is the most one call can cost, priced from {price.provenance()}")
+    console.say(
+        f"  ${(1 + wanted * k) * ceiling:.4f} is the most this can cost if every candidate "
+        "survives the free gates"
+    )
+    console.say(f"  ${budget_usd:.2f} is your ceiling")
+    if not rivals:
+        console.say()
+        console.say("  note      " + _no_rivals_refusal(corpus.subject_name))
+
+    engine = build_provider() if build_provider else provider_for(
+        provider, found.key, model=model, max_searches=max_searches
+    )
+
+    console.say()
+    console.say("PROPOSING")
+    proposed = propose(
+        corpus, provider=engine, wanted=wanted, page_chars=page_chars, budget=budget
+    )
+    console.say(f"  {proposed.as_text()}")
+    if not proposed.asked or proposed.answer is None or not proposed.answer.ok:
+        console.say("  nothing was proposed, so there is nothing to screen.")
+        return 1
+
+    tracked = (Brand(name=corpus.subject_name),) + tuple(Brand(name=name) for name in rivals)
+    candidates = tuple(
+        Candidate(id=f"c{i}", text=p.text, source=p.source, evidence=p.evidence)
+        for i, p in enumerate(proposed.proposals, start=1)
+    )
+    result = screen(
+        candidates,
+        pages=pages_for_screening(corpus),
+        detect_names=lambda text: detect(text, tracked),
+    )
+
+    console.say()
+    console.say("FREE GATES")
+    for gate, count in result.counts.items():
+        console.say(f"  {gate:<10} {count} dropped")
+    console.say(f"  {len(result.kept)} of {len(candidates)} survived")
+
+    kept = stable_ids(result.kept, _existing_ids(out))
+    draft_path = out.with_suffix(".draft.json")
+
+    screened: tuple = ()
+    split = None
+    snapshot_id = ""
+    cut_short = False
+
+    if dry_run:
+        console.say()
+        console.say(
+            f"  dry run, so the {counted(len(kept) * k, 'draw')} that would decide these were "
+            "not made and nothing above was measured."
+        )
+    elif not rivals:
+        console.say()
+        console.say("  " + _no_rivals_refusal(corpus.subject_name))
+    elif not kept:
+        console.say()
+        console.say("  no candidate survived the free gates, so there is nothing to measure.")
+    else:
+        console.say()
+        console.say("ASKING")
+        console.say(f"  {counted(len(kept) * k, 'draw')}, and every one is written to the ledger")
+        ledger = Ledger(ledger_dir)
+        round_result = run_round(
+            ledger=ledger,
+            provider=engine,
+            prompts=[Prompt(id=c.id, text=c.text) for c in kept],
+            brands=tracked,
+            k=k,
+            subject=_slug(corpus.subject_name),
+            clock=clock,
+            budget=budget,
+        )
+        snapshot_id = round_result.snapshot_id
+        cut_short = round_result.stopped_for_budget
+        console.say(f"  {round_result.as_text()}")
+
+        observations = _rival_draws(replay(ledger, snapshot_id), kept, rivals)
+        screened = screen_by_discrimination(observations, floor=floor)
+        split = pool_variance(observations)
+
+        console.say()
+        console.say("MEASURED")
+        for one in screened:
+            console.say(f"  {one.as_text()}")
+        console.say()
+        console.say(
+            f"  {split.noise_floor * 100:.1f} points is the noise floor of this pool, which is "
+            "how far a score can move without anything about the brand changing"
+        )
+        console.say(
+            "  it costs nothing extra: the draws that decided the questions are the draws it "
+            "was read off"
+        )
+
+    carried = tuple(one.candidate for one in screened if one.verdict == CARRIES) if screened else kept
+    _write_subject_file(out, corpus, rivals, carried)
+    _write_draft_ledger(draft_path, corpus, proposed, result, screened, split, snapshot_id)
+
+    console.say()
+    console.say("WRITTEN")
+    console.say(f"  {out}")
+    console.say(f"  {draft_path}, with every candidate that died and what stopped it")
+    for line in budget.as_text().splitlines():
+        console.say(f"  {line}")
+    if not screened:
+        console.say()
+        console.say(
+            "  the questions in that file passed the free gates and were never measured, so "
+            "nothing yet says any of them discriminates."
+        )
+        return DRAFT_UNMEASURED
+    return ROUND_CUT_SHORT if cut_short else 0
+
+
+def _slug(name: str) -> str:
+    """A subject id from a name, for the snapshot the screening round writes."""
+    kept = "".join(ch if ch.isalnum() else "-" for ch in name.casefold())
+    return "-".join(part for part in kept.split("-") if part) or "subject"
+
+
+def _existing_ids(out: Path) -> dict[str, str]:
+    """Question text to the id it already holds, from a file being rewritten.
+
+    An id is the key every comparison groups by, so a second draft over the
+    same subject must not renumber a question whose text did not change. A
+    file that does not exist yet contributes nothing rather than raising.
+    """
+    if not out.exists():
+        return {}
+    try:
+        data = json.loads(out.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return {}
+    from .mirror.screen import normalise as screen_normalise
+
+    previous: dict[str, str] = {}
+    for entry in data.get("prompts", []):
+        if isinstance(entry, dict) and entry.get("id") and entry.get("text"):
+            previous[screen_normalise(str(entry["text"]))] = str(entry["id"])
+    return previous
+
+
+def _rival_draws(
+    played: Replay, kept: Sequence[Candidate], rivals: Sequence[str]
+) -> tuple[tuple[Candidate, tuple[float, ...]], ...]:
+    """One 1/0 per draw, marking whether that answer named any rival.
+
+    Rivals rather than the subject, which is the whole of the measurement gate.
+    A question is kept for moving somebody else's odds of being named, never
+    for the subject's own rate, because a set screened on the subject's rate is
+    a set with its own counter-evidence removed.
+    """
+    wanted = {name.casefold() for name in rivals}
+    per_prompt: dict[str, list[float]] = {c.id: [] for c in kept}
+    for run in played.runs:
+        if run.prompt_id in per_prompt:
+            named = {b.casefold() for b in run.brands}
+            per_prompt[run.prompt_id].append(1.0 if named & wanted else 0.0)
+    return tuple(
+        (candidate, tuple(per_prompt[candidate.id]))
+        for candidate in kept
+        if per_prompt[candidate.id]
+    )
+
+
+def _write_subject_file(
+    out: Path, corpus, rivals: Sequence[str], prompts: Sequence[Candidate]
+) -> None:
+    """The subject file, carrying every question's page and quote.
+
+    Written with `source` and `evidence` on each prompt, which is what lets a
+    later reader check a question rather than take it. A build older than those
+    keys refuses this file outright instead of reading it partially, and that
+    refusal is the point.
+    """
+    out.parent.mkdir(parents=True, exist_ok=True)
+    body = {
+        "subject": {
+            "id": _slug(corpus.subject_name),
+            "name": corpus.subject_name,
+            "domain": corpus.base_url,
+        },
+        "competitors": [
+            {"id": f"rival{i}", "name": name} for i, name in enumerate(rivals, start=1)
+        ],
+        "prompts": [
+            {"id": c.id, "text": c.text, "source": c.source, "evidence": c.evidence}
+            for c in prompts
+        ],
+    }
+    out.write_text(json.dumps(body, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _write_draft_ledger(
+    path: Path, corpus, proposed, result, screened: Sequence, split, snapshot_id: str
+) -> None:
+    """Every candidate that died, and what killed it.
+
+    Kept beside the subject file rather than inside it, because the subject
+    file is an input to a paid round and this is a record of one draft. A
+    reader asking why a set has nine questions is asking about this file.
+    """
+    body = {
+        "site": corpus.base_url,
+        "corpus_digest": corpus.digest,
+        "pages_read": [page.url for page in corpus.pages],
+        "unreachable": [
+            {"url": m.url, "status": m.status, "reason": m.reason} for m in corpus.unreachable
+        ],
+        "proposed": len(proposed.proposals),
+        "unreadable_entries": [
+            {"raw": m.raw, "reason": m.reason} for m in proposed.malformed
+        ],
+        "rejected": [
+            {
+                "id": r.candidate.id,
+                "text": r.candidate.text,
+                "source": r.candidate.source,
+                "evidence": r.candidate.evidence,
+                "gate": r.gate,
+                "reason": r.reason,
+            }
+            for r in result.rejected
+        ],
+        "screening_snapshot": snapshot_id,
+        "measured": [
+            {
+                "id": one.candidate.id,
+                "verdict": one.verdict,
+                "rival_hits": one.rival_hits,
+                "draws": one.draws,
+                "floor": one.floor,
+                "interval": [one.interval.low, one.interval.high],
+            }
+            for one in screened
+        ],
+        "noise_floor": None if split is None else split.noise_floor,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(body, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _names(subject: Subject) -> str:
@@ -2094,6 +2492,55 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    p_draft = sub.add_parser(
+        "draft", help="turn one domain into a measured question set, asking nothing else"
+    )
+    p_draft.add_argument("--site", required=True, help="the customer's site, and the only thing they type")
+    p_draft.add_argument(
+        "--out", required=True, metavar="PATH", help="where the subject file is written"
+    )
+    # Required, and with no default, for the same reason `replica_gate` takes a
+    # margin: the floor is what the verdicts mean. A number chosen here would
+    # decide which questions survive on behalf of somebody who never saw it.
+    p_draft.add_argument(
+        "--floor",
+        type=float,
+        required=True,
+        help="rate a question has to beat on rivals to be kept; also sets how many draws it takes",
+    )
+    p_draft.add_argument(
+        "--budget",
+        type=float,
+        required=True,
+        metavar="USD",
+        help="hard ceiling in dollars; a draft with no ceiling is refused",
+    )
+    p_draft.add_argument(
+        "--rivals",
+        default="",
+        help="comma separated names the questions are screened on; without them the paid round is refused",
+    )
+    p_draft.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the screening round is written to")
+    p_draft.add_argument("--provider", default="anthropic", help="which engine answers")
+    p_draft.add_argument("--model", default=None, help="model to ask; the provider's check model by default")
+    p_draft.add_argument(
+        "--max-searches", type=int, default=DEFAULT_MAX_SEARCHES, help="searches one call may run"
+    )
+    p_draft.add_argument(
+        "--pages", type=int, default=DEFAULT_MAX_PAGES, help="how many of the site's pages are read"
+    )
+    p_draft.add_argument(
+        "--candidates", type=int, default=DEFAULT_WANTED, help="questions asked for in one call"
+    )
+    p_draft.add_argument(
+        "--harvest-only", action="store_true", help="read the site and stop; no model, no spend"
+    )
+    p_draft.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="corpus, one proposal call and the free gates; stops before the draws that measure",
+    )
+
     # No --model and no --provider. Both are read from each record, which names
     # the model that was actually billed; a flag would let one round be priced
     # at another model's rate with nothing on screen to say so.
@@ -2362,6 +2809,25 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 model=args.model,
                 max_searches=args.max_searches,
                 can_search=not args.no_search,
+            )
+        if args.command == "draft":
+            return draft(
+                console,
+                site=args.site,
+                out=Path(args.out),
+                floor=args.floor,
+                budget_usd=args.budget,
+                cwd=cwd,
+                home=home,
+                ledger_dir=Path(args.ledger),
+                rivals=[r.strip() for r in args.rivals.split(",") if r.strip()],
+                provider=args.provider,
+                model=args.model,
+                max_searches=args.max_searches,
+                max_pages=args.pages,
+                wanted=args.candidates,
+                harvest_only=args.harvest_only,
+                dry_run=args.dry_run,
             )
         if args.command == "report":
             return report(

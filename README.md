@@ -130,7 +130,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 873 tests, offline
+    python3 -m pytest lulumelon/tests   # 891 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
@@ -205,6 +205,34 @@ reading, and a reading is not a measurement. And a second engine does not narrow
 the first, since engine answers are never pooled into one proportion, so what
 more engines buy is coverage across systems, each carrying its own interval and
 its own bill.
+
+## drafting a question set from a domain
+
+    lulu draft --site https://marx.finance --floor 0.5 --budget 5.00 \
+               --rivals Numerai --out data/subjects/marx.json
+
+reads the customer's own site, asks a model for candidate questions, and keeps
+only the ones that survive. Nothing else is typed: the pages that get read are
+ranked by what the site itself links to and lists, and every question arrives
+carrying the page it came from and a quote from that page, checked as a literal
+substring of that page before anything is asked for real.
+
+`--floor` sets what a kept question has to beat, and the number of draws follows
+from it rather than from a constant here. At a floor of 0.5 a clean sweep needs
+four draws before its lower bound clears the floor, so four is what it buys; at
+0.75 it buys twelve, and the bill is printed before the money moves.
+
+The gate measures how often an answer names a **rival**, never the customer.
+Screening a question set on the customer's own mentions keeps the questions they
+scored well on and drops the rest, which raises the published number by deleting
+the evidence against it, so with no rival declared the paid round is refused
+rather than run on the one name available.
+
+`--harvest-only` stops after reading the site and spends nothing. `--dry-run`
+adds the proposal call and the free gates and stops before the draws. Either
+way, every candidate that died is written to `<out>.draft.json` with the gate
+that stopped it, because a set of nine questions that started as forty is a
+different object from one that started as nine.
 
 ## collecting a round
 

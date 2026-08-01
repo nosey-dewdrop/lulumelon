@@ -60,7 +60,19 @@ BRAND_KEYS = frozenset({"id", "name", "domain", "aliases", "ambiguousName"})
 #: Keys of one question. `intent` and `axis` are read by nobody here and are
 #: still named: they describe why a question is in the set, which is a note to
 #: whoever maintains the file, and refusing them would refuse the file.
-PROMPT_KEYS = frozenset({"id", "text", "intent", "axis"})
+#:
+#: `source` and `evidence` are the page a generated question came from and the
+#: words on it that produced the question. Read by nobody here either, and
+#: carried for a harder reason than a note: they are what a later reader checks
+#: the question against, and a set that arrived with them and was stored
+#: without them becomes indistinguishable from one somebody typed.
+#:
+#: **A file written with these keys is refused by every build before this one.**
+#: `_check_keys` rejects a key it does not know, on purpose, so a field added
+#: here cannot be silently ignored by an older reader that would then score a
+#: round it did not understand. The cost is that the two versions do not share
+#: files, and that is the intended direction of the trade.
+PROMPT_KEYS = frozenset({"id", "text", "intent", "axis", "source", "evidence"})
 
 #: What the ledger joins a snapshot's fields with. An id carrying one would
 #: read back as more fields than were written.

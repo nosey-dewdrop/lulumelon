@@ -11,6 +11,8 @@ reachable at all, and what the one test call cost.
 repeats would be enough.
 `lulu collect` runs one round end to end and writes it down, under a ceiling it
 prints before it spends anything.
+`lulu report` prints what a collected round measured about one brand, with the
+questions that name the brand excluded from the rate and said out loud.
 `lulu usage` says what the rounds already on disk cost, and `lulu verify`
 re-derives their chains so the person relying on that can check it themselves.
 `lulu ablate` asks whether a replica round tracks the live surface closely
@@ -69,6 +71,7 @@ from .mirror.compare import model_confounds
 from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
 from .mirror.lift import UNDECIDED as EFFECT_UNDECIDED
 from .mirror.lift import source_effect
+from .mirror.report import NothingLeftToScore, brand_report
 from .mirror.types import Snapshot, group_runs
 from .mirror.variance import decompose
 from .keys import (
@@ -100,6 +103,7 @@ from .plan import (
     total_variance,
     variance_of,
 )
+from .panel import Panel
 from .text import counted
 from .usage import spend_of, token_rate
 
@@ -1569,6 +1573,68 @@ def lift(
     return LIFT_EXIT[effect.verdict]
 
 
+# -- report -----------------------------------------------------------------
+
+#: Returned when the round re-derived, the arithmetic ran, and there is still no
+#: rate to print because every question in the subject file names the brand. Its
+#: own code, beside the undecided verdict of `ablate` rather than beside a
+#: refusal: nothing is wrong with the round and nothing is wrong with the
+#: command line, and a script reading this as a failure would go looking for a
+#: fault that is not there.
+NOTHING_TO_SCORE = 4
+
+
+def report(
+    console: Console,
+    *,
+    ledger_dir: Path,
+    snapshot: str,
+    subject_path: Path,
+    brand: str,
+) -> int:
+    """Print what one recorded round measured about one brand.
+
+    `lulu collect` writes a round down, and until this command existed nothing
+    printed what it came to. Every figure this repo has quoted about its own
+    first round was produced by calling `mirror` by hand, which is a tool that
+    cannot show its own answer.
+
+    **The subject file is read rather than a list of ids being typed here.**
+    Which questions name the brand is derivable from the file that states the
+    questions, so a flag carrying that list would move a rule that cannot be got
+    wrong onto whoever remembers to pass it.
+
+    The chain is re-derived before anything is computed, through the same check
+    `lulu verify` runs rather than a second copy of it. A number derived from a
+    round that does not re-derive is not a number.
+    """
+    store = Ledger(ledger_dir)
+    subject = load_subject(subject_path)
+    self_naming = subject.self_naming(brand)
+
+    console.say(f"lulu report — {ledger_dir}")
+    console.say()
+    try:
+        played = _verified(store, console, "round", snapshot)
+    except BrokenChain:
+        return CHAIN_BROKEN
+
+    console.say()
+    try:
+        scored = brand_report(
+            Snapshot(label=snapshot, samples=group_runs(played.runs)),
+            brand,
+            self_naming=self_naming,
+        )
+    except NothingLeftToScore as e:
+        console.say(f"  {e}")
+        return NOTHING_TO_SCORE
+
+    for line in Panel(report=scored, dropped_runs=played.dropped).as_text().splitlines():
+        console.say(f"  {line}" if line else "")
+    return 0
+
+
 # -- entry point ------------------------------------------------------------
 
 
@@ -1716,6 +1782,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_lift.add_argument("--per-brand", action="store_true")
     p_lift.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds live in")
 
+    p_report = sub.add_parser("report", help="what one recorded round measured about one brand")
+    p_report.add_argument("--snapshot", required=True, help="the round to read")
+    # Required, and not a list of prompt ids. The file that stated the questions
+    # is what says which of them name the brand, so the rule is derived here
+    # rather than typed here.
+    p_report.add_argument(
+        "--subject",
+        required=True,
+        metavar="PATH",
+        help="the subject file this round was collected from, which states the questions",
+    )
+    p_report.add_argument("--brand", required=True, help="which tracked name the round is scored for")
+    p_report.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the round lives in")
+
     p_verify = sub.add_parser("verify", help="re-derive every chain on disk and report what moved")
     p_verify.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
     p_verify.add_argument("--snapshot", default=None, help="one round; every round by default")
@@ -1845,6 +1925,14 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 model=args.model,
                 max_searches=args.max_searches,
                 can_search=not args.no_search,
+            )
+        if args.command == "report":
+            return report(
+                console,
+                ledger_dir=Path(args.ledger),
+                snapshot=args.snapshot,
+                subject_path=Path(args.subject),
+                brand=args.brand,
             )
         if args.command == "verify":
             return verify(console, ledger_dir=Path(args.ledger), snapshot=args.snapshot)

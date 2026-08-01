@@ -59,7 +59,7 @@ cannot support.
 
 ```
 lulumelon/
-  cli.py          `lulu init` / `doctor` / `plan` / `collect` / `usage` / `verify` / `ablate` / `lift`
+  cli.py          `lulu init` / `doctor` / `plan` / `collect` / `report` / `usage` / `verify` / `ablate` / `lift`
   keys.py         where a key is looked for, in order, and how it is kept quiet
   prices.py       what a call costs, from the provider's page, with the date read
   mirror/         the measurement core, calls no model
@@ -103,7 +103,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 640 tests, offline
+    python3 -m pytest lulumelon/tests   # 651 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -183,6 +183,31 @@ are two files and two conditions, and comparing them is refused by the same rule
 that refuses a comparison between a logged-in browser and an API. On a fee
 charged per search it owes nothing, and `lulu usage` prices it that way instead
 of charging the one-search floor for a search it was never able to run.
+
+## reading a round
+
+    lulu report --ledger ./ledger --snapshot ROUND \
+                --subject data/subjects/marx.json --brand Marx
+
+prints what that round measured: the design it was collected under, the rate
+with its interval, where the width of that interval came from, and every place
+the round refuses to give a number. The chain is re-derived first, because a
+number computed from a round that does not re-derive is not a number.
+
+The subject file is passed rather than a list of questions, because one rule is
+applied here that needs it. **A question that names the brand cannot measure
+that brand.** Detection matches declared literals, so a question carrying one of
+the brand's own forms is answered with that form whatever the model knows, and
+the answer scores as a mention. Which questions those are is computable from the
+file that states them, so it is derived rather than labelled by hand. Such a
+prompt is left out of the rate and its interval and named on its own line: a
+number that quietly got smaller is its own defect.
+
+That rule was written against this repo's first real round. One question in ten
+asked what the brand's own domain was. Every answer to it named the brand, and
+every one of those answers was the model saying it had never heard of it. It was
+worth ten points of headline visibility on the arm collected with no search
+tool, which reads 0.0% over the nine questions that remain.
 
     lulu usage     # what the rounds on disk cost, from the provider's figures
     lulu verify    # re-derive every chain, and say what that check does not cover

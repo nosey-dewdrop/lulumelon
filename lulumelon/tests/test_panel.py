@@ -75,6 +75,49 @@ def test_the_interval_is_never_printed_without_its_range():
     assert "confidence, prompt-clustered" in text
 
 
+def test_the_range_is_the_clustered_one_the_caption_names():
+    """The line says prompt-clustered, so the estimator behind it has to be.
+
+    The Wilson interval over pooled runs counts k repeats of one prompt as k
+    independent draws, which is the narrowing this library was built to argue
+    against. Printed under this caption it was the argument, made against the
+    reader.
+    """
+    s = snap(seen_rate=0.5, n_prompts=8, k=6)
+    report = brand_report(s, "Marx", self_naming=())
+    text = Panel(report=report).as_text()
+
+    assert report.detection_by_prompt.method.startswith("cluster_bootstrap")
+    for value in (
+        report.detection_by_prompt.point,
+        report.detection_by_prompt.low,
+        report.detection_by_prompt.high,
+    ):
+        assert f"{value * 100:.1f}%" in text
+    assert report.headline.startswith(f"{report.detection_by_prompt.point * 100:.1f}%")
+
+
+def test_a_prompt_excluded_from_the_rate_is_named_on_the_panel_too():
+    """Verbatim from the report, so the two surfaces cannot drift apart."""
+    report = brand_report(snap(), "Marx", self_naming=("p0",))
+    text = Panel(report=report).as_text()
+
+    for line in report.exclusion:
+        assert line in text
+    assert "7 prompts" in text
+
+
+def test_a_brand_nobody_named_has_its_rank_said_rather_than_formatted():
+    """Empty answers repeat perfectly, so the stability test passes with no rank.
+
+    This is the one arrangement where the reportable branch has nothing to
+    print, and it is the arrangement the unsearched arm of a real round is in.
+    """
+    text = panel(snapshot=snap(seen_rate=0.0)).as_text()
+    assert "never named, no rank exists" in text
+    assert "average position" not in text
+
+
 def test_the_panel_says_where_the_uncertainty_comes_from():
     text = panel().as_text()
     assert "WHAT IS CONTRIBUTING TO YOUR INTERVAL WIDTH" in text

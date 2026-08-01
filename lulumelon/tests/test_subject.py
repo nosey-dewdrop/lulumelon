@@ -250,6 +250,23 @@ def test_the_match_is_the_one_detect_makes_and_not_a_second_rule(tmp_path):
     assert subject.self_naming("Marx") == ("m1",)
 
 
+def test_the_intent_label_is_a_note_and_not_the_rule(tmp_path):
+    """Both labels are wrong here and both prompts are still placed correctly.
+
+    `intent` is written by hand, so a rule reading it would be a rule somebody
+    can mistype. The question's own text cannot be mistyped without changing
+    the question that was asked.
+    """
+    doc = altered()
+    doc["prompts"] = [
+        {"id": "m1", "text": "What is marx.finance?", "intent": "category"},
+        {"id": "m2", "text": "Agentic finance platforms in 2026", "intent": "entity"},
+    ]
+    subject = load_subject(written(tmp_path, doc))
+
+    assert subject.self_naming("Marx") == ("m1",)
+
+
 def test_a_name_the_file_does_not_track_is_refused(tmp_path):
     """Nothing here declares what would count as naming it, so nothing is guessed."""
     subject = load_subject(written(tmp_path, VALID))

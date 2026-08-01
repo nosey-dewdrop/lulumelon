@@ -108,7 +108,19 @@ class Panel:
         return out
 
     def appearance(self) -> list[str]:
-        d = self.report.detection
+        """The rate, from the estimator the line beside it names.
+
+        `detection_by_prompt`, not `detection`. The caption says the range is
+        prompt-clustered and `detection` is the Wilson interval over pooled
+        runs, which is the estimator `intervals.naive_bootstrap_ci` is kept
+        around to show is too narrow: repeats of one prompt are correlated, so
+        pooling them counts k answers as k independent draws. This surface was
+        printing that interval under the other one's name, which on the round
+        in `./ledger` read 16.0% (10.6 to 23.4) where the clustered figure is
+        11.1% (0.0 to 33.3). `BrandReport.headline` has always used the
+        clustered one, so the two surfaces disagreed as well.
+        """
+        d = self.report.detection_by_prompt
         return [
             "APPEARANCE",
             f"  {self.report.brand} is named in {_pct(d.point)} of answers",
@@ -139,7 +151,15 @@ class Panel:
     def verdicts(self) -> list[str]:
         """Every place the round refuses to give a number, and why."""
         out = ["VERDICTS"]
-        if self.report.rank_reportable:
+        if self.report.mean_rank is None:
+            # Checked before reportability, in the order `BrandReport.as_text`
+            # checks it and for the reason it does. A brand nobody named has no
+            # position to withhold and none to print, and the repeats of an
+            # answer that named nobody agree with each other perfectly, so the
+            # stability test passes and the branch below would format a missing
+            # number. The words are that report's, verbatim.
+            out.append("  rank      never named, no rank exists")
+        elif self.report.rank_reportable:
             out.append(f"  rank      average position {self.report.mean_rank:.2f}")
         else:
             out.append(

@@ -98,8 +98,11 @@ from .keys import (
 )
 from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for, reported
 from .plan import (
+    MIN_DRAWS,
     Comparison,
     Design,
+    Engine,
+    SetDesign,
     critical_value,
     draws_needed,
     icc_of,
@@ -1262,6 +1265,147 @@ def plan(
     return 0
 
 
+# -- size -------------------------------------------------------------------
+
+
+def _engine_spec(token: str) -> tuple[str, str]:
+    """`perplexity` or `perplexity:sonar` into a provider and a model.
+
+    An unknown provider is refused here rather than priced as unlisted, because
+    the two failures read the same on screen and mean opposite things: one is a
+    typo the buyer can fix, the other is a model this build can call but has no
+    published price for.
+    """
+    provider, _, model = token.partition(":")
+    provider = provider.strip()
+    spec_for(provider)
+    return provider, (model.strip() or check_model_for(provider))
+
+
+def size(
+    console: Console,
+    *,
+    prompts: int,
+    runs: int,
+    engines: Sequence[str],
+    brands: int = 1,
+    confidence: float = 0.95,
+    rate: float = 0.5,
+    family: bool = True,
+    pilot: str | None = None,
+    brand: str | None = None,
+    ledger_dir: Path | None = None,
+    searches_per_call: int = SEARCHES_PER_CALL,
+) -> int:
+    """Price a design the buyer stated, and say what precision it buys.
+
+    `plan` answers "what do I need". This answers "what does what I set cost",
+    which is the question that matters when the key is the buyer's: the spend
+    lands on their card, so the bill has to be answerable before it is made
+    rather than explained after.
+    """
+    # Checked before a single line is printed. Sizing an impossible design far
+    # enough to show a bill and only then refusing it puts a price for
+    # something unbuyable on the buyer's screen, which is the one failure this
+    # command cannot afford.
+    if prompts < 1:
+        raise ValueError(f"a design needs at least one prompt, got {prompts}")
+    if runs < 1:
+        raise ValueError(f"a design needs at least one run per prompt, got {runs}")
+    if not engines:
+        raise ValueError("a design needs at least one engine")
+
+    z = critical_value(confidence, brands, family=family)
+    chosen = [_engine_spec(token) for token in engines]
+
+    console.say("lulu size")
+    console.say()
+    console.say("DESIGN YOU SET")
+    console.say(
+        f"  {counted(prompts, 'prompt')}, asked {counted(runs, 'time', 'times')} each, "
+        f"on {counted(len(chosen), 'engine')}"
+    )
+    console.say(f"  {counted(brands, 'brand')} tracked, read out of the same answers")
+    console.say(f"  {int(confidence * 100)}% confidence, z={z:.4f}")
+
+    measured = _pilot_split(console, pilot, brand, ledger_dir)
+    tokens = _pilot_tokens(pilot, ledger_dir)
+    console.say()
+
+    engine_rows: list[Engine] = []
+    for provider, model in chosen:
+        price = price_for(provider, model)
+        calls = prompts * runs
+        per_call_fees = (
+            searches_per_call if price is not None and price.fee_unit == FEE_PER_SEARCH else 1
+        )
+        engine_rows.append(
+            Engine(
+                provider=provider,
+                model=model,
+                calls=calls,
+                cost=price_of(price, calls, tokens, fee_units=calls * per_call_fees),
+            )
+        )
+
+    if measured is None:
+        variance, icc = total_variance(rate), None
+    else:
+        variance, icc = measured
+
+    design = SetDesign(
+        n_prompts=prompts,
+        k_runs=runs,
+        engines=tuple(engine_rows),
+        z=z,
+        variance=variance,
+    )
+
+    console.say("WHAT IT COSTS")
+    for engine in design.engines:
+        console.say(f"  {engine.as_text()}")
+    total = design.total_cost()
+    console.say(
+        f"  total   {counted(design.total_calls, 'call')}   "
+        + (total.as_text() if total else "not totalled: an engine here has no published price")
+    )
+    if tokens is None:
+        console.say("  no call has been metered, so only the fee is counted. these are floors.")
+    else:
+        console.say(f"  priced from a measured {tokens[0]} in / {tokens[1]} out tokens per call.")
+    console.say("  the key is yours, so this lands on your account and not ours.")
+
+    console.say()
+    console.say("WHAT IT BUYS")
+    if not design.decomposable:
+        console.say(
+            f"  nothing that carries an interval. at {counted(runs, 'run')} per prompt the"
+        )
+        console.say("  model's rerun noise and the prompt-to-prompt spread are the same")
+        console.say("  quantity, so the split cannot be identified and no honest interval")
+        console.say("  comes off this round. it returns a reading, and a reading is not a")
+        console.say(f"  measurement. {counted(MIN_DRAWS, 'run')} per prompt is the floor.")
+    elif measured is None:
+        console.say(f"  per engine, and only per engine, at p={rate:g}:")
+        for icc in BRACKET_ICCS:
+            console.say(
+                f"    icc {icc:.2f}   +/-{design.half_width(icc) * 100:.1f} points"
+            )
+        console.say("  the split is assumed, not measured, and it is the whole spread above.")
+        console.say("  one round of this size settles it and replaces every line here.")
+    else:
+        console.say(
+            f"  per engine, at the pilot's measured icc {icc:.4f}: "
+            f"+/-{design.half_width(icc) * 100:.1f} points"
+        )
+
+    console.say()
+    console.say("  a second engine does not narrow the first. engine answers are never")
+    console.say("  pooled into one proportion, so what more engines buy is coverage across")
+    console.say("  systems, and each one carries its own interval and its own bill.")
+    return 0
+
+
 def _pilot_split(
     console: Console, pilot: str | None, brand: str | None, ledger_dir: Path | None
 ) -> tuple[float, float] | None:
@@ -2079,6 +2223,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="searches one call may run, for engines billed per search rather than per call",
     )
     p_plan.add_argument("--model", default=None, help="model to price; the provider's check model by default")
+
+    p_size = sub.add_parser(
+        "size", help="what a design you set costs, and what precision it buys"
+    )
+    p_size.add_argument("--prompts", type=int, required=True, help="how many tracked questions")
+    p_size.add_argument("--runs", type=int, required=True, help="how many times each prompt is asked")
+    p_size.add_argument(
+        "--engines",
+        default="perplexity",
+        help="comma separated, provider or provider:model, e.g. perplexity,anthropic",
+    )
+    p_size.add_argument("--brands", type=int, default=1, help="how many brands are read from the same answers")
+    p_size.add_argument("--confidence", type=float, default=0.95)
+    p_size.add_argument(
+        "--rate",
+        type=float,
+        default=0.5,
+        help="expected appearance rate; 0.5 is the worst case and the default",
+    )
+    p_size.add_argument(
+        "--per-brand",
+        action="store_true",
+        help="size one brand at a time instead of holding every brand at once",
+    )
+    p_size.add_argument("--pilot", default=None, help="a recorded round to measure the split from")
+    p_size.add_argument("--brand", default=None, help="which brand the pilot is scored for")
+    p_size.add_argument("--ledger", default=DEFAULT_LEDGER, help="where the pilot round lives")
+    p_size.add_argument(
+        "--searches-per-call",
+        type=int,
+        default=SEARCHES_PER_CALL,
+        help="searches one call may run, for engines billed per search rather than per call",
+    )
     return parser
 
 
@@ -2127,6 +2304,21 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 ledger_dir=Path(args.ledger),
                 provider=args.provider,
                 model=args.model,
+                searches_per_call=args.searches_per_call,
+            )
+        if args.command == "size":
+            return size(
+                console,
+                prompts=args.prompts,
+                runs=args.runs,
+                engines=[e for e in args.engines.split(",") if e.strip()],
+                brands=args.brands,
+                confidence=args.confidence,
+                rate=args.rate,
+                family=not args.per_brand,
+                pilot=args.pilot,
+                brand=args.brand,
+                ledger_dir=Path(args.ledger),
                 searches_per_call=args.searches_per_call,
             )
         if args.command == "ablate":

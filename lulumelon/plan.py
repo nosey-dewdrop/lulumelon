@@ -170,6 +170,111 @@ def prompts_for_worst_case(half_width: float, z: float, variance: float) -> int:
     return math.ceil(z**2 * variance / half_width**2)
 
 
+def half_width_of(n_prompts: int, k_runs: int, icc: float, z: float, variance: float) -> float:
+    """The +/- a stated design buys, in proportion units.
+
+    The same variance model the rest of this module solves backwards, read
+    forwards. A buyer who states the design instead of the target needs this
+    direction, and since it is the one equation, a design sized by
+    `draws_needed` and read back through here agrees with itself. The test
+    beside this module asserts that round trip rather than trusting it.
+
+    Note where `k` sits. It divides the within term only, so repeats buy
+    precision against the model rerolling and nothing at all against the
+    questions differing from each other. At `icc` 1 this returns the same
+    number for every `k`, which is the arithmetic reason a schedule that asks
+    more often does not measure better.
+    """
+    if n_prompts < 1:
+        raise ValueError("a design needs at least one prompt")
+    if k_runs < 1:
+        raise ValueError("a design needs at least one run per prompt")
+    if not 0.0 <= icc <= 1.0:
+        raise ValueError(f"icc must be in [0, 1], got {icc}")
+    if variance < 0:
+        raise ValueError(f"variance cannot be negative, got {variance}")
+    return z * math.sqrt((variance / n_prompts) * (icc + (1.0 - icc) / k_runs))
+
+
+@dataclass(frozen=True, slots=True)
+class Engine:
+    """One engine in a stated design, priced on its own published table.
+
+    Engines are counted apart all the way through, because their answers are
+    never pooled into one proportion. Two engines asked the same question are
+    two measurements of two different systems, not two draws from one.
+    """
+
+    provider: str
+    model: str
+    calls: int
+    cost: Cost | None
+
+    def as_text(self) -> str:
+        priced = "no published price for this model" if self.cost is None else self.cost.as_text()
+        return f"{self.provider}/{self.model}   {counted(self.calls, 'call')}   {priced}"
+
+
+@dataclass(frozen=True, slots=True)
+class SetDesign:
+    """A design the buyer stated, sized and priced before a call is made.
+
+    The forward direction of this module. The buyer fixes the prompts, the
+    repeats and the engines, and gets back the bill and the precision it buys.
+    It exists because the bill is the buyer's, so the design has to be
+    answerable before the spend rather than after it.
+    """
+
+    n_prompts: int
+    k_runs: int
+    engines: tuple[Engine, ...]
+    z: float
+    variance: float
+
+    @property
+    def calls_per_engine(self) -> int:
+        return self.n_prompts * self.k_runs
+
+    @property
+    def total_calls(self) -> int:
+        return sum(engine.calls for engine in self.engines)
+
+    @property
+    def decomposable(self) -> bool:
+        """Whether this design can carry an interval at all.
+
+        With one draw per prompt the model's rerun noise and the prompt-to-
+        prompt spread are algebraically the same quantity, so the split cannot
+        be identified and no honest interval comes off the round. Such a design
+        can still be worth running; what it returns is a reading, not a
+        measurement.
+        """
+        return self.k_runs >= MIN_DRAWS
+
+    def half_width(self, icc: float) -> float:
+        """The +/- one engine's number carries, at a stated split."""
+        return half_width_of(self.n_prompts, self.k_runs, icc, self.z, self.variance)
+
+    def total_cost(self) -> Cost | None:
+        """The bill across every engine, or None if any engine has no table.
+
+        A partial total is worse than none. The buyer is being asked to approve
+        a spend, and a figure that quietly drops one engine understates it in
+        the direction that causes the complaint.
+        """
+        if not self.engines:
+            return None
+        priced = [engine.cost for engine in self.engines]
+        if any(cost is None for cost in priced):
+            return None
+        return Cost(
+            low_usd=sum(cost.low_usd for cost in priced),  # type: ignore[union-attr]
+            high_usd=sum(cost.high_usd for cost in priced),  # type: ignore[union-attr]
+            measured=all(cost.measured for cost in priced),  # type: ignore[union-attr]
+            basis="summed across the engines in this design",
+        )
+
+
 def icc_of(split: VarianceSplit) -> float:
     return split.icc
 

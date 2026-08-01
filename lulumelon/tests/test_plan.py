@@ -18,8 +18,11 @@ from lulumelon.mirror.variance import decompose
 from lulumelon.plan import (
     MIN_DRAWS,
     Comparison,
+    Engine,
+    SetDesign,
     critical_value,
     draws_needed,
+    half_width_of,
     price_of,
     prompts_for_worst_case,
     reachable_icc,
@@ -210,3 +213,110 @@ def test_a_measured_token_rate_is_used_when_there_is_one():
 
 def test_a_model_with_no_price_is_not_priced_from_a_relative():
     assert price_of(None, 680, (118, 64)) is None
+
+
+# -- the forward direction: the buyer states the design ---------------------
+
+
+def test_a_solved_design_read_forwards_reaches_the_target_it_was_solved_for():
+    """The two directions are one equation, so they have to agree."""
+    z, variance = z_for(0.95), 0.25
+    for n, target, icc in ((200, 0.05, 0.2), (60, 0.05, 0.0), (400, 0.04, 0.35)):
+        design = draws_needed(n, target, z, variance, icc)
+        assert design.reachable
+        assert half_width_of(n, design.k_runs, icc, z, variance) <= target
+
+
+def test_a_design_the_solver_calls_unreachable_really_is_unreachable():
+    """The refusal is arithmetic and not caution, so check it at k enormous."""
+    z, variance, n, target, icc = z_for(0.95), 0.25, 200, 0.03, 0.2
+    assert not draws_needed(n, target, z, variance, icc).reachable
+    assert half_width_of(n, 10_000, icc, z, variance) > target
+
+
+def test_repeats_buy_nothing_once_every_repeat_is_a_copy():
+    """At icc 1 the within term is gone, so k drops out of the arithmetic.
+
+    This is the whole case against a schedule that asks more often: the
+    half-width it returns is the same at four scans a day as at one.
+    """
+    z, variance, n = z_for(0.95), 0.25, 24
+    widths = {half_width_of(n, k, 1.0, z, variance) for k in (1, 3, 20, 500)}
+    assert len(widths) == 1
+
+
+def test_a_predicted_half_width_matches_the_spread_of_simulated_rounds():
+    """Recovery, against data with a known answer rather than an assertion."""
+    rng = np.random.default_rng(613)
+    n, k, rate, icc = 40, 5, 0.3, 0.4
+    means = [
+        float(np.mean(_binary_clusters(rng, n=n, k=k, rate=rate, icc=icc)))
+        for _ in range(4000)
+    ]
+    z = z_for(0.95)
+    predicted = half_width_of(n, k, icc, z, total_variance(rate))
+    assert predicted == pytest.approx(z * float(np.std(means, ddof=1)), rel=0.05)
+
+
+def test_a_single_draw_per_prompt_cannot_carry_an_interval():
+    engines = (Engine(provider="perplexity", model="sonar", calls=24, cost=None),)
+    once = SetDesign(n_prompts=24, k_runs=1, engines=engines, z=z_for(0.95), variance=0.25)
+    twice = SetDesign(n_prompts=24, k_runs=2, engines=engines, z=z_for(0.95), variance=0.25)
+    assert not once.decomposable
+    assert twice.decomposable
+
+
+def test_adding_an_engine_buys_coverage_and_not_precision():
+    """Engines are never pooled, so a second one does not narrow the first."""
+    z = z_for(0.95)
+    one = SetDesign(
+        n_prompts=24,
+        k_runs=5,
+        engines=(Engine("perplexity", "sonar", 120, None),),
+        z=z,
+        variance=0.25,
+    )
+    two = SetDesign(
+        n_prompts=24,
+        k_runs=5,
+        engines=(
+            Engine("perplexity", "sonar", 120, None),
+            Engine("anthropic", "claude-haiku-4-5", 120, None),
+        ),
+        z=z,
+        variance=0.25,
+    )
+    assert two.half_width(0.3) == one.half_width(0.3)
+    assert two.total_calls == 2 * one.total_calls
+
+
+def test_a_design_with_one_unpriced_engine_reports_no_total():
+    """A total that silently drops an engine understates the bill."""
+    design = SetDesign(
+        n_prompts=24,
+        k_runs=5,
+        engines=(
+            Engine("perplexity", "sonar", 120, price_of(SONAR, 120, None)),
+            Engine("nowhere", "unlisted", 120, None),
+        ),
+        z=z_for(0.95),
+        variance=0.25,
+    )
+    assert design.total_cost() is None
+
+
+def test_a_fully_priced_design_sums_its_engines():
+    priced = price_of(SONAR, 120, None)
+    design = SetDesign(
+        n_prompts=24,
+        k_runs=5,
+        engines=(
+            Engine("perplexity", "sonar", 120, priced),
+            Engine("perplexity", "sonar", 120, priced),
+        ),
+        z=z_for(0.95),
+        variance=0.25,
+    )
+    total = design.total_cost()
+    assert total.low_usd == pytest.approx(2 * priced.low_usd)
+    assert total.high_usd == pytest.approx(2 * priced.high_usd)

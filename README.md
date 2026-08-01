@@ -127,7 +127,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 763 tests, offline
+    python3 -m pytest lulumelon/tests   # 784 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
@@ -184,6 +184,24 @@ split is what decides whether repeats or prompts buy your precision. So it
 prints the range, the icc above which no number of repeats reaches the target
 at all, and the price of both ends. Point it at a recorded round with
 `--pilot` and every one of those is replaced by a measured value.
+
+## what a design you set costs
+
+    lulu size --prompts 24 --runs 5 --engines perplexity,anthropic
+
+is the other direction, for when the design is already decided. You fix the
+prompts, the repeats and the engines; it returns the bill and the precision that
+design actually buys. The key is yours, so the spend lands on your account, and
+a figure you are asked to approve has to be answerable before the round rather
+than after it.
+
+Two things it will not round off. At one run per prompt it prints no interval at
+all, because the model's rerun noise and the prompt-to-prompt spread are then the
+same quantity and no split can be identified; a round of that shape returns a
+reading, and a reading is not a measurement. And a second engine does not narrow
+the first, since engine answers are never pooled into one proportion, so what
+more engines buy is coverage across systems, each carrying its own interval and
+its own bill.
 
 ## collecting a round
 

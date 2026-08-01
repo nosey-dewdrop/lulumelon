@@ -318,3 +318,70 @@ def test_a_phone_number_is_removed_whole_or_not_at_all(text: str):
 @pytest.mark.parametrize("text", FIGURES)
 def test_the_figures_this_product_prints_survive_the_scrub(text: str):
     assert scrub(text) == text
+
+
+# -- what the first paid round taught the scrubber ---------------------------
+
+#: Verbatim from the round collected on 1 August 2026. The phone rule fired
+#: eleven times across 404 records and was wrong on all eleven, and because
+#: redaction happens before the hash none of it can be recovered. These are the
+#: shapes it destroyed, kept here so it cannot destroy them again.
+FIGURES_A_ROUND_NEEDS = (
+    'from_="2024-01-01", to="2024-12-31"',
+    "client.stock_candle('AAPL','D',1704067200,1735689600)",
+    "Agents trained on 2020-2023 data underperform in regime shifts",
+    "Paid feeds ($2000-10000/month) for serious strategies",
+    "## What to Watch in 2026-2027",
+)
+
+
+@pytest.mark.parametrize("text", FIGURES_A_ROUND_NEEDS)
+def test_a_figure_a_reader_needs_survives_the_scrubber(text: str) -> None:
+    """None of these is a phone number and every one of them was taken.
+
+    An ISO date, a pair of unix timestamps, two year ranges and a price band.
+    A tool that sells a file as evidence cannot quietly rewrite the evidence.
+    """
+    assert scrub(text) == text
+
+
+#: Test numbers published by the card schemes for exactly this purpose. None is
+#: issued to anybody, and each clears the checksum.
+PUBLISHED_TEST_CARDS = (
+    "4111 1111 1111 1111",
+    "4111-1111-1111-1111",
+    "4111111111111111",
+    "5500 0055 5555 5559",
+    "378282246310005",
+)
+
+
+@pytest.mark.parametrize("number", PUBLISHED_TEST_CARDS)
+def test_a_card_number_is_removed_whichever_way_it_is_written(number: str) -> None:
+    """Sixteen digits used to walk straight through.
+
+    The phone rule stopped at fifteen, so an Amex was redacted and a Visa was
+    not, which is the wrong way round from how often each is written down. A
+    card is now decided by its checksum rather than by its length.
+    """
+    assert scrub(number) == "[card]"
+    assert number not in scrub(number)
+
+
+def test_a_run_of_digits_that_is_not_a_card_is_left_alone() -> None:
+    """The checksum is the point: it fires on cards and almost nothing else."""
+    assert scrub("4111 1111 1111 1112") == "4111 1111 1111 1112"
+
+
+def test_a_card_is_never_reported_as_a_phone_number() -> None:
+    """The two patterns overlap, so the one that can be checked goes first."""
+    assert "[phone]" not in scrub("4111 1111 1111 1111")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ("555-123-4567", "+90 532 111 22 33", "0532 111 22 33", "(555) 123 4567"),
+)
+def test_the_numbers_a_person_is_reached_on_are_still_taken(text: str) -> None:
+    """Fixing the false positives was not allowed to cost the true ones."""
+    assert "[phone]" in scrub(text)

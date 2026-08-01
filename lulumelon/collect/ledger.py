@@ -169,9 +169,32 @@ _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]{2,}\b")
 #: whole thing, country code included, at fifteen.
 _PHONE_DIGITS = range(7, 16)
 
+#: How many digits an ungrouped run needs before it is read as a phone number.
+#: Ten was the old threshold and it took `1704067200`, a unix timestamp in
+#: seconds, out of a code sample in a real answer. Timestamps in seconds are ten
+#: digits until the year 2286 and in milliseconds are thirteen, so ten is the
+#: one length where the two populations sit on top of each other. Eleven keeps
+#: `05321112233`, which is how a mobile number is written in the country this
+#: was built in, and gives up a bare ten digit number written with no spaces at
+#: all. A number somebody expects to be dialled is almost always written with a
+#: prefix or with spaces, and both of those still qualify.
+_BARE_PHONE_DIGITS = 11
+
 #: Characters allowed between the digits of one number. A full stop is
 #: deliberately not among them: it is how a decimal is written, and a rule that
 #: took it would redact `0.005182` out of an answer about money.
+#:
+#: A hyphen is among them, and it is where this rule went wrong. On the first
+#: round collected with real money the phone rule fired eleven times and was
+#: wrong all eleven. What it took was `from_="2024-01-01"`, a pair of unix
+#: timestamps inside a code sample, `2020-2023`, `$2000-10000/month` and
+#: `2026-2027`. Every one is a figure a reader of a measurement needs, every one
+#: was destroyed before the hash, and none of them can be recovered.
+#:
+#: Dropping the hyphen outright would fix all five and lose `555-123-4567`,
+#: which is how a number is written across a whole country. See
+#: `_leads_with_a_year`, which separates the two on the one feature that
+#: actually differs.
 _PHONE_GROUPING = "\u00a0 ()-"
 
 #: A run of digits and grouping characters, bounded so it cannot begin inside a
@@ -183,23 +206,46 @@ _PHONE_GROUPING = "\u00a0 ()-"
 _PHONE_CANDIDATE = re.compile(r"(?<![\w./=])\(?\+?\d[\d\u00a0 ()-]{4,24}\d(?!\w)")
 
 
+#: Digits in the first hyphen-separated group of a date or a year range. Every
+#: false positive the first paid round produced led with exactly four: a year.
+#: `2024-01-01` groups 4-2-2, `2020-2023` and `2026-2027` group 4-4,
+#: `$2000-10000` groups 4-5. A phone number written with hyphens leads with a
+#: country trunk or an area code and those are two or three digits, never four,
+#: because a four digit area code with a hyphen after it is not a form anyone
+#: writes. So the leading group decides, and `555-123-4567` survives while every
+#: measured false positive dies.
+_YEAR_LEAD = 4
+
+
+def _leads_with_a_year(candidate: str) -> bool:
+    """Whether a hyphenated run opens with a four digit group, meaning a year.
+
+    Only consulted when the hyphen is the only thing making a run look grouped.
+    A run carrying a plus, a space or a bracket has already said what it is.
+    """
+    head = candidate.lstrip("(+").split("-", 1)[0]
+    return head.isdigit() and len(head) == _YEAR_LEAD
+
+
 def _is_phone(candidate: str) -> bool:
     """Whether one candidate run is a number somebody could be reached on.
 
     Three ways to qualify and a bare eight-digit run is none of them: an
     international prefix, digits written in groups, or enough digits that
     nothing else is plausibly that long. The last clause catches `05321112233`
-    typed without spaces, and it begins at ten rather than seven because an
-    ungrouped seven-digit run is more often an identifier.
+    typed without spaces, and where it begins is a real trade rather than a
+    round number. See `_BARE_PHONE_DIGITS`.
     """
     digits = sum(ch.isdigit() for ch in candidate)
     if digits not in _PHONE_DIGITS:
         return False
-    return (
-        candidate.lstrip("(").startswith("+")
-        or any(ch in _PHONE_GROUPING for ch in candidate)
-        or digits >= 10
-    )
+    if candidate.lstrip("(").startswith("+"):
+        return True
+    if any(ch in _PHONE_GROUPING and ch != "-" for ch in candidate):
+        return True
+    if "-" in candidate:
+        return not _leads_with_a_year(candidate)
+    return digits >= _BARE_PHONE_DIGITS
 
 
 #: Surrogates in this range are how `surrogateescape` carries a byte that is
@@ -234,6 +280,42 @@ def storable(text: str) -> str:
     )
 
 
+#: How many digits a payment card carries. Thirteen is the shortest Visa still
+#: issued and nineteen the longest number the standard allows.
+_CARD_DIGITS = range(13, 20)
+
+#: A run of digits with the separators a card number is written with. Kept apart
+#: from the phone pattern because the two are decided differently: a phone
+#: number is guessed from its shape, and a card number is checked.
+_CARD_CANDIDATE = re.compile(r"(?<![\w./=])\d[\d\u00a0 -]{11,26}\d(?!\w)")
+
+
+def _is_card(candidate: str) -> bool:
+    """Whether a run of digits passes the checksum a card number has to pass.
+
+    Card numbers carry a check digit, so membership is arithmetic rather than a
+    guess. That matters here twice over. It catches the sixteen digit numbers
+    the phone rule was structurally unable to see, since fifteen was its
+    ceiling, which is why an Amex was redacted and a Visa was not. And it almost
+    never fires on a figure that is not a card, because a run of digits picked
+    at random clears the checksum about one time in ten.
+
+    Cards are looked for before phones, so a sixteen digit number is never
+    reported as a number somebody could be called on.
+    """
+    digits = [int(ch) for ch in candidate if ch.isdigit()]
+    if len(digits) not in _CARD_DIGITS:
+        return False
+    checksum = 0
+    for position, digit in enumerate(reversed(digits)):
+        if position % 2:
+            digit *= 2
+            if digit > 9:
+                digit -= 9
+        checksum += digit
+    return checksum % 10 == 0
+
+
 def scrub(text: str) -> str:
     """Remove the two kinds of personal data a stored string plausibly leaks.
 
@@ -247,8 +329,14 @@ def scrub(text: str) -> str:
 
     A redaction that leaves part of the thing behind has not redacted it, so
     the phone rule replaces a whole run or none of it.
+
+    Cards are looked for before phones, because the two patterns overlap and the
+    card test is the one that can be checked rather than guessed.
     """
     text = _EMAIL.sub("[email]", text)
+    text = _CARD_CANDIDATE.sub(
+        lambda m: "[card]" if _is_card(m.group(0)) else m.group(0), text
+    )
     return _PHONE_CANDIDATE.sub(
         lambda m: "[phone]" if _is_phone(m.group(0)) else m.group(0), text
     )

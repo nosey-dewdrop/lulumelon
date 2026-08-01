@@ -85,6 +85,7 @@ lulumelon/
   usage.py        what a recorded round cost, from the provider's own figures
   plan.py         how many calls a target precision needs, before spending any
   panel.py        the surface a customer reads
+  text.py         one counted noun, agreeing, so every screen can count to one
   demo.py         one recorded round, so the output above can be reproduced
 
 src/lib/          the TypeScript layer behind the demo terminal
@@ -102,7 +103,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 616 tests, offline
+    python3 -m pytest lulumelon/tests   # 626 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started

@@ -100,6 +100,7 @@ from .plan import (
     total_variance,
     variance_of,
 )
+from .text import counted
 from .usage import spend_of, token_rate
 
 #: Where rounds are written unless a caller says otherwise. Relative on
@@ -738,9 +739,15 @@ def collect(
     console.say()
     console.say(f"  subject   {subject.path}")
     console.say(f"  tracking  {_names(subject)}")
-    console.say(f"  asking    {len(subject.prompts)} prompts, {k} times each")
+    console.say(
+        f"  asking    {counted(len(subject.prompts), 'prompt')}, "
+        f"{counted(k, 'time')} each"
+    )
     if can_search:
-        console.say(f"  arm       with the search tool, capped at {max_searches} searches a call")
+        console.say(
+            f"  arm       with the search tool, capped at "
+            f"{counted(max_searches, 'search', 'searches')} a call"
+        )
     else:
         console.say(
             f"  arm       with no search tool attached, recorded as surface {UNSEARCHED_SURFACE}"
@@ -774,7 +781,10 @@ def collect(
     ceiling = budget.next_call_ceiling_usd()
     console.say()
     console.say("BEFORE ANYTHING IS SPENT")
-    console.say(f"  {planned} calls planned: {len(subject.prompts)} prompts, {k} times each")
+    console.say(
+        f"  {counted(planned, 'call')} planned: "
+        f"{counted(len(subject.prompts), 'prompt')}, {counted(k, 'time')} each"
+    )
     console.say(f"  ${ceiling:.4f} is the most one of them can cost: an opening guess of")
     console.say(
         f"    {UNMEASURED_INPUT_TOKENS} in and {UNMEASURED_OUTPUT_TOKENS} out tokens, "
@@ -822,8 +832,8 @@ def collect(
     if result.stopped_for_budget:
         console.say()
         console.say(
-            f"  the ceiling stopped this round: {result.unasked} of {result.planned} asks were "
-            "never made."
+            f"  the ceiling stopped this round: {result.unasked} of "
+            f"{counted(result.planned, 'ask')} were never made."
         )
         console.say(
             "  that is a shorter round rather than a failed one. what it costs is that every"
@@ -869,7 +879,7 @@ def _fee_sentence(price: Price, max_searches: int, can_search: bool) -> str:
         return f"plus one fee at {price.fee_text}"
     if not can_search:
         return "and no search fee: this arm has no tool to run one with"
-    return f"plus up to {max_searches} searches at {price.fee_text}"
+    return f"plus up to {counted(max_searches, 'search', 'searches')} at {price.fee_text}"
 
 
 # -- usage ------------------------------------------------------------------
@@ -910,7 +920,10 @@ def usage(
         problems = store.verify(snapshot_id)
         if problems:
             failed_chain = True
-            console.say(f"  CHAIN BROKEN, {len(problems)} problems. No cost is computed from it.")
+            console.say(
+                f"  CHAIN BROKEN, {counted(len(problems), 'problem')}. "
+                "No cost is computed from it."
+            )
             for line in problems[:5]:
                 console.say(f"    {line}")
             if len(problems) > 5:
@@ -959,7 +972,7 @@ def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -
         problems = store.verify(snapshot_id)
         if problems:
             broken += 1
-            console.say(f"  BROKEN   {snapshot_id}   {len(problems)} problems")
+            console.say(f"  BROKEN   {snapshot_id}   {counted(len(problems), 'problem')}")
             for line in problems:
                 console.say(f"           {line}")
             continue
@@ -970,17 +983,20 @@ def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -
             # where "intact" means less than a reader would take it to mean.
             unsealed += 1
             console.say(
-                f"  intact   {snapshot_id}   {store.count(snapshot_id)} records, "
+                f"  intact   {snapshot_id}   {counted(store.count(snapshot_id), 'record')}, "
                 "length never sealed"
             )
             continue
         console.say(
-            f"  intact   {snapshot_id}   {seal.round_asked} calls sealed, "
+            f"  intact   {snapshot_id}   {counted(seal.round_asked, 'call')} sealed, "
             f"{seal.round_ok} answered, {seal.round_errors} failed"
         )
 
     console.say()
-    console.say(f"{len(wanted) - broken} of {len(wanted)} rounds re-derive from their own contents.")
+    console.say(
+        f"{len(wanted) - broken} of {counted(len(wanted), 'round')} re-derive from their "
+        "own contents."
+    )
     console.say()
     console.say("What that covers: every record present was checked against its own hash and")
     console.say("against the one before it, so altering an answer costs a rewrite of every")
@@ -988,7 +1004,7 @@ def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -
     console.say("ends with a record saying how many calls it made, so records removed from the")
     console.say("end are reported rather than silently lost.")
     if unsealed:
-        rounds = "1 round" if unsealed == 1 else f"{unsealed} rounds"
+        rounds = counted(unsealed, "round")
         console.say()
         console.say(f"What it does not cover: the {rounds} above whose length was never sealed.")
         console.say("Collected before a round closed itself, so nothing in there says how long it")
@@ -1031,7 +1047,7 @@ def plan(
     console.say("lulu plan")
     console.say()
     console.say("DESIGN")
-    console.say(f"  {prompts} prompts, {brands} brand{'' if brands == 1 else 's'} tracked")
+    console.say(f"  {counted(prompts, 'prompt')}, {counted(brands, 'brand')} tracked")
     console.say(f"  target +/-{half_width * 100:.1f} points at {int(confidence * 100)}% confidence")
     console.say(
         f"  z={z:.4f} "
@@ -1065,7 +1081,11 @@ def plan(
         console.say()
         if math.isfinite(ceiling):
             console.say(f"  above icc {ceiling:.4f} no number of repeats reaches this target with")
-            console.say(f"  {prompts} prompts. {prompts_for_worst_case(half_width, z, variance)} prompts would reach it at any icc.")
+            console.say(
+                f"  {counted(prompts, 'prompt')}. "
+                f"{counted(prompts_for_worst_case(half_width, z, variance), 'prompt')} "
+                "would reach it at any icc."
+            )
         else:
             # p(1-p) is zero only at p=0 and p=1, where a draw has no variance
             # and every design meets every target. Printing the ceiling as
@@ -1100,8 +1120,8 @@ def plan(
             affordable.append(design)
         else:
             console.say(
-                f"  {prompts_for_worst_case(half_width, z, variance)} prompts would reach it "
-                "even if repeats bought nothing."
+                f"  {counted(prompts_for_worst_case(half_width, z, variance), 'prompt')} "
+                "would reach it even if repeats bought nothing."
             )
 
     designed = affordable[0].calls if affordable else None
@@ -1116,9 +1136,11 @@ def plan(
         console.say("  quoted at icc 0, the most optimistic end of the bracket above. any")
         console.say("  higher split costs more, and past the ceiling it cannot be bought.")
     if tighter.reachable:
-        console.say(f"  {tighter.calls} calls per round, {tighter.calls * 2} for the pair.")
+        console.say(
+            f"  {counted(tighter.calls, 'call')} per round, {tighter.calls * 2} for the pair."
+        )
     else:
-        console.say(f"  unreachable at {prompts} prompts: {tighter.reason}")
+        console.say(f"  unreachable at {counted(prompts, 'prompt')}: {tighter.reason}")
 
     console.say()
     console.say("ASKING EVERY DAY INSTEAD")
@@ -1167,12 +1189,17 @@ def plan(
             console.say(f"  {label:<24} not reachable at this prompt count")
             continue
         cost = price_of(price, calls, tokens, fee_units=calls * per_call_fees)
-        console.say(f"  {label:<24} {calls} calls   " + (cost.as_text() if cost else "no published price on file"))
+        console.say(
+            f"  {label:<24} {counted(calls, 'call')}   "
+            + (cost.as_text() if cost else "no published price on file")
+        )
 
     if math.isfinite(ceiling):
         console.say()
         console.say(f"  above icc {ceiling:.4f} this design has no price at any budget: with")
-        console.say(f"  {prompts} prompts the prompt set alone carries more error than the")
+        console.say(
+            f"  {counted(prompts, 'prompt')} the prompt set alone carries more error than the"
+        )
         console.say("  target, so no number of repeats closes it and no amount of money buys it.")
     return 0
 
@@ -1200,7 +1227,8 @@ def _pilot_split(
     problems = store.verify(pilot)
     if problems:
         raise ValueError(
-            f"{pilot} does not verify ({len(problems)} problems), so nothing is planned from it"
+            f"{pilot} does not verify ({counted(len(problems), 'problem')}), so nothing is "
+            "planned from it"
         )
     if is_diagnostic(pilot):
         console.say()
@@ -1216,8 +1244,8 @@ def _pilot_split(
     if played.dropped:
         console.say()
         console.say(
-            f"  note: {played.dropped} of {played.total} pilot asks failed and are excluded; "
-            "a failed ask is missing data, not an observed absence"
+            f"  note: {played.dropped} of {counted(played.total, 'pilot ask')} failed and are "
+            "excluded; a failed ask is missing data, not an observed absence"
         )
     return variance_of(split), icc_of(split)
 
@@ -1260,7 +1288,7 @@ def _verified(store: Ledger, console: Console, role: str, snapshot_id: str):
     """
     problems = store.verify(snapshot_id)
     if problems:
-        console.say(f"  {snapshot_id}: CHAIN BROKEN, {len(problems)} problems.")
+        console.say(f"  {snapshot_id}: CHAIN BROKEN, {counted(len(problems), 'problem')}.")
         console.say("  no verdict is computed from a round that does not re-derive.")
         raise BrokenChain(snapshot_id)
     played = replay(store, snapshot_id)
@@ -1479,7 +1507,9 @@ def lift(
     _arm_surface(rounds["dropped"], dropped, replica_surface(remaining), "dropped")
 
     console.say()
-    console.say(f"  source list  {len(sources)} pages, in the order the model saw them")
+    console.say(
+        f"  source list  {counted(len(sources), 'page')}, in the order the model saw them"
+    )
     for i, url in enumerate(sources, start=1):
         console.say(f"    [{i}] {url}{'   <- removed in the dropped arm' if url == source else ''}")
 

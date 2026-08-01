@@ -39,6 +39,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
+from .text import counted
+
 #: The service name a key is filed under in the OS keychain. Fixed, because a
 #: key stored under one name and read under another is indistinguishable from
 #: no key at all.
@@ -161,7 +163,7 @@ def fingerprint(key: str) -> str:
     if not key:
         return "none"
     digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:8]
-    return f"sha256:{digest} ({len(key)} characters)"
+    return f"sha256:{digest} ({counted(len(key), 'character')})"
 
 
 # -- reading a .env file ----------------------------------------------------
@@ -405,7 +407,10 @@ def inspect_key(spec: ProviderSpec, key: str) -> list[str]:
             f"look like ({spec.key_prefix_source}); it may belong to another provider"
         )
     if len(stripped) < 20:
-        problems.append(f"the key is {len(stripped)} characters, shorter than any key this provider issues")
+        problems.append(
+            f"the key is {counted(len(stripped), 'character')}, shorter than any key this "
+            "provider issues"
+        )
     return problems
 
 

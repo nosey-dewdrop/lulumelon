@@ -63,6 +63,7 @@ from typing import Iterable, Sequence
 from .collect.ask import is_unsearched_surface
 from .collect.ledger import Record
 from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for
+from .text import counted
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,7 +224,7 @@ class Spend:
 
     def as_text(self) -> str:
         lines = [
-            f"{self.calls} calls recorded: {self.answered} answered, {self.failed} failed",
+            f"{_calls(self.calls)} recorded: {self.answered} answered, {self.failed} failed",
         ]
         if self.unrecorded:
             lines.append(
@@ -237,8 +238,8 @@ class Spend:
             lines.append(f"  input   {self.input_tokens:,}")
             lines.append(f"  output  {self.output_tokens:,}")
         lines.append(
-            f"  reported by {self.token_reporters} of {self.answered - self.unrecorded} "
-            "answered calls"
+            f"  reported by {self.token_reporters} of "
+            f"{counted(self.answered - self.unrecorded, 'answered call')}"
         )
 
         lines.append("")
@@ -281,7 +282,7 @@ class Spend:
                     )
                 else:
                     line = (
-                        f"  {bucket.label}: charged {bucket.fee_units} search fees "
+                        f"  {bucket.label}: charged {counted(bucket.fee_units, 'search fee')} "
                         f"over {_calls(bucket.calls)}"
                     )
                     if bucket.unreported_searches:
@@ -302,7 +303,7 @@ class Spend:
         elif self.priced:
             lines.append(
                 f"  total  ${self.low_usd:.6f} to ${self.high_usd:.6f}"
-                f"   ({self.metered} of {self.priced} priced calls metered)"
+                f"   ({self.metered} of {counted(self.priced, 'priced call')} metered)"
             )
             lines.append(
                 f"  per call  ${self.per_call_low_usd:.6f} to ${self.per_call_high_usd:.6f}"
@@ -329,7 +330,12 @@ class Spend:
 
 
 def _calls(n: int) -> str:
-    return f"{n} call" if n == 1 else f"{n} calls"
+    """`counted` with the noun this file says most often, so the lines fit.
+
+    A local name for one shared call, not a second pluraliser: the agreement
+    still happens in one place, and the nine call sites below stay readable.
+    """
+    return counted(n, "call")
 
 
 def _low(cost: Cost | None) -> float:

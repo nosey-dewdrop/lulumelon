@@ -31,6 +31,7 @@ from typing import Sequence
 
 import numpy as np
 
+from ..text import counted
 from .intervals import Cluster, z_for
 
 
@@ -214,7 +215,7 @@ def runs_needed(
             k_runs=None,
             reachable=False,
             reason=(
-                f"prompt-set noise alone needs more than {n} prompts: "
+                f"prompt-set noise alone needs more than {counted(n, 'prompt')}: "
                 f"between-prompt variance {split.between:.6f} implies a floor of "
                 f"+/-{z * math.sqrt(from_prompts):.4f} at this n"
             ),
@@ -230,7 +231,7 @@ def runs_needed(
             n_prompts=None,
             k_runs=None,
             reachable=False,
-            reason=f"needs k={k} repeats, above the max_k={max_k} you allowed",
+            reason=f"needs k={counted(k, 'repeat')}, above the max_k={max_k} you allowed",
         )
     return DesignRequirement(
         target_half_width=target_half_width,
@@ -278,7 +279,7 @@ def prompts_needed(
             n_prompts=None,
             k_runs=None,
             reachable=False,
-            reason=f"needs n={n} prompts, above the max_n={max_n} you allowed",
+            reason=f"needs n={counted(n, 'prompt')}, above the max_n={max_n} you allowed",
         )
     return DesignRequirement(
         target_half_width=target_half_width,

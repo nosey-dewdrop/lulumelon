@@ -666,7 +666,7 @@ def test_a_record_written_after_the_round_closed_is_reported(led):
         fh.write(smuggled.as_line() + "\n")
 
     problems = led.verify(snapshot_id)
-    assert any("1 records were written after the round said it was over" in p for p in problems)
+    assert any("1 record were written after the round said it was over" in p for p in problems)
     assert any("says the round made 4 calls and 5 are on the file" in p for p in problems)
 
 

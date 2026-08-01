@@ -153,7 +153,7 @@ def test_a_metered_call_that_reported_no_tokens_reports_no_tokens():
         TOKENS, as the provider reported them
           input   0
           output  0
-          reported by 1 of 1 answered calls
+          reported by 1 of 1 answered call
 
     Every line of that is false. The provider reported neither count, and it
     was counted as the call that did.
@@ -164,7 +164,7 @@ def test_a_metered_call_that_reported_no_tokens_reports_no_tokens():
     assert spend.metered == 1
     assert spend.token_reporters == 0
     text = spend.as_text()
-    assert "reported by 0 of 1 answered calls" in text
+    assert "reported by 0 of 1 answered call" in text
     assert "input   0" not in text and "output  0" not in text
     assert spend.low_usd == pytest.approx(0.005182), "the amount is still the amount"
 

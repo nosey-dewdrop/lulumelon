@@ -36,6 +36,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
+from ..text import counted
 from .intervals import Interval, cluster_bootstrap_ci
 from .types import Snapshot
 
@@ -98,7 +99,7 @@ class SourceAssociation:
             f"  appears in {self.rate_when_cited * 100:.1f}% of answers citing it, "
             f"{self.rate_when_not * 100:.1f}% of answers not citing it\n"
             f"  difference {pts:+.1f} pts (95% CI {lo:+.1f}..{hi:+.1f}) "
-            f"over {self.prompts_used} prompts\n"
+            f"over {counted(self.prompts_used, 'prompt')}\n"
             f"  {self.verdict}"
         )
 
@@ -183,7 +184,7 @@ def associate(
             verdict=(
                 "NO CONTRAST: in every question this source was either always cited "
                 "or never cited, so this round contains no comparison to make. "
-                f"{dropped} prompts had no usable split."
+                f"{counted(dropped, 'prompt')} had no usable split."
             ),
         )
 
@@ -202,9 +203,9 @@ def associate(
             difference=mean_diff,
             interval=None,
             verdict=(
-                f"WITHHELD: only {len(diffs)} prompt(s) offered a split, and the "
+                f"WITHHELD: only {counted(len(diffs), 'prompt')} offered a split, and the "
                 f"prompt is the resampling unit here. An interval over "
-                f"{len(diffs)} clusters describes this round, not the question."
+                f"{counted(len(diffs), 'cluster')} describes this round, not the question."
             ),
         )
 

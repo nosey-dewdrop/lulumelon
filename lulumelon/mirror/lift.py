@@ -68,6 +68,7 @@ from typing import Hashable, Mapping, Sequence
 
 import numpy as np
 
+from ..text import counted
 from .ablation import Gate, design_that_would_decide
 from .compare import Verdict, paired_difference
 from .intervals import Interval, cluster_bootstrap_ci, resamples_for
@@ -170,14 +171,14 @@ class SourceEffect:
             f"({pct}% CI {self.dropped.low * 100:.1f}..{self.dropped.high * 100:.1f})",
             f"  difference       {interval.point * 100:+.1f} points, "
             f"{pct}% interval {interval.low * 100:+.1f} to {interval.high * 100:+.1f}, "
-            f"over {self.prompts_paired} paired prompts",
+            f"over {counted(self.prompts_paired, 'paired prompt')}",
             f"  margin of equivalence +/-{self.margin * 100:.1f} points, "
             "the precision this measurement is planned at",
         ]
         if self.prompts_unpaired:
             lines.append(
-                f"  {self.prompts_unpaired} prompts were asked in only one arm and take no part "
-                "in this difference"
+                f"  {counted(self.prompts_unpaired, 'prompt')} were asked in only one arm and "
+                "take no part in this difference"
             )
         if self.family_size > 1:
             lines.append(
@@ -233,7 +234,7 @@ class SourceEffect:
                 )
             elif self.shortfall:
                 lines.append(
-                    f"  {self.calls_needed} calls an arm would decide it, "
+                    f"  {counted(self.calls_needed, 'call')} an arm would decide it, "
                     f"{self.calls_made} were made, so {self.shortfall} short"
                 )
         return "\n".join(lines)

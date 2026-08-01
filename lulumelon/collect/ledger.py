@@ -65,6 +65,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from ..text import counted
 from .ask import Usage
 
 SCHEMA_VERSION = 3
@@ -629,8 +630,8 @@ class Ledger:
         if existing and existing[-1].is_seal:
             raise ValueError(
                 f"{snapshot_id} is sealed: its last record states that the round made "
-                f"{existing[-1].round_asked} calls, and a round that has stated its length "
-                "cannot be given another one. open the next snapshot instead"
+                f"{counted(existing[-1].round_asked, 'call')}, and a round that has stated its "
+                "length cannot be given another one. open the next snapshot instead"
             )
         tail = existing[-1].hash if existing else GENESIS
         written = replace(
@@ -912,20 +913,21 @@ class Ledger:
             )
         if index != seen - 1:
             problems.append(
-                f"line {index}: the seal is not the last line; {seen - 1 - index} records were "
-                "written after the round said it was over"
+                f"line {index}: the seal is not the last line; "
+                f"{counted(seen - 1 - index, 'record')} were written after the round said it "
+                "was over"
             )
         if unreadable:
             problems.append(
-                f"the seal says the round made {seal.round_asked} calls and that cannot be "
-                f"checked here: {unreadable} lines could not be read, so the count on the file "
-                "is a count of the readable ones"
+                f"the seal says the round made {counted(seal.round_asked, 'call')} and that "
+                f"cannot be checked here: {counted(unreadable, 'line')} could not be read, so "
+                "the count on the file is a count of the readable ones"
             )
             return problems
         if seal.round_asked != calls:
             problems.append(
-                f"line {index}: the seal says the round made {seal.round_asked} calls and "
-                f"{calls} are on the file"
+                f"line {index}: the seal says the round made "
+                f"{counted(seal.round_asked, 'call')} and {calls} are on the file"
             )
         if seal.round_ok != answered:
             problems.append(

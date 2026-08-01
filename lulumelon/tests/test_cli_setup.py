@@ -441,7 +441,7 @@ def test_lulu_usage_sees_the_check_call_and_prices_it(tmp_path: Path, monkeypatc
     assert run_usage(rec.console, ledger_dir=ledger_dir) == 0
     text = rec.text
     assert "chain intact" in text
-    assert "1 calls recorded: 1 answered, 0 failed" in text
+    assert "1 call recorded: 1 answered, 0 failed" in text
     assert "input   900" in text and "output  30" in text
     assert "$0.011050" in text
     assert f"anthropic/{ANSWERED_AS}" in text

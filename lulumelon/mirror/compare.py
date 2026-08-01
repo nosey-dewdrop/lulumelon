@@ -27,6 +27,7 @@ from typing import Hashable, Mapping, Sequence
 import numpy as np
 from scipy import stats
 
+from ..text import counted
 from .intervals import Interval, z_for
 from .types import Snapshot
 
@@ -67,7 +68,7 @@ class Verdict:
             f"{self.label}: {head} {self.diff * scale:+.3f} "
             f"({int(self.interval.confidence * 100)}% CI "
             f"{self.interval.low * scale:+.3f}..{self.interval.high * scale:+.3f}){p} "
-            f"[{self.n_paired} paired prompts]"
+            f"[{counted(self.n_paired, 'paired prompt')}]"
         )
 
 

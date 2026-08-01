@@ -38,6 +38,8 @@ from dataclasses import dataclass, field
 from typing import Callable
 from urllib.parse import urljoin, urlparse
 
+from ..text import counted
+
 #: The crawlers that matter for appearing in generated answers, and who they
 #: belong to. Blocking one of these is not an SEO nuance, it is an opt-out of
 #: the surface the customer is paying to be measured on.
@@ -315,7 +317,7 @@ def audit(
                 id="llms.present",
                 severity="ok",
                 title="llms.txt is served",
-                evidence=f"GET {llms_url} -> 200, {len(body.strip())} bytes",
+                evidence=f"GET {llms_url} -> 200, {counted(len(body.strip()), 'byte')}",
                 blocks="nothing.",
             )
         )
@@ -444,7 +446,7 @@ def audit(
                 id="body.thin",
                 severity="blocking",
                 title="almost no text without running scripts",
-                evidence=f"{len(text)} characters of markup-stripped text",
+                evidence=f"{counted(len(text), 'character')} of markup-stripped text",
                 blocks=(
                     "a crawler that does not execute javascript sees an empty page, "
                     "so there is nothing to quote regardless of what users see."

@@ -62,6 +62,7 @@ from dataclasses import dataclass
 from .mirror.intervals import z_for
 from .mirror.variance import VarianceSplit
 from .prices import Cost, Price, estimate, fees
+from .text import counted
 
 #: Below this, a round cannot be decomposed at all: with one draw per prompt
 #: the model's rerun noise and the prompt-to-prompt spread are algebraically
@@ -112,7 +113,7 @@ class Design:
     def as_text(self) -> str:
         if not self.reachable:
             return f"icc {self.icc:.2f}   unreachable: {self.reason}"
-        return f"icc {self.icc:.2f}   k={self.k_runs:<5} {self.calls} calls"
+        return f"icc {self.icc:.2f}   k={self.k_runs:<5} {counted(self.calls, 'call')}"
 
 
 def reachable_icc(n_prompts: int, half_width: float, z: float, variance: float) -> float:
@@ -146,7 +147,8 @@ def draws_needed(
             reachable=False,
             reason=(
                 f"at this icc the prompt set alone carries +/-{floor * 100:.1f} points with "
-                f"{n_prompts} prompts, past the target, so no number of repeats closes it"
+                f"{counted(n_prompts, 'prompt')}, past the target, so no number of repeats "
+                "closes it"
             ),
         )
     k = math.ceil((1.0 - icc) / (ceiling - icc))
@@ -188,17 +190,19 @@ class Comparison:
 
     def as_text(self) -> str:
         lines = [
-            f"asking each of {self.n_prompts} prompts {_times(self.scans_per_day)} a day for "
-            f"{self.days} days spends {self.daily_calls} calls",
-            f"  and returns {self.days} readings, none of which can carry an interval: with a",
+            f"asking each of {counted(self.n_prompts, 'prompt')} {_times(self.scans_per_day)} "
+            f"a day for {counted(self.days, 'day')} spends {counted(self.daily_calls, 'call')}",
+            f"  and returns {counted(self.days, 'reading')}, none of which can carry an "
+            "interval: with a",
             "  single draw per prompt the model's rerun noise and the prompt-to-prompt spread",
             "  are the same quantity, so a round of that shape cannot be decomposed at all.",
         ]
         if self.designed_calls is not None:
             lines.append("")
             lines.append(
-                f"the same {self.n_prompts} prompts asked enough times inside one window spend "
-                f"{self.designed_calls} calls and return a stated interval."
+                f"the same {counted(self.n_prompts, 'prompt')} asked enough times inside one "
+                f"window spend {counted(self.designed_calls, 'call')} and return a stated "
+                "interval."
             )
             lines.append(
                 "  the daily schedule is not being outspent, it is buying refresh rate."

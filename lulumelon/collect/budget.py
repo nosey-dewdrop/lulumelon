@@ -42,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..prices import FEE_PER_SEARCH, Price
+from ..text import counted
 from .ask import Answer
 
 #: Tokens one call is assumed to burn before any call has been measured. Set
@@ -51,11 +52,6 @@ from .ask import Answer
 #: it is replaced by the round's own measured rate as soon as there is one.
 UNMEASURED_INPUT_TOKENS = 12_000
 UNMEASURED_OUTPUT_TOKENS = 400
-
-
-def _calls(n: int) -> str:
-    """`1 call`, not `1 calls`. The first count this prints is usually one."""
-    return "1 call" if n == 1 else f"{n} calls"
 
 
 @dataclass
@@ -152,8 +148,10 @@ class Budget:
             return 0.0
 
         usage = answer.usage
-        counted = usage.input_tokens is not None and usage.output_tokens is not None
-        if counted:
+        # Named as `usage.py` names the same expression, which also keeps it
+        # from shadowing the counted-noun helper imported above.
+        both_tokens = usage.input_tokens is not None and usage.output_tokens is not None
+        if both_tokens:
             self.metered_calls += 1
             self._input_tokens += usage.input_tokens
             self._output_tokens += usage.output_tokens
@@ -197,7 +195,7 @@ class Budget:
         lines = [
             f"spent ${self.spent_usd:.4f} of ${self.limit_usd:.2f}, "
             f"${self.remaining_usd:.4f} left",
-            f"  {_calls(self.metered_calls)} the provider metered"
+            f"  {counted(self.metered_calls, 'call')} the provider metered"
             + (f", {self.unmetered_calls} it did not, charged at the ceiling"
                if self.unmetered_calls else ""),
         ]

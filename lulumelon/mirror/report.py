@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..text import counted
 from .intervals import Interval, cluster_bootstrap_ci, wilson_interval, z_for
 from .stability import Stability, stability_of
 from .types import Snapshot
@@ -58,8 +59,9 @@ class BrandReport:
     def as_text(self) -> str:
         lines = [
             f"brand: {self.brand}   snapshot: {self.snapshot}",
-            f"design: {self.n_prompts} prompts x {self.total_runs / max(self.n_prompts, 1):.1f} runs "
-            f"= {self.total_runs} observations on {', '.join(self.engines)}",
+            f"design: {counted(self.n_prompts, 'prompt')} x "
+            f"{counted(self.total_runs / max(self.n_prompts, 1), 'run', fmt='.1f')} "
+            f"= {counted(self.total_runs, 'observation')} on {', '.join(self.engines)}",
             f"visibility: {self.headline}   "
             f"(95% CI {self.detection_by_prompt.low * 100:.1f}..{self.detection_by_prompt.high * 100:.1f})",
             f"run-level detection: {self.detection.as_text(digits=1, scale=100, unit='%')}",
@@ -108,8 +110,9 @@ class BrandReport:
                     f"the model's own rerun noise is not your limit"
                 )
             return (
-                f"raise repeats to k={more_runs.k_runs} on the same {self.n_prompts} "
-                f"prompts to reach +/-{target_half_width * 100:.1f} points "
+                f"raise repeats to k={more_runs.k_runs} on the same "
+                f"{counted(self.n_prompts, 'prompt')} to reach "
+                f"+/-{target_half_width * 100:.1f} points "
                 f"(within-prompt noise is {self.variance.within:.5f}, "
                 f"icc {self.variance.icc:.2f})"
             )
@@ -125,10 +128,11 @@ class BrandReport:
                 * (self.variance.between / self.n_prompts) ** 0.5
             )
             return (
-                f"repeats will not get you there: with {self.n_prompts} prompts the "
+                f"repeats will not get you there: with {counted(self.n_prompts, 'prompt')} the "
                 f"prompt set alone already carries +/-{floor_from_prompts * 100:.1f} points, "
                 f"past your +/-{target_half_width * 100:.1f} target. Reach it with "
-                f"{wider.n_prompts} prompts at k=3 instead (icc {self.variance.icc:.2f})."
+                f"{counted(wider.n_prompts, 'prompt')} at k=3 instead "
+                f"(icc {self.variance.icc:.2f})."
             )
         return (
             f"neither more repeats nor a realistic prompt count reaches "

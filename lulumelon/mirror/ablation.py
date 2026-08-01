@@ -61,6 +61,7 @@ from dataclasses import dataclass
 from typing import Hashable, Mapping, Sequence
 
 from ..plan import critical_value, draws_needed, icc_of, variance_of
+from ..text import counted
 from .compare import Verdict, paired_difference
 from .variance import decompose
 
@@ -112,7 +113,7 @@ class Gate:
             f"relative to the live surface",
             f"  {int(interval.confidence * 100)}% interval "
             f"{interval.low * 100:+.1f} to {interval.high * 100:+.1f} points, "
-            f"over {self.difference.n_paired} paired prompts",
+            f"over {counted(self.difference.n_paired, 'paired prompt')}",
             f"  margin of equivalence +/-{band:.1f} points, "
             "the precision this measurement is planned at",
             "",
@@ -136,7 +137,7 @@ class Gate:
                 )
             elif self.shortfall:
                 lines.append(
-                    f"  {self.calls_needed} calls a side would decide it, "
+                    f"  {counted(self.calls_needed, 'call')} a side would decide it, "
                     f"{self.calls_made} were made, so {self.shortfall} short"
                 )
         return "\n".join(lines)

@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from .collect.audit import SiteAudit
 from .mirror.report import BrandReport
 from .mirror.sources import SourceAssociation
+from .text import counted
 
 RULE = "-" * 66
 
@@ -86,12 +87,14 @@ class Panel:
         k = r.total_runs / max(r.n_prompts, 1)
         out = [
             "DESIGN",
-            f"  {r.n_prompts} prompts x {k:.0f} runs = {r.total_runs} answers"
+            f"  {counted(r.n_prompts, 'prompt')} x {counted(k, 'run', fmt='.0f')}"
+            f" = {counted(r.total_runs, 'answer')}"
             f" on {', '.join(r.engines)}",
         ]
         if self.dropped_runs:
             out.append(
-                f"  {self.dropped_runs} asks failed and are excluded, recorded not dropped"
+                f"  {counted(self.dropped_runs, 'ask')} failed and are excluded, "
+                "recorded not dropped"
             )
         if r.surface_mix:
             out.append(f"  surfaces mixed: {r.surface_mix}")

@@ -1,0 +1,237 @@
+"""The gates a generated question passes before anyone pays to ask it.
+
+A model can write forty plausible questions about any brand in one call. That
+part is cheap and nobody's advantage. What decides whether the questions are
+worth a round is what happens next, and everything in this module is that: pure
+functions, no model, no network, no money.
+
+**The rule is not that a model may not write the questions. The rule is that
+nothing it wrote is trusted.** Generation followed by measurement does not
+break that rule, it is how the rule is kept.
+
+Four gates run here, cheapest and most certain first, and the first one a
+candidate trips is the reason recorded. That ordering is part of the contract
+rather than an accident of implementation, so it is tested.
+
+1. **shape** — a candidate carries its source page and a verbatim quote from
+   it, or it is not a candidate. Both or neither is not an option here: a
+   question with no citation cannot be checked against anything.
+2. **name** — a question containing a tracked brand name is dropped. This is
+   the single most common thing a model produces and the most damaging: a
+   question carrying the name is answered with the name whatever the model
+   knows, so it measures its own echo. One such question inflated a real
+   headline by ten points before this gate existed.
+3. **evidence** — the quote has to appear in the harvested page text as a
+   literal substring. A model that invents a quote fails here, and it cannot
+   route around it, because inventing a passing quote means reproducing text
+   it was never given.
+4. **duplicate** — near-identical candidates collapse. This one is a
+   heuristic and is labelled as such wherever it appears, since a Jaccard
+   threshold is a judgement call and the other three are not.
+
+Every rejection is returned with the gate that stopped it and a reason. A
+candidate that vanishes silently is indistinguishable from one that was never
+generated, and the difference is the whole audit trail.
+
+**What the evidence gate does not prove.** It establishes that the quote is
+real. It does not establish that the question follows from it, and a model
+holding the page in its context can pair a genuine quote with an unrelated
+question. That gap is deliberate and is closed downstream rather than here: a
+question that has nothing to do with the site measures nothing, and the
+measurement gate drops it as barren. Adding a third similarity heuristic here
+would trade a checkable fact for a judgement, which is the trade this module
+exists to avoid.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import Callable, Iterable, Sequence
+
+#: Word n-gram width for near-duplicate comparison. Three is the usual working
+#: figure: pairs collide on any shared phrasing, and longer windows stop
+#: catching a reordered question.
+SHINGLE = 3
+
+#: Jaccard overlap at or above which two questions are the same question.
+#: A judgement, not a derivation, which is why the gate that uses it is the
+#: only one of the four labelled a heuristic.
+DEFAULT_DUPLICATE_THRESHOLD = 0.8
+
+_WORD = re.compile(r"[\w']+", re.UNICODE)
+
+#: The gates, in the order they run. Exported so a caller can report the
+#: sequence without restating it and drifting from what the code does.
+GATES = ("shape", "name", "evidence", "duplicate")
+
+
+def normalise(text: str) -> str:
+    """Case-folded, punctuation-free, single-spaced.
+
+    Applied identically to a quote and to the page it claims to come from, so
+    the literal check survives the ways HTML mangles whitespace without ever
+    becoming a fuzzy match.
+    """
+    return " ".join(_WORD.findall(text.casefold()))
+
+
+def shingles(text: str, width: int = SHINGLE) -> frozenset[tuple[str, ...]]:
+    words = normalise(text).split()
+    if len(words) < width:
+        return frozenset({tuple(words)}) if words else frozenset()
+    return frozenset(tuple(words[i : i + width]) for i in range(len(words) - width + 1))
+
+
+def jaccard(left: str, right: str, width: int = SHINGLE) -> float:
+    a, b = shingles(left, width), shingles(right, width)
+    if not a or not b:
+        return 1.0 if a == b else 0.0
+    return len(a & b) / len(a | b)
+
+
+@dataclass(frozen=True, slots=True)
+class Candidate:
+    """One generated question, with the page it claims to come from."""
+
+    id: str
+    text: str
+    source: str = ""
+    evidence: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class Rejection:
+    """A candidate that did not survive, and what stopped it."""
+
+    candidate: Candidate
+    gate: str
+    reason: str
+
+    def as_text(self) -> str:
+        return f"[{self.gate}] {self.candidate.id}: {self.reason}"
+
+
+@dataclass(frozen=True, slots=True)
+class ScreenResult:
+    kept: tuple[Candidate, ...]
+    rejected: tuple[Rejection, ...]
+
+    @property
+    def counts(self) -> dict[str, int]:
+        """How many fell at each gate, including the gates that caught none.
+
+        Reported whole rather than sparse, because a gate with a zero is a
+        gate that ran and found nothing, and a gate missing from a summary
+        reads as a gate that was never applied.
+        """
+        tally = dict.fromkeys(GATES, 0)
+        for rejection in self.rejected:
+            tally[rejection.gate] += 1
+        return tally
+
+
+#: A detector takes a text and returns the tracked names found in it. Passed in
+#: rather than imported, because brand matching lives on the collecting side
+#: and this module is not allowed to reach across that wall.
+Detector = Callable[[str], Sequence[str]]
+
+
+def screen(
+    candidates: Iterable[Candidate],
+    *,
+    corpus: str,
+    detect_names: Detector,
+    duplicate_threshold: float = DEFAULT_DUPLICATE_THRESHOLD,
+) -> ScreenResult:
+    """Run every gate, keep what survives, and say why the rest did not."""
+    if not 0.0 < duplicate_threshold <= 1.0:
+        raise ValueError(f"duplicate threshold must be in (0, 1], got {duplicate_threshold}")
+
+    haystack = normalise(corpus)
+    kept: list[Candidate] = []
+    rejected: list[Rejection] = []
+
+    for candidate in candidates:
+        text = candidate.text.strip()
+        if not text:
+            rejected.append(Rejection(candidate, "shape", "the question is empty"))
+            continue
+        if not candidate.source or not candidate.evidence.strip():
+            rejected.append(
+                Rejection(
+                    candidate,
+                    "shape",
+                    "carries no source page and quote, so nothing about it can be checked",
+                )
+            )
+            continue
+
+        named = tuple(detect_names(text))
+        if named:
+            rejected.append(
+                Rejection(
+                    candidate,
+                    "name",
+                    f"names a tracked brand ({', '.join(named)}), so it would measure its own echo",
+                )
+            )
+            continue
+
+        if normalise(candidate.evidence) not in haystack:
+            rejected.append(
+                Rejection(
+                    candidate,
+                    "evidence",
+                    "the quote is not in the page it cites",
+                )
+            )
+            continue
+
+        twin = next(
+            (k for k in kept if jaccard(k.text, text) >= duplicate_threshold),
+            None,
+        )
+        if twin is not None:
+            rejected.append(
+                Rejection(
+                    candidate,
+                    "duplicate",
+                    f"near-identical to {twin.id} (heuristic, {duplicate_threshold:.2f} overlap)",
+                )
+            )
+            continue
+
+        kept.append(candidate)
+
+    return ScreenResult(kept=tuple(kept), rejected=tuple(rejected))
+
+
+def stable_ids(
+    kept: Sequence[Candidate], previous: dict[str, str], prefix: str = "p"
+) -> tuple[Candidate, ...]:
+    """Keep the id of a question whose text has not changed.
+
+    Ids are the join key every comparison groups by, so renumbering a set
+    between rounds silently breaks the thing this repo exists to measure. A
+    question that survives keeps its id; only genuinely new text gets a new
+    one, and new ones never reuse a retired number.
+
+    `previous` maps normalised question text to the id it already holds.
+    """
+    taken = set(previous.values())
+    out: list[Candidate] = []
+    counter = 0
+    for candidate in kept:
+        existing = previous.get(normalise(candidate.text))
+        if existing is not None:
+            out.append(Candidate(existing, candidate.text, candidate.source, candidate.evidence))
+            continue
+        counter += 1
+        fresh = f"{prefix}{counter}"
+        while fresh in taken:
+            counter += 1
+            fresh = f"{prefix}{counter}"
+        taken.add(fresh)
+        out.append(Candidate(fresh, candidate.text, candidate.source, candidate.evidence))
+    return tuple(out)

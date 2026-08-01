@@ -95,6 +95,7 @@ lulumelon/
     ablation.py   whether a replica may stand in for the surface it replaces
     lift.py       what one source was worth, and the name that has to be earned
     report.py     one brand, with the refusals kept
+    screen.py     the gates a generated question passes before it is paid for
   collect/        the part that asks, and the part that writes it down
     ask.py        provider boundary; Perplexity Sonar and a deterministic stub
     subject.py    the tracked names and the questions, refused rather than repaired
@@ -128,7 +129,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 806 tests, offline
+    python3 -m pytest lulumelon/tests   # 826 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a

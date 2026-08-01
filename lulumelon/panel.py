@@ -129,18 +129,24 @@ class Panel:
         ]
 
     def contributing(self) -> list[str]:
-        """What is contributing to your interval width.
+        """What is contributing to your interval width?
 
         The split decides the next move: more repeats when the model's own dice
         dominate, more prompts when the question set does. Buying a fixed number
         of daily reruns without reading it is how a measurement budget goes on
         repeats when it was prompts that were short.
+
+        The heading carries its question mark. It is a question, the docstring
+        at the top of this file calls it one, and a heading in question form
+        without one is the house rule this project is held to on every surface
+        it writes. It reads the same on the printed report, which renders these
+        lines rather than its own.
         """
         v = self.report.variance
         total = v.within + v.between or 1.0
         within_share = v.within / total
         return [
-            "WHAT IS CONTRIBUTING TO YOUR INTERVAL WIDTH",
+            "WHAT IS CONTRIBUTING TO YOUR INTERVAL WIDTH?",
             f"  the model answering differently   {_pct(within_share)}",
             f"  which questions you chose to ask  {_pct(1 - within_share)}",
             f"  noise floor  +/-{v.noise_floor * 100:.1f} points  (icc {v.icc:.2f})",

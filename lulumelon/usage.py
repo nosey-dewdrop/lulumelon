@@ -222,6 +222,34 @@ class Spend:
     def per_call_high_usd(self) -> float:
         return self.high_usd / self.priced if self.priced else 0.0
 
+    def total_lines(self) -> tuple[str, ...]:
+        """What the round cost, in the one wording every surface that says it uses.
+
+        Split out of `as_text` because the screen is no longer the only place
+        it is said. A printed report states the same total, and a total quoted
+        under two different sentences is two claims about one round.
+
+        Empty when no answered call carries a cost at all, which is not the
+        same as a total of zero: there is no figure, so no line states one.
+        """
+        if self.exact:
+            return (f"total  ${self.low_usd:.6f}, every call metered by the provider",)
+        if self.priced:
+            return (
+                f"total  ${self.low_usd:.6f} to ${self.high_usd:.6f}"
+                f"   ({self.metered} of {counted(self.priced, 'priced call')} metered)",
+                f"per call  ${self.per_call_low_usd:.6f} to ${self.per_call_high_usd:.6f}",
+            )
+        if self.answered:
+            # Every answered call predates usage recording. Printing a total of
+            # $0.000000 here would report a round nobody metered as a free one,
+            # which is the most flattering wrong number this file could produce.
+            return (
+                "no total: not one answered call carries usage, so what this round cost is "
+                "unknown rather than nothing",
+            )
+        return ()
+
     def as_text(self) -> str:
         lines = [
             f"{_calls(self.calls)} recorded: {self.answered} answered, {self.failed} failed",
@@ -298,24 +326,7 @@ class Spend:
             )
 
         lines.append("")
-        if self.exact:
-            lines.append(f"  total  ${self.low_usd:.6f}, every call metered by the provider")
-        elif self.priced:
-            lines.append(
-                f"  total  ${self.low_usd:.6f} to ${self.high_usd:.6f}"
-                f"   ({self.metered} of {counted(self.priced, 'priced call')} metered)"
-            )
-            lines.append(
-                f"  per call  ${self.per_call_low_usd:.6f} to ${self.per_call_high_usd:.6f}"
-            )
-        elif self.answered:
-            # Every answered call predates usage recording. Printing a total of
-            # $0.000000 here would report a round nobody metered as a free one,
-            # which is the most flattering wrong number this file could produce.
-            lines.append(
-                "  no total: not one answered call carries usage, so what this round cost is "
-                "unknown rather than nothing"
-            )
+        lines.extend(f"  {line}" for line in self.total_lines())
         if self.unpriced:
             lines.append(
                 f"  {self.unpriced} of the answered calls could not be priced at all, so every "

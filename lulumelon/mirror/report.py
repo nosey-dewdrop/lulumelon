@@ -86,9 +86,19 @@ class BrandReport:
         floor = self.variance.noise_floor * 100
         return f"{pct:.1f}% +/- {floor:.1f}"
 
+    @property
+    def identity(self) -> str:
+        """Which brand, in which round. One line, so no surface writes its own.
+
+        A property rather than a literal repeated wherever a report is headed,
+        for the reason `exclusion` is one: a figure that names a different
+        round on two surfaces is worse than a figure that names none.
+        """
+        return f"brand: {self.brand}   snapshot: {self.snapshot}"
+
     def as_text(self) -> str:
         lines = [
-            f"brand: {self.brand}   snapshot: {self.snapshot}",
+            self.identity,
             f"design: {counted(self.n_prompts, 'prompt')} x "
             f"{counted(self.total_runs / max(self.n_prompts, 1), 'run', fmt='.1f')} "
             f"= {counted(self.total_runs, 'observation')} on {', '.join(self.engines)}",

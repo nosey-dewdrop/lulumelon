@@ -160,7 +160,7 @@ def test_a_platform_without_a_keychain_says_so_instead_of_skipping(tmp_path: Pat
     got = resolve(PPLX, env={}, cwd=tmp_path, home=tmp_path, keychain=no_keychain, system="Linux")
     keychain_lines = [line for line in got.explain() if KEYCHAIN_SERVICE in line]
     assert keychain_lines == [
-        f"[empty] OS keychain (service {KEYCHAIN_SERVICE}, account perplexity) — not available on this platform"
+        f"[empty] OS keychain (service {KEYCHAIN_SERVICE}, account perplexity), not available on this platform"
     ]
 
 

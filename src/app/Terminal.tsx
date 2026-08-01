@@ -72,7 +72,7 @@ function transcriptLines(t: Transcript): Line[] {
       label: row.name,
       count: `${row.successes}/${row.n}`,
       rate: pctText(row.point),
-      range: `${pctText(row.lower)} – ${pctText(row.upper)}`,
+      range: `${pctText(row.lower)} to ${pctText(row.upper)}`,
       rank:
         row.rankMean === null
           ? "never named"

@@ -229,7 +229,7 @@ def test_the_two_arms_are_two_conditions_everywhere_they_are_read(led):
     The difference between them is the finding: whether the model knows the
     brand from its weights or finds it by retrieval. That only holds if nothing
     can pool them, so the condition is checked in all three places a round is
-    read from — the file name, every record, and the comparison that would
+    read from: the file name, every record, and the comparison that would
     otherwise put a number on the gap between them.
     """
     searched = run_round(

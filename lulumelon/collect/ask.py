@@ -412,7 +412,7 @@ class PerplexityProvider:
 
     On the endpoint. Two routes answer: `/chat/completions`, which is what this
     code used to post to, and `/v1/sonar`, which is the one the reference
-    documents. Both are live — an unauthenticated probe returns 401 from each
+    documents. Both are live. An unauthenticated probe returns 401 from each
     and 404 from a made-up path, so routing happens before auth and neither is
     gone. `/v1/sonar` is used because it is the documented one: an undocumented
     route gets no deprecation notice, and the response shape this class parses
@@ -420,7 +420,7 @@ class PerplexityProvider:
 
     Sonar itself is soft-deprecated in favour of the Agent API, with no
     retirement date published anywhere. That migration is not made here, and
-    the reason is that the Agent API's presets are unversioned by design — the
+    the reason is that the Agent API's presets are unversioned by design: the
     docs say a preset name "always resolves to the latest recommended
     configuration". An instrument whose units change under it when the vendor
     ships is not an instrument, so any move there has to pin an explicit model

@@ -299,7 +299,7 @@ class Probe:
 
     def line(self) -> str:
         mark = "found" if self.found else "empty"
-        tail = f" — {self.note}" if self.note else ""
+        tail = f", {self.note}" if self.note else ""
         return f"[{mark}] {self.where}{tail}"
 
 

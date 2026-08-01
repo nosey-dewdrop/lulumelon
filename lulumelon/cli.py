@@ -268,9 +268,9 @@ def storage_menu(cwd: Path, home: Path) -> list[tuple[str, str]]:
     local, home_file = env_file_candidates(cwd, home)
     menu = []
     if keychain_available():
-        menu.append(("keychain", f"the OS keychain (service {KEYCHAIN_SERVICE}) — not a file, not in the repo"))
-    menu.append(("local", f"{local} — read only in this directory"))
-    menu.append(("home", f"{home_file} — read from anywhere"))
+        menu.append(("keychain", f"the OS keychain (service {KEYCHAIN_SERVICE}), not a file and not in the repo"))
+    menu.append(("local", f"{local}, read only in this directory"))
+    menu.append(("home", f"{home_file}, read from anywhere"))
     return menu
 
 
@@ -301,7 +301,7 @@ def init(
     the hidden prompt was protecting against in the first place.
     """
     spec = spec_for(provider)
-    console.say(f"lulu init — setting up {spec.name}")
+    console.say(f"lulu init: setting up {spec.name}")
     console.say()
 
     key = ""
@@ -653,7 +653,7 @@ def doctor(
     telling us about the shell.
     """
     spec = spec_for(provider)
-    console.say(f"lulu doctor — {spec.name}")
+    console.say(f"lulu doctor: {spec.name}")
     console.say()
     found = resolve(spec, cwd=cwd, home=home, env=env, keychain=keychain)
     report_lookup(console, spec, found)
@@ -744,7 +744,7 @@ def collect(
             "afterwards. price the model in prices.py, or name one that is already there"
         )
 
-    console.say(f"lulu collect — {subject.name} on {provider}/{model}")
+    console.say(f"lulu collect: {subject.name} on {provider}/{model}")
     console.say()
     console.say(f"  subject   {subject.path}")
     console.say(f"  tracking  {_names(subject)}")
@@ -920,7 +920,7 @@ def usage(
         console.say("Nothing has been asked yet, so nothing has been spent.")
         return 0
 
-    console.say(f"lulu usage — {ledger_dir}")
+    console.say(f"lulu usage: {ledger_dir}")
 
     failed_chain = False
     for snapshot_id in wanted:
@@ -988,7 +988,7 @@ def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -
     """
     store = Ledger(ledger_dir)
     wanted = [snapshot] if snapshot else store.snapshots()
-    console.say(f"lulu verify — {ledger_dir}")
+    console.say(f"lulu verify: {ledger_dir}")
     console.say()
     if not wanted:
         console.say("No rounds recorded here, so there is nothing to check.")
@@ -1391,7 +1391,7 @@ def ablate(
     attached rather than a failure to produce one.
     """
     store = Ledger(ledger_dir)
-    console.say(f"lulu ablate — {ledger_dir}")
+    console.say(f"lulu ablate: {ledger_dir}")
     console.say()
 
     try:
@@ -1514,7 +1514,7 @@ def lift(
     fact about two laboratory arms.
     """
     store = Ledger(ledger_dir)
-    console.say(f"lulu lift — {ledger_dir}")
+    console.say(f"lulu lift: {ledger_dir}")
     console.say()
 
     remaining = without(sources, source)
@@ -1666,7 +1666,7 @@ def report(
     subject = load_subject(subject_path)
     self_naming = subject.self_naming(brand)
 
-    console.say(f"lulu report — {ledger_dir}")
+    console.say(f"lulu report: {ledger_dir}")
     console.say()
     try:
         played = _verified(store, console, "round", snapshot)

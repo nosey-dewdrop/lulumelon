@@ -7,9 +7,9 @@ prompt-to-prompt variation from the difference.
 
 Three things live here:
 
-  `paired_difference` — cluster bootstrap on per-prompt differences.
-  `mcnemar_detection` — exact test for a binary appear/not-appear flip.
-  `holm_adjust` — family-wise correction, because a dashboard that tests forty
+  `paired_difference`, cluster bootstrap on per-prompt differences.
+  `mcnemar_detection`, exact test for a binary appear/not-appear flip.
+  `holm_adjust`, family-wise correction, because a dashboard that tests forty
   prompts and highlights the two that moved has run forty tests and reported
   the winners.
 

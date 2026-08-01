@@ -214,7 +214,7 @@ _LONE_SURROGATE = "�"
 def storable(text: str) -> str:
     """Replace characters that cannot be encoded, and leave everything else.
 
-    A provider's JSON can contain an escaped unpaired surrogate — half of an
+    A provider's JSON can contain an escaped unpaired surrogate, half of an
     emoji whose other half was dropped somewhere upstream. It survives
     `json.loads` and then cannot be encoded to UTF-8 at all, so writing it
     aborts the round at that ask and leaves a short file that reads exactly

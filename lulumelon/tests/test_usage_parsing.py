@@ -2,7 +2,7 @@
 
 The four numbers this file is about become permanent the moment they enter the
 ledger, and they are the ones a dollar figure is computed from. Every test here
-exists because the same fact — "the provider did not say" — has more than one
+exists because the same fact, "the provider did not say", has more than one
 plausible wrong encoding, and each wrong encoding turns into a confident number
 somewhere downstream.
 """

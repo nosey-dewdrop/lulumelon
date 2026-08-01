@@ -35,11 +35,11 @@ anyone else's.
 Asks n times, and reports what the sample supports.
 
     name                seen     rate        interval             rank
-    CLO3D               5/5    100.0%      56.6% – 100.0%      1.2 ± 0.45
-    Optitex             4/5     80.0%      37.6% –  96.4%      1.8 ± 0.50
-    Gerber AccuMark     2/5     40.0%      11.8% –  76.9%      3.0 ± 0.00
-    Seamly2D            1/5     20.0%       3.6% –  62.4%      3.0
-  ▸ stitchu             0/5      0.0%       0.0% –  43.4%      never named
+    CLO3D               5/5    100.0%      56.6% to 100.0%     1.2 ± 0.45
+    Optitex             4/5     80.0%      37.6% to  96.4%     1.8 ± 0.50
+    Gerber AccuMark     2/5     40.0%      11.8% to  76.9%     3.0 ± 0.00
+    Seamly2D            1/5     20.0%       3.6% to  62.4%     3.0
+  ▸ stitchu             0/5      0.0%       0.0% to  43.4%     never named
 
 **0 of 5 is not 0%.** Never being named in five draws is compatible with being
 named 43% of the time. The textbook normal approximation collapses to [0, 0]
@@ -104,7 +104,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 726 tests, offline
+    python3 -m pytest lulumelon/tests   # 732 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started

@@ -133,26 +133,54 @@ def test_every_command_the_cli_offers_is_shown_in_the_readme():
     assert offered == shown, f"undocumented: {sorted(offered - shown)}"
 
 
-def test_every_interval_in_the_readme_table_is_the_one_wilson_returns():
-    """The first table a reader sees is recomputed rather than transcribed."""
-    for successes, n in ((5, 5), (4, 5), (2, 5), (1, 5), (0, 5)):
-        row = next(
-            (line for line in README_TEXT.splitlines() if f"{successes}/{n}" in line), None
+#: The round the front page quotes, as its own report printed it. Nine scored
+#: prompts, one of them naming the brand in every ask and eight in none, which
+#: is where 1/9 comes from. The figures are pinned here so the page cannot drift
+#: from the ledger it was read off, and so a reader who recollects the round can
+#: check the page against their own copy rather than trusting it.
+QUOTED_ROUND = {"clusters": 9, "named_in": 1, "answers": 125}
+
+
+def test_the_rate_on_the_front_page_is_the_one_the_arithmetic_gives():
+    """The first figures a reader sees are recomputed rather than transcribed.
+
+    They are a real round rather than an illustration, so an error here is not a
+    typo in an example, it is a wrong measurement on the front page.
+    """
+    rate = QUOTED_ROUND["named_in"] / QUOTED_ROUND["clusters"] * 100
+    assert f"named in {rate:.1f}% of answers" in README_TEXT
+
+
+def test_the_design_effect_the_readme_argues_from_is_the_computed_one():
+    """At a correlation of one the effective sample is the cluster count.
+
+    deff = 1 + (k - 1) * icc, so at icc 1 it is k, and n / k is the number of
+    clusters. The page states that identity as a number and this recomputes it.
+    """
+    n, clusters = QUOTED_ROUND["answers"], QUOTED_ROUND["clusters"]
+    k = n / clusters
+    deff = 1 + (k - 1) * 1.0
+    effective = n / deff
+    # The page is wrapped prose, so a phrase can straddle a line break. Compare
+    # against the text with its runs of whitespace flattened rather than pinning
+    # the figure to wherever the wrap happens to fall today.
+    flat = " ".join(README_TEXT.split())
+    assert f"effective sample of {effective:.2f}" in flat
+
+
+def test_the_front_page_carries_no_invented_measurement():
+    """An earlier version of this table was hand written and read as measured.
+
+    It quoted five draws against four named products, and every interval in it
+    re-derived correctly, which made it more convincing rather than less. The
+    arithmetic was real and the draws were not, and nothing on the page said so.
+    A page that reports a number about somebody else's brand has to have
+    collected it, so those names must not come back.
+    """
+    for invented in ("CLO3D", "Optitex", "Gerber AccuMark", "Seamly2D", "Browzwear"):
+        assert invented not in README_TEXT, (
+            f"{invented} is back on the front page, and no round in this repo measured it"
         )
-        assert row is not None, f"the {successes}/{n} row left the table"
-        interval = wilson_interval(successes, n)
-        for value in (interval.point, interval.low, interval.high):
-            assert f"{value * 100:.1f}%" in row, (
-                f"{successes}/{n}: the code says {value * 100:.1f}% and the row does not"
-            )
-
-
-def test_the_two_figures_the_readme_argues_from_are_the_computed_ones():
-    """The prose picks two numbers out of the table and leans on them."""
-    never_named = wilson_interval(0, 5)
-    five_of_five = wilson_interval(5, 5)
-    assert f"named {never_named.high * 100:.0f}% of the time" in README_TEXT
-    assert f"lower bound of {five_of_five.low * 100:.1f}%" in README_TEXT
 
 
 def test_the_readme_layout_names_every_module_and_no_others():

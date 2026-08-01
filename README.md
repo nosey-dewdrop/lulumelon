@@ -32,21 +32,39 @@ anyone else's.
 
 ## what this does
 
-Asks n times, and reports what the sample supports.
+Asks n times, and reports what the sample supports. Below is a real round, not
+an illustration. Four hundred live calls against one engine on 1 August 2026,
+two arms, $3.695558 of a prepaid account, written to a sealed ledger that
+re-derives.
 
-    name                seen     rate        interval             rank
-    CLO3D               5/5    100.0%      56.6% to 100.0%     1.2 ± 0.45
-    Optitex             4/5     80.0%      37.6% to  96.4%     1.8 ± 0.50
-    Gerber AccuMark     2/5     40.0%      11.8% to  76.9%     3.0 ± 0.00
-    Seamly2D            1/5     20.0%       3.6% to  62.4%     3.0
-  ▸ stitchu             0/5      0.0%       0.0% to  43.4%     never named
+    APPEARANCE
+      Marx is named in 11.1% of answers
+      honest range 0.0% to 33.3%  (95% confidence, prompt-clustered)
 
-**0 of 5 is not 0%.** Never being named in five draws is compatible with being
-named 43% of the time. The textbook normal approximation collapses to [0, 0]
-here, which would state certainty of absence after five samples, so this uses
-the Wilson score interval, which keeps a real bound at the edges.
+    WHAT IS CONTRIBUTING TO YOUR INTERVAL WIDTH?
+      the model answering differently   0.0%
+      which questions you chose to ask  100.0%
+      noise floor  +/-25.8 points  (icc 1.00)
 
-**100% is not certainty either.** Five for five gives a lower bound of 56.6%.
+The second arm asked the same nine questions with no search tool attached, and
+the brand was named in 0.0% of a hundred and eighty answers. So this engine does
+not carry it and finds it only when it goes looking.
+
+**The repeats bought nothing, and the arithmetic says how much nothing.** Every
+question returned the same answer on all twenty asks, so the correlation inside
+a question came out at 1.000. The design effect is then the cluster size, and
+a hundred and twenty five answers over nine questions carry an effective sample
+of 9.00. Exactly the number of questions.
+
+**0 of 20 is not 0%.** Eight of the nine questions never named the brand, and
+never being named still leaves a real upper bound rather than certainty of
+absence. The textbook normal approximation collapses to [0, 0] there, so this
+uses the Wilson score interval, which keeps a bound at the edges.
+
+**One question was excluded and the report says so on its own line.** It asked
+what the brand's own domain is, so every answer repeated the name, including the
+ones stating the model had never heard of it. A question carrying the name is
+answered with it whatever the model knows.
 
 **Rank is kept separate from rate**, because appearing twice at rank 1 is a
 different position from appearing nine times at rank 5.
@@ -54,6 +72,11 @@ different position from appearing nine times at rank 5.
 **Ahead means the intervals do not overlap.** A competitor at 6 of 10 against
 your 4 of 10 is not ahead of you, so no ranking is printed that the sample
 cannot support.
+
+The round behind those figures is on the machine that collected it and is not
+published here, because it is a measurement of somebody else's brand. What is
+published is the command that reproduces one, and the chain hash that lets a
+reader check any report against the ledger it came from.
 
 ## layout
 
@@ -104,7 +127,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 746 tests, offline
+    python3 -m pytest lulumelon/tests   # 747 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a

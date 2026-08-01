@@ -18,13 +18,21 @@ not tell anyone what to do next; the split behind it does.
 Order is deliberate and it is not the order of interest. Access comes before
 measurement, because a blocked crawler explains a low number completely and a
 customer who reads a visibility score first will go buy content they did not
-need.
+need. The questions come last for the opposite reason: the list is long, it is
+read once against a claim rather than every time, and putting it above the
+figure would push the figure off the screen.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .collect.ask import (
+    NO_LOCATION,
+    NO_SEARCH_TOOL,
+    SEARCH_CAP_UNRECORDED,
+    is_unsearched_surface,
+)
 from .collect.audit import SiteAudit
 from .mirror.report import BrandReport
 from .mirror.sources import SourceAssociation
@@ -32,9 +40,51 @@ from .text import counted
 
 RULE = "-" * 66
 
+#: Questions the terminal prints in full before it stops counting them out. Two
+#: lines each, so a dozen is about a screen; past that the list stops being
+#: readable where it is and the document, which prints every one, is where the
+#: whole of it lives.
+TERMINAL_QUESTIONS = 12
+
 
 def _pct(x: float) -> str:
     return f"{x * 100:.1f}%"
+
+
+@dataclass(frozen=True, slots=True)
+class Question:
+    """One question as the subject file states it, and how it came back.
+
+    `asked` is the records the round wrote for it and `usable` is what is left
+    after the failures are excluded. Both, per question, because a round is not
+    balanced: the design line above divides the answers by the questions and
+    prints an average that no question was actually asked.
+
+    `excluded` is per question what `BrandReport.exclusion` states for the
+    round. The round's own sentence says how many prompts were left out and
+    names their ids; this puts the mark on the line the reader is looking at,
+    so a list of questions cannot be read as the list that was scored.
+    """
+
+    id: str
+    text: str
+    asked: int
+    usable: int
+    excluded: bool
+
+    def lines(self) -> list[str]:
+        """The question, then what it produced. Two lines, in that order.
+
+        The question first because the question is the thing being disclosed.
+        The wording of the counts is `Replay.as_text`'s, and the wording of the
+        exclusion is `BrandReport.exclusion`'s, so the same fact reads the same
+        way wherever the reader meets it.
+        """
+        tail = ", excluded from the rate and its interval" if self.excluded else ""
+        return [
+            f"  {self.id:<5} {self.text}",
+            f"        {self.usable} usable of {self.asked} asked{tail}",
+        ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +96,8 @@ class Panel:
     audit: SiteAudit | None = None
     dropped_runs: int = 0
     target_half_width: float = 0.02
+    questions: tuple[Question, ...] = ()
+    surfaces: tuple[str, ...] = ()
 
     # -- sections ----------------------------------------------------------
 
@@ -107,6 +159,61 @@ class Panel:
             out.append(f"  model changed underneath: {r.model_drift}")
         return out
 
+    def parameters(self) -> list[str]:
+        """What was requested of the engine, beside what the answers came to.
+
+        Two of the things an independent critique of this category says these
+        products keep from the buyer, and both of them are things this build
+        knows and was not printing. A report that says nothing about where it
+        asked from reads as a report that chose somewhere, and a search cap the
+        ledger never wrote down has to be said to be missing rather than filled
+        in from whatever this build happens to send today.
+
+        Both lines describe the call that was made, and which arm made it is
+        read off the round's own surfaces. A panel that was not handed them
+        prints nothing here rather than describing a call it cannot see.
+        """
+        if not self.surfaces:
+            return []
+        searched = not all(is_unsearched_surface(s) for s in self.surfaces)
+        return [
+            "PARAMETERS",
+            f"  location  {NO_LOCATION}",
+            f"  searches  {SEARCH_CAP_UNRECORDED if searched else NO_SEARCH_TOOL}",
+        ]
+
+    def question_section(self, limit: int | None = TERMINAL_QUESTIONS) -> list[str]:
+        """The questions themselves, so the round can be reproduced from the page.
+
+        The first thing a critique of this category says these products hide is
+        the prompt list, and the advice given to buyers is to ask to see the
+        prompts for their category and run the round again themselves. Neither
+        is possible from a rate and an interval. Everything needed is in the
+        subject file the report already opens: the questions, in the order that
+        file states them, with the ids the ledger grouped them by.
+
+        `limit` is the terminal's problem and not the document's. A screen is
+        where a long list stops being read, and the document is the copy
+        somebody checks a claim against, so it is rendered with no limit at all.
+        """
+        if not self.questions:
+            return []
+        out = [
+            "QUESTIONS",
+            "  every question this round asked, in the order the subject file states them",
+            "",
+        ]
+        shown = self.questions if limit is None else self.questions[:limit]
+        for question in shown:
+            out.extend(question.lines())
+        left = len(self.questions) - len(shown)
+        if left:
+            out.append("")
+            out.append(
+                f"  {counted(left, 'question')} not printed here, and --pdf writes all of them"
+            )
+        return out
+
     def appearance(self) -> list[str]:
         """The rate, from the estimator the line beside it names.
 
@@ -119,6 +226,13 @@ class Panel:
         in `./ledger` read 16.0% (10.6 to 23.4) where the clustered figure is
         11.1% (0.0 to 33.3). `BrandReport.headline` has always used the
         clustered one, so the two surfaces disagreed as well.
+
+        The two lines under the figure are how it was arrived at, which is the
+        last of the things a critique of this category says these products keep
+        from the buyer. They are the estimators' own sentences and the method
+        string the interval carries, rather than a description of a bootstrap in
+        general: the draws and the seed are in that string, and they are what a
+        second run of this arithmetic has to match.
         """
         d = self.report.detection_by_prompt
         return [
@@ -126,6 +240,11 @@ class Panel:
             f"  {self.report.brand} is named in {_pct(d.point)} of answers",
             f"  honest range {_pct(d.low)} to {_pct(d.high)}"
             f"  ({int(d.confidence * 100)}% confidence, prompt-clustered)",
+            "",
+            "  the rate is the mean of the per-prompt means, and each prompt gets equal"
+            " weight regardless of how many times it was asked",
+            f"  the range is {d.method}, the percentile bootstrap"
+            " where the prompt, not the run, is resampled",
         ]
 
     def contributing(self) -> list[str]:
@@ -215,10 +334,12 @@ class Panel:
         blocks = [
             self.access(),
             self.design(),
+            self.parameters(),
             self.appearance(),
             self.contributing(),
             self.source_section(),
             self.verdicts(),
+            self.question_section(),
         ]
         lines: list[str] = []
         for block in blocks:

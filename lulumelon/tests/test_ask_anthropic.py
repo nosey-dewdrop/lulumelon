@@ -109,6 +109,27 @@ def test_the_key_goes_in_the_header_the_api_documents(monkeypatch):
     assert headers["Anthropic-version".lower()] == "2023-06-01"
 
 
+def test_no_request_states_where_it_is_asking_from(monkeypatch):
+    """`NO_LOCATION` is printed on every report, so it has to stay true here.
+
+    Both engines publish a field for a location and neither body built in this
+    module carries one. The day one of them does, the report is telling a reader
+    that nowhere was asked for while the collector asked for somewhere, and this
+    is the assertion that has to be updated for that to happen.
+    """
+    for provider, payload in (
+        (AnthropicProvider(api_key=KEY), message([{"type": "text", "text": "ok"}])),
+        (
+            PerplexityProvider(api_key="pplx-" + "a" * 32),
+            {"choices": [{"message": {"content": "ok"}}], "model": "sonar"},
+        ),
+    ):
+        seen: list = []
+        monkeypatch.setattr(urllib.request, "urlopen", answering(payload, seen))
+        provider.ask("where should I look?")
+        assert "location" not in seen[0].data.decode("utf-8").lower(), provider.name
+
+
 def test_a_cap_of_zero_with_the_tool_still_attached_is_refused_by_name():
     """A model told it may look and then refused is neither arm of anything."""
     with pytest.raises(ValueError, match="ungrounded model"):

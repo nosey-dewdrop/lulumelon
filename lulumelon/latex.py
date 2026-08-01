@@ -59,6 +59,15 @@ _ESCAPES = {
     "<": r"\textless{}",
     ">": r"\textgreater{}",
     "|": r"\textbar{}",
+    # A line ending is an instruction too, and the one that ends a document.
+    # Nothing the panel builds carries one, but a question does: prompt text is
+    # arbitrary JSON somebody wrote by hand, and two line endings in a row are a
+    # blank line, which is `\par`. Set inside a block whose lines are joined
+    # with `\\`, that is `\\` followed by a paragraph break, which is the error
+    # `There's no line here to end` and no PDF at all. Written as a space, which
+    # is what a line ending means inside a sentence.
+    "\n": " ",
+    "\r": " ",
 }
 
 #: A run of spaces the terminal uses as a column gap. TeX collapses it, so it is
@@ -200,10 +209,15 @@ def tex_document(panel: Panel, evidence: Evidence) -> str:
     for block in (
         panel.access(),
         panel.design(),
+        panel.parameters(),
         panel.appearance(),
         panel.contributing(),
         panel.source_section(),
         panel.verdicts(),
+        # Every question, where the terminal stops at a screenful. This is the
+        # copy somebody checks a claim against, and a list of questions with
+        # some of them missing cannot be checked against anything.
+        panel.question_section(limit=None),
     ):
         if block:
             parts.extend(_section(block))

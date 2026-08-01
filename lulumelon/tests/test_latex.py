@@ -23,11 +23,12 @@ from pathlib import Path
 
 import pytest
 
+from lulumelon.cli import questions_of
 from lulumelon.collect import FakeProvider, Ledger, load_subject, replay, run_round
 from lulumelon.latex import Evidence, escape, tex_document
 from lulumelon.mirror.report import brand_report
 from lulumelon.mirror.types import Snapshot, group_runs
-from lulumelon.panel import Panel
+from lulumelon.panel import TERMINAL_QUESTIONS, Panel
 from lulumelon.usage import spend_of
 
 HAIKU = "claude-haiku-4-5"
@@ -113,7 +114,15 @@ def _round(tmp_path: Path, doc: dict, script: dict, brand: str) -> tuple[Panel, 
         dates=tuple(sorted({r.asked_at[:10] for r in records if not r.is_seal})),
         cost=spend_of(records).total_lines(),
     )
-    return Panel(report=scored, dropped_runs=played.dropped), evidence, result.snapshot_id
+    panel = Panel(
+        report=scored,
+        dropped_runs=played.dropped,
+        surfaces=played.surfaces,
+        # Through the command's own assembler rather than built here, so the
+        # questions on the page are the ones the report path puts there.
+        questions=questions_of(subject, played, records, subject.self_naming(brand)),
+    )
+    return panel, evidence, result.snapshot_id
 
 
 @pytest.fixture
@@ -204,9 +213,14 @@ brand: Marx\\quad{}snapshot: SNAPSHOT\\par
 2 prompts x 2 runs = 4 answers on anthropic\\\\
 excluded from the rate and its interval: 1 prompt whose own text names Marx (m1)\\\\
 detection matches declared literals, so a question carrying the name is answered with it whatever the model knows\\par
+\\section*{PARAMETERS}
+location\\quad{}no location was requested, so the answers are whatever the engine serves a call that named none\\\\
+searches\\quad{}the cap on how many searches a call may run is not written to the ledger, so it is not recoverable from this round\\par
 \\section*{APPEARANCE}
 Marx is named in 25.0\\% of answers\\\\
 honest range 0.0\\% to 50.0\\%\\quad{}(95\\% confidence, prompt-clustered)\\par
+the rate is the mean of the per-prompt means, and each prompt gets equal weight regardless of how many times it was asked\\\\
+the range is cluster\\_bootstrap(B=2000,seed=0), the percentile bootstrap where the prompt, not the run, is resampled\\par
 \\section*{WHAT IS CONTRIBUTING TO YOUR INTERVAL WIDTH?}
 the model answering differently\\quad{}100.0\\%\\\\
 which questions you chose to ask\\quad{}0.0\\%\\\\
@@ -215,6 +229,14 @@ next: repeats will not get you there: with 2 prompts the prompt set alone alread
 \\section*{VERDICTS}
 rank\\quad{}WITHHELD, the leading brand does not repeat often\\\\
 \\hspace*{5em}enough for a position to describe anything but the sampling\\par
+\\section*{QUESTIONS}
+every question this round asked, in the order the subject file states them\\par
+m1\\quad{}What is marx.finance?\\\\
+\\hspace*{3em}2 usable of 2 asked, excluded from the rate and its interval\\\\
+m2\\quad{}Agentic finance platforms in 2026\\\\
+\\hspace*{3em}2 usable of 2 asked\\\\
+m3\\quad{}Reputation systems for AI trading agents\\\\
+\\hspace*{3em}2 usable of 2 asked\\par
 \\section*{EVIDENCE}
 \\begin{tabularx}{\\textwidth}{@{}lX@{}}
 records & 7 records\\\\
@@ -265,9 +287,11 @@ def test_the_sentences_are_the_ones_the_screen_prints(marx):
     spoken = _spoken(tex_document(panel, evidence))
     for block in (
         panel.design(),
+        panel.parameters(),
         panel.appearance(),
         panel.contributing(),
         panel.verdicts(),
+        panel.question_section(limit=None),
     ):
         for line in block:
             assert escape(re.sub(r" +", " ", line.strip())) in spoken, line
@@ -338,6 +362,26 @@ def test_the_cost_wording_is_the_one_lulu_usage_prints(marx):
         assert escape(re.sub(r" +", " ", line)) in spoken
 
 
+def test_the_document_prints_every_question_where_the_screen_stops(tmp_path):
+    """The screen holds a screenful. The page is what somebody checks against.
+
+    Collected over more questions than the terminal prints, so the two surfaces
+    disagree here by design and the document is the one carrying all of them.
+    """
+    doc = json.loads(json.dumps(SUBJECT))
+    doc["prompts"] = [
+        {"id": f"q{i}", "text": f"Question number {i}"} for i in range(TERMINAL_QUESTIONS + 3)
+    ]
+    panel, evidence, _ = _round(tmp_path, doc, {}, "Marx")
+    spoken = _spoken(tex_document(panel, evidence))
+
+    assert len(panel.question_section()) < len(panel.question_section(limit=None))
+    assert "3 questions not printed here" in "\n".join(panel.question_section())
+    for prompt in doc["prompts"]:
+        assert prompt["text"] in spoken, prompt["id"]
+    assert "not printed here" not in spoken
+
+
 # -- arbitrary input ---------------------------------------------------------
 
 
@@ -363,6 +407,23 @@ def test_the_only_live_ampersands_are_the_columns_of_the_evidence_table(hostile)
     panel, evidence, _ = hostile
     tex = tex_document(panel, evidence)
     assert len(_unescaped(tex, "&")) == len(evidence.rows())
+
+
+def test_a_question_carrying_a_blank_line_does_not_put_one_on_the_page(tmp_path):
+    """A blank line is `\\par`, and after a `\\\\` it is an error and no PDF.
+
+    Prompt text is arbitrary JSON somebody wrote by hand, and it is the only
+    thing on this page that can carry a line ending. Set as itself inside a
+    block whose lines are joined with explicit breaks, two of them in a row end
+    the document with `There's no line here to end`.
+    """
+    doc = json.loads(json.dumps(SUBJECT))
+    doc["prompts"] = [{"id": "n1", "text": "Best ice cream\n\nin Vermont"}]
+    panel, evidence, _ = _round(tmp_path, doc, {}, "Marx")
+    tex = tex_document(panel, evidence)
+
+    assert "" not in tex.splitlines(), "a blank line reached the document"
+    assert "Best ice cream in Vermont" in _spoken(tex)
 
 
 def test_braces_are_balanced(hostile):

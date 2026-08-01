@@ -69,6 +69,37 @@ UNSEARCHED_SURFACE = "api_unsearched"
 
 UNKNOWN_MODEL = "unknown"
 
+#: Where the calls below are asked from, which is nowhere in particular. Both
+#: engines here publish a field for stating a location and neither request built
+#: in this module carries one, so an answer is whatever the engine serves a call
+#: that named none.
+#:
+#: It is a sentence here rather than a line on a screen because the surfaces
+#: that print it must print the same words, and it is printed at all because an
+#: unstated location reads as a location somebody chose. A round collected from
+#: one country and read in another is a different measurement, and the reader is
+#: the only person who can tell whether that matters to them.
+NO_LOCATION = (
+    "no location was requested, so the answers are whatever the engine serves a call "
+    "that named none"
+)
+
+#: What a searched round can say about the ceiling it was collected under, which
+#: is nothing. `DEFAULT_MAX_SEARCHES` is sent on every call as the tool's
+#: `max_uses` and no field of a `Record` carries it, so two rounds collected
+#: under two different caps read identically on disk. Stated rather than
+#: defaulted to the constant below: the constant is what this build sends today,
+#: not what the round on the reader's disk was collected with.
+SEARCH_CAP_UNRECORDED = (
+    "the cap on how many searches a call may run is not written to the ledger, so it is "
+    "not recoverable from this round"
+)
+
+#: The same fact for the other arm, where it is recoverable. The arm is a
+#: surface, the surface is on every record, and a call with no search tool
+#: attached ran no searches.
+NO_SEARCH_TOOL = "no search tool was attached to this arm, so no call could run a search"
+
 
 def is_unsearched_surface(surface: str) -> bool:
     """Whether a round on this surface could have run a search at all.

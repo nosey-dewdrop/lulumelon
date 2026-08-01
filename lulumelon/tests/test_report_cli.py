@@ -198,6 +198,73 @@ def test_a_brand_the_subject_does_not_track_is_refused(tmp_path):
         run(rec, ledger, snapshot, subject, brand="Numerai")
 
 
+def test_a_subject_file_that_has_moved_since_the_round_is_refused(tmp_path):
+    """The questions and the exclusions are read off the file, so it has to be the file.
+
+    Renaming a prompt id after collection leaves a file that loads cleanly and
+    describes a different round: the renamed question would print with nothing
+    against it, the one that was asked would not print at all, and the rule that
+    leaves out a question naming the brand would be applied to whatever survived.
+    """
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+    doc = json.loads(subject.read_text(encoding="utf-8"))
+    doc["prompts"][1]["id"] = "renamed"
+    subject.write_text(json.dumps(doc), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="does not state m2"):
+        run(rec, ledger, snapshot, subject)
+
+
+# -- the questions, and the parameters they were asked under -----------------
+
+
+def test_the_questions_are_printed_with_what_each_one_produced(tmp_path):
+    """The prompt list, from the file the command already opens."""
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+
+    assert run(rec, ledger, snapshot, subject) == 0
+    text = rec.text
+
+    assert "QUESTIONS" in text
+    for prompt in SUBJECT["prompts"]:
+        assert prompt["text"] in text
+    assert "2 usable of 2 asked, excluded from the rate and its interval" in text
+
+
+def test_a_question_whose_asks_failed_says_so_on_its_own_line(tmp_path):
+    """The round is unbalanced, and the design line averages that away."""
+    rec = Recorder()
+    path = tmp_path / "marx.json"
+    path.write_text(json.dumps(SUBJECT), encoding="utf-8")
+    subject_file = load_subject(path)
+    ledger = Ledger(tmp_path / "ledger")
+    result = run_round(
+        ledger=ledger,
+        provider=FakeProvider(name="anthropic", model=HAIKU, script=SCRIPT, fail_on=(2, 3)),
+        prompts=subject_file.prompts,
+        brands=subject_file.brands,
+        k=2,
+        subject=subject_file.id,
+        clock=lambda: "2026-08-01T03:30:00Z",
+    )
+
+    assert run(rec, ledger, result.snapshot_id, path) == 0
+    assert "0 usable of 2 asked" in rec.text
+    assert "2 usable of 2 asked" in rec.text
+
+
+def test_the_parameters_the_round_was_collected_under_are_printed(tmp_path):
+    """Where it asked from, and what it may not say about the search cap."""
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+
+    assert run(rec, ledger, snapshot, subject) == 0
+    assert "no location was requested" in rec.text
+    assert "not recoverable from this round" in rec.text
+
+
 # -- the flags reach the command ---------------------------------------------
 
 

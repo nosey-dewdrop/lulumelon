@@ -104,7 +104,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 707 tests, offline
+    python3 -m pytest lulumelon/tests   # 726 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -195,6 +195,27 @@ with its interval, where the width of that interval came from, and every place
 the round refuses to give a number. The chain is re-derived first, because a
 number computed from a round that does not re-derive is not a number.
 
+It also prints what it asked and what it asked it under, which is the half of
+this category a buyer is normally not shown. An independent critique lists what
+these products keep back as "prompt list, runs per prompt, geography, model,
+account state, and scoring formula", and the advice given to buyers is to ask to
+see the prompts for their category and run the round again themselves. So the
+report ends with every question, in the order the subject file states them, each
+with how many of its asks came back usable and a mark where it is left out of
+the rate. The rate is not balanced across them: the round in `./ledger` asked
+twenty of each and kept between seven and twenty, and a design line that divides
+answers by questions prints an average that no question was asked at.
+
+Above the questions it says where the round asked from, which is nowhere: no
+location is sent on any call, and a report silent about that reads as a report
+that chose somewhere. The cap on how many searches one call may run is stated as
+not recoverable, because no field of a record carries it; on the arm collected
+with no search tool at all it is recoverable, and that is what is printed
+instead. Under the rate are the two lines that produce it: the mean of the
+per-prompt means, and the clustered percentile bootstrap named with the draws
+and the seed it was run at, so the arithmetic can be repeated rather than
+believed.
+
 The subject file is passed rather than a list of questions, because one rule is
 applied here that needs it. **A question that names the brand cannot measure
 that brand.** Detection matches declared literals, so a question carrying one of
@@ -219,6 +240,11 @@ from: the snapshot id, how many records are on it, what the round's own seal
 says it did, the hash the chain ends on, the model as the response reported it,
 the surface, the dates and what the round cost. A number in a PDF with no way
 back to its evidence is the thing this repo exists against.
+
+The document prints every question and the terminal stops at a screenful. That
+is the one place the two surfaces differ, and it is that way round because the
+document is the copy somebody checks a claim against, and a list of questions
+with some of them missing cannot be checked against anything.
 
 `--tex PATH` stops after the LaTeX and needs no TeX installed to get there.
 `--pdf PATH` writes that document beside the PDF and runs `tectonic` over it.

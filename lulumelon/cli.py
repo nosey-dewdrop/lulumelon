@@ -108,7 +108,7 @@ from .plan import (
     total_variance,
     variance_of,
 )
-from .panel import Panel
+from .panel import Panel, Question
 from .text import counted
 from .usage import spend_of, token_rate
 
@@ -1684,7 +1684,13 @@ def report(
         console.say(f"  {e}")
         return NOTHING_TO_SCORE
 
-    panel = Panel(report=scored, dropped_runs=played.dropped)
+    records = list(store.read(snapshot))
+    panel = Panel(
+        report=scored,
+        dropped_runs=played.dropped,
+        surfaces=played.surfaces,
+        questions=questions_of(subject, played, records, self_naming),
+    )
     for line in panel.as_text().splitlines():
         console.say(f"  {line}" if line else "")
 
@@ -1695,7 +1701,7 @@ def report(
         raise ValueError(
             f"{written.parent} is not a directory, so {written} cannot be written there"
         )
-    written.write_text(tex_document(panel, evidence_of(store, snapshot, played)), encoding="utf-8")
+    written.write_text(tex_document(panel, evidence_of(records, played)), encoding="utf-8")
     console.say()
     console.say(f"  wrote {written}")
     if pdf_path is None:
@@ -1703,19 +1709,71 @@ def report(
     return typeset(console, tex=written, pdf=pdf_path, which=which, run=run)
 
 
-def evidence_of(store: Ledger, snapshot: str, played: Replay) -> Evidence:
+def questions_of(
+    subject: Subject,
+    played: Replay,
+    records: Sequence[Record],
+    self_naming: Sequence[str],
+) -> tuple[Question, ...]:
+    """Every question the subject file states, with what the round did with it.
+
+    Assembled here for the reason `evidence_of` is: it reads a file, and the
+    surface that prints it is not allowed to know that a file exists. The text
+    of a question is in the subject file and nowhere else, since a `Record`
+    carries the prompt's id and not its words, so the two sides are joined on
+    the id that is the prompt's permanent identity.
+
+    A question the round never reached is listed with nothing against it. That
+    is the case a budget ceiling produces, and the round is shorter than the
+    design that bought it whether or not anybody says so on the page.
+
+    **A round that asked something the file does not state is refused.** The
+    questions on the report are read off the subject file, so a file edited
+    since the round was collected would print a list of questions that are not
+    the ones that were asked, and the rule that leaves out a question naming the
+    brand would be applied to whichever ids happened to survive the edit. This
+    is the same door that already refuses a brand the file does not track.
+    """
+    asked: dict[str, int] = {}
+    for rec in records:
+        if rec.is_seal:
+            continue
+        asked[rec.prompt_id] = asked.get(rec.prompt_id, 0) + 1
+    usable: dict[str, int] = {}
+    for run in played.runs:
+        usable[run.prompt_id] = usable.get(run.prompt_id, 0) + 1
+
+    unstated = sorted(set(asked) - {prompt.id for prompt in subject.prompts})
+    if unstated:
+        raise ValueError(
+            f"{subject.path} does not state {', '.join(unstated)}, which this round asked. "
+            "a report reads its questions and its exclusions off the subject file, so a file "
+            "that has moved since the round was collected describes a different round"
+        )
+    return tuple(
+        Question(
+            id=prompt.id,
+            text=prompt.text,
+            asked=asked.get(prompt.id, 0),
+            usable=usable.get(prompt.id, 0),
+            excluded=prompt.id in self_naming,
+        )
+        for prompt in subject.prompts
+    )
+
+
+def evidence_of(records: Sequence[Record], played: Replay) -> Evidence:
     """The facts about the file a printed report is checked against.
 
-    Read here rather than in the renderer, which is not allowed to know that a
-    file exists. The round has already re-derived by the time this runs, so
-    what is written down is what the chain was checked as, and the hash on the
-    last record is the hash a reader recomputes to check it again.
+    Read by the caller rather than in the renderer, which is not allowed to
+    know that a file exists. The round has already re-derived by the time this
+    runs, so what is written down is what the chain was checked as, and the
+    hash on the last record is the hash a reader recomputes to check it again.
 
     The dates come off the asks and not off the seal. A round is closed once
     and asked over however long it took, so the closing timestamp is when the
     collector stopped rather than when the answers were collected.
     """
-    records = list(store.read(snapshot))
     last = records[-1]
     return Evidence(
         records=len(records),

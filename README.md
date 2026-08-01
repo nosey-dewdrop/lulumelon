@@ -103,6 +103,7 @@ lulumelon/
     ledger.py     append-only, hash-chained, and each round states its length
     detect.py     brand matching by declared literals, no model in the loop
     audit.py      whether the answer engines are allowed to read the site
+    harvest.py    the customer's own site, read once, with the gaps named
     replica.py    the same question with the source list supplied, on purpose
     replay.py     ledger back into runs, handing back what it excluded
   usage.py        what a recorded round cost, from the provider's own figures
@@ -127,7 +128,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 784 tests, offline
+    python3 -m pytest lulumelon/tests   # 806 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a

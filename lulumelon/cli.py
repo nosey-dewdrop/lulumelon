@@ -9,6 +9,8 @@ was looked at, what was wrong with the key as a string, whether the endpoint is
 reachable at all, and what the one test call cost.
 `lulu plan` sizes a round before it is bought, and says where no number of
 repeats would be enough.
+`lulu collect` runs one round end to end and writes it down, under a ceiling it
+prints before it spends anything.
 `lulu usage` says what the rounds already on disk cost, and `lulu verify`
 re-derives their chains so the person relying on that can check it themselves.
 `lulu ablate` asks whether a replica round tracks the live surface closely
@@ -38,7 +40,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence, TextIO
 
-from .collect.ask import DEFAULT_MAX_SEARCHES, Answer, provider_for
+from .collect.ask import (
+    DEFAULT_MAX_SEARCHES,
+    UNSEARCHED_SURFACE,
+    Answer,
+    Provider,
+    provider_for,
+)
+from .collect.budget import UNMEASURED_INPUT_TOKENS, UNMEASURED_OUTPUT_TOKENS, Budget
 from .collect.ledger import (
     DIAGNOSTIC_SUBJECT,
     Ledger,
@@ -53,7 +62,8 @@ from .collect.replica import (
     replica_surface,
     without,
 )
-from .collect.session import utc_now
+from .collect.session import run_round, utc_now
+from .collect.subject import Subject, load_subject
 from .mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
 from .mirror.compare import model_confounds
 from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
@@ -77,7 +87,7 @@ from .keys import (
     spec_for,
     write_env_file,
 )
-from .prices import FEE_PER_SEARCH, Cost, estimate, fees, price_for, reported
+from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for, reported
 from .plan import (
     Comparison,
     Design,
@@ -652,6 +662,214 @@ def doctor(
         console.say("Stopping here: --offline was given, so no call was made and nothing was spent.")
         return 0
     return check_call(console, spec, found.key, ledger_dir=cwd / DEFAULT_LEDGER)
+
+
+# -- collect ----------------------------------------------------------------
+
+#: Returned when the ceiling stopped the round before it had asked everything.
+#: Not zero and not an error. The file on disk is a real round, shorter than
+#: the design that bought it, so every interval computed from it is wider than
+#: that design asked for; a caller that read a short round as a completed one
+#: would publish the wider interval as the planned one. The screen says the
+#: same thing in words, because a code is read by a script and a person needs
+#: to be told that a shorter round is not a failed one.
+ROUND_CUT_SHORT = 4
+
+
+def collect(
+    console: Console,
+    *,
+    subject_path: Path,
+    ledger_dir: Path,
+    k: int,
+    budget_usd: float,
+    cwd: Path,
+    home: Path,
+    provider: str = "anthropic",
+    model: str | None = None,
+    max_searches: int = DEFAULT_MAX_SEARCHES,
+    can_search: bool = True,
+    env: Mapping[str, str] | None = None,
+    keychain: Callable[[str, str], str | None] | None = None,
+    build_provider: Callable[[], Provider] | None = None,
+    clock: Callable[[], str] = utc_now,
+) -> int:
+    """Ask one subject's questions k times each, and write the round down.
+
+    This is the only command that spends money on purpose and at scale, so
+    everything that could stop it stops it before the first call: an unreadable
+    subject file, a model with no published price, a missing key, a ceiling of
+    nothing. What is left after those is a round, and the worst case it can
+    cost is printed before it starts rather than reported after it ends.
+
+    **The ceiling is not optional and is not defaulted.** A number chosen here
+    would be a number nobody decided, spent from a prepaid account against a
+    price this file did not set. It is constructed from the published price of
+    the model that will actually answer, so the guard and the invoice are
+    reading the same table.
+
+    **A model with no price on file is refused rather than collected.** Running
+    unpriced would mean a guard that cannot count, which is the same as no
+    guard at all, and the round would only find out what it cost when the
+    account stopped answering.
+
+    **Nothing is asked.** Every question in a step is a place to get stuck, and
+    this repo has already deleted a wizard for that reason. What the person
+    running this has to decide, they decide on the command line, once.
+
+    `build_provider` and `clock` are injected so the whole command can be
+    driven end to end against the deterministic stub, with no key spent and no
+    socket opened. The key is still resolved on that path, because never
+    printing it is a promise this command has to keep whether or not it calls
+    anything.
+    """
+    spec = spec_for(provider)
+    subject = load_subject(subject_path)
+    model = model or spec.check_model
+    price = price_for(provider, model)
+    if price is None:
+        raise ValueError(
+            f"no published price on file for {provider}/{model}, so this round would run "
+            "unpriced: the ceiling could not be enforced and the spend could not be checked "
+            "afterwards. price the model in prices.py, or name one that is already there"
+        )
+
+    console.say(f"lulu collect — {subject.name} on {provider}/{model}")
+    console.say()
+    console.say(f"  subject   {subject.path}")
+    console.say(f"  tracking  {_names(subject)}")
+    console.say(f"  asking    {len(subject.prompts)} prompts, {k} times each")
+    if can_search:
+        console.say(f"  arm       with the search tool, capped at {max_searches} searches a call")
+    else:
+        console.say(
+            f"  arm       with no search tool attached, recorded as surface {UNSEARCHED_SURFACE}"
+        )
+    if subject.ambiguous_name:
+        console.say(
+            f"  note      the file declares {subject.name!r} an ambiguous name: a bare mention"
+        )
+        console.say("            of it counts here, including one that meant somebody else.")
+        console.say("            the forms above are the whole of what counts, because")
+        console.say("            detection matches declared literals and infers nothing.")
+
+    found = resolve(spec, cwd=cwd, home=home, env=env, keychain=keychain)
+    if not found.ok:
+        console.say()
+        report_lookup(console, spec, found)
+        return 1
+    console.say(f"  key       {found.source}, fingerprint {fingerprint(found.key)}")
+
+    # Built before the ceiling is printed rather than after. An engine that
+    # cannot collect the arm it was asked for is refused here, so nobody reads
+    # a price for a round this build was never going to be able to make.
+    engine = build_provider() if build_provider else provider_for(
+        provider, found.key, model=model, max_searches=max_searches, can_search=can_search
+    )
+
+    budget = Budget(
+        price=price, limit_usd=budget_usd, max_searches=max_searches, can_search=can_search
+    )
+    planned = len(subject.prompts) * k
+    ceiling = budget.next_call_ceiling_usd()
+    console.say()
+    console.say("BEFORE ANYTHING IS SPENT")
+    console.say(f"  {planned} calls planned: {len(subject.prompts)} prompts, {k} times each")
+    console.say(f"  ${ceiling:.4f} is the most one of them can cost: an opening guess of")
+    console.say(
+        f"    {UNMEASURED_INPUT_TOKENS} in and {UNMEASURED_OUTPUT_TOKENS} out tokens, "
+        f"{_fee_sentence(price, max_searches, can_search)}"
+    )
+    console.say(f"  ${planned * ceiling:.4f} is the most the whole round can cost at that price")
+    affordable = int(budget_usd // ceiling)
+    if affordable >= planned:
+        console.say(f"  ${budget_usd:.2f} is your ceiling, and it covers all {planned}")
+    else:
+        console.say(f"  ${budget_usd:.2f} is your ceiling, and it covers {affordable} of them.")
+        console.say("    the round stops there unless the calls come back cheaper than the")
+        console.say("    guess, which this round replaces with its own measured rate as soon")
+        console.say("    as one call has been metered")
+    console.say(f"  priced from {price.provenance()}")
+
+    console.say()
+    console.say("ASKING")
+    console.say("  nothing is printed until the round closes. every ask is written to the")
+    console.say("  ledger as it comes back, so a round that dies halfway keeps what it had.")
+    ledger = Ledger(ledger_dir)
+    result = run_round(
+        ledger=ledger,
+        provider=engine,
+        prompts=subject.prompts,
+        brands=subject.brands,
+        k=k,
+        subject=subject.id,
+        clock=clock,
+        budget=budget,
+    )
+
+    console.say()
+    console.say("COLLECTED")
+    console.say(f"  snapshot  {result.snapshot_id}")
+    console.say(f"  written   {ledger.path_of(result.snapshot_id)}")
+    console.say(f"  {result.as_text()}")
+    if result.errors:
+        console.say(
+            "  every ask that failed is in the file with the provider's own reason, and none "
+            "was retried, because retrying until success reports the survivors"
+        )
+    for line in budget.as_text().splitlines():
+        console.say(f"  {line}")
+    if result.stopped_for_budget:
+        console.say()
+        console.say(
+            f"  the ceiling stopped this round: {result.unasked} of {result.planned} asks were "
+            "never made."
+        )
+        console.say(
+            "  that is a shorter round rather than a failed one. what it costs is that every"
+        )
+        console.say(
+            "  interval computed from it is wider than the design that bought it asked for,"
+        )
+        console.say("  and the count above is the only place that fact is written down.")
+
+    console.say()
+    console.say(f"  lulu verify --ledger {ledger_dir} --snapshot {result.snapshot_id}")
+    console.say(f"  lulu usage --ledger {ledger_dir} --snapshot {result.snapshot_id}")
+    return ROUND_CUT_SHORT if result.stopped_for_budget else 0
+
+
+def _names(subject: Subject) -> str:
+    """Every tracked name and every form of it, said in full.
+
+    Printed rather than counted. What counts as a mention is a declaration in a
+    file and nothing else, and this is the last screen before money is spent
+    against it, so it is where a missing alias or a name nobody meant to track
+    is still cheap to notice.
+    """
+    listed = []
+    for brand in subject.brands:
+        aliases = f" (also {', '.join(brand.aliases)})" if brand.aliases else ""
+        listed.append(f"{brand.name}{aliases}")
+    if len(listed) == 1:
+        return f"{listed[0]}, and nobody else"
+    return "; ".join(listed)
+
+
+def _fee_sentence(price: Price, max_searches: int, can_search: bool) -> str:
+    """How the fee half of that ceiling was arrived at, in words.
+
+    The fee is the term a reader cannot check from the token counts, and on a
+    search-grounded model it is the term that moves the figure most, so the
+    number of fees assumed is said out loud rather than folded into a total.
+    """
+    if not price.has_fee:
+        return "and no fee, because this model publishes none"
+    if price.fee_unit != FEE_PER_SEARCH:
+        return f"plus one fee at {price.fee_text}"
+    if not can_search:
+        return "and no search fee: this arm has no tool to run one with"
+    return f"plus up to {max_searches} searches at {price.fee_text}"
 
 
 # -- usage ------------------------------------------------------------------
@@ -1362,6 +1580,50 @@ def build_parser() -> argparse.ArgumentParser:
         help="do everything except the test call, so nothing is spent",
     )
 
+    p_collect = sub.add_parser(
+        "collect", help="ask one subject's questions k times each and write the round down"
+    )
+    p_collect.add_argument(
+        "--subject",
+        required=True,
+        metavar="PATH",
+        help="the subject file: the names this round tracks and the questions it asks",
+    )
+    # No default. k decides whether the round can carry an interval at all, and
+    # a number chosen here would be one nobody decided, spent for.
+    p_collect.add_argument(
+        "--k", type=int, required=True, help="how many times each prompt is asked; at least 2"
+    )
+    # Required for the same reason, and a harder one: this is the command that
+    # spends real money on a prepaid account, and a default ceiling is a
+    # default amount of somebody else's money.
+    p_collect.add_argument(
+        "--budget",
+        type=float,
+        required=True,
+        metavar="USD",
+        help="hard ceiling for this round in dollars; a round with no ceiling is refused",
+    )
+    p_collect.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the round is written to")
+    p_collect.add_argument("--provider", default="anthropic", help="which engine answers")
+    p_collect.add_argument(
+        "--model", default=None, help="model to ask; the provider's check model by default"
+    )
+    p_collect.add_argument(
+        "--max-searches",
+        type=int,
+        default=DEFAULT_MAX_SEARCHES,
+        help="searches one call may run, on an engine billed per search",
+    )
+    p_collect.add_argument(
+        "--no-search",
+        action="store_true",
+        help=(
+            "collect the arm with no search tool attached, which is recorded under its own "
+            f"surface ({UNSEARCHED_SURFACE}) so it can never be pooled with the searched one"
+        ),
+    )
+
     # No --model and no --provider. Both are read from each record, which names
     # the model that was actually billed; a flag would let one round be priced
     # at another model's rate with nothing on screen to say so.
@@ -1539,6 +1801,20 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 confidence=args.confidence,
                 brands=args.brands,
                 family=not args.per_brand,
+            )
+        if args.command == "collect":
+            return collect(
+                console,
+                subject_path=Path(args.subject),
+                ledger_dir=Path(args.ledger),
+                k=args.k,
+                budget_usd=args.budget,
+                cwd=cwd,
+                home=home,
+                provider=args.provider,
+                model=args.model,
+                max_searches=args.max_searches,
+                can_search=not args.no_search,
             )
         if args.command == "verify":
             return verify(console, ledger_dir=Path(args.ledger), snapshot=args.snapshot)

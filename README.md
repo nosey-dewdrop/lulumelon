@@ -59,7 +59,7 @@ cannot support.
 
 ```
 lulumelon/
-  cli.py          `lulu init` / `doctor` / `plan` / `usage` / `verify` / `ablate` / `lift`
+  cli.py          `lulu init` / `doctor` / `plan` / `collect` / `usage` / `verify` / `ablate` / `lift`
   keys.py         where a key is looked for, in order, and how it is kept quiet
   prices.py       what a call costs, from the provider's page, with the date read
   mirror/         the measurement core, calls no model
@@ -74,6 +74,7 @@ lulumelon/
     report.py     one brand, with the refusals kept
   collect/        the part that asks, and the part that writes it down
     ask.py        provider boundary; Perplexity Sonar and a deterministic stub
+    subject.py    the tracked names and the questions, refused rather than repaired
     session.py    one round: k asks per prompt, failures recorded not retried
     budget.py     a ceiling checked before each call, so a round stops short
     ledger.py     append-only, hash-chained, and each round states its length
@@ -101,7 +102,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 583 tests, offline
+    python3 -m pytest lulumelon/tests   # 616 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -146,6 +147,41 @@ split is what decides whether repeats or prompts buy your precision. So it
 prints the range, the icc above which no number of repeats reaches the target
 at all, and the price of both ends. Point it at a recorded round with
 `--pilot` and every one of those is replaced by a measured value.
+
+## collecting a round
+
+    lulu collect --subject data/subjects/marx.json --k 5 --budget 5.00 \
+                 --provider anthropic --model claude-opus-5 --max-searches 3
+
+asks every question in the subject file k times, writes each answer to the
+ledger as it comes back, and seals the round when it closes. The subject file is
+where the tracked names and the questions live. A prompt id in it is permanent
+identity, because that is what every comparison groups by, so a file with two
+prompts under one id is refused rather than renumbered, and so is one with no
+prompts, an empty brand, or a key this build does not read.
+
+`--budget` is a hard ceiling in dollars and it has no default. This is the
+command that spends real money on a prepaid account, and a default ceiling is a
+default amount of somebody else's. It is built from the published price of the
+model that will actually answer, so a model with no price on file is refused
+rather than collected unpriced, and the worst case at that ceiling is printed
+before the first call rather than reported after the last one. Nothing is asked
+along the way: every question in a step is a place to get stuck.
+
+A round the ceiling stops is a shorter round rather than a failed one. It says
+how many questions were never asked, seals itself at the length it reached, and
+comes back with a non-zero code so nothing downstream reads it as the design
+that was bought.
+
+    lulu collect --subject data/subjects/marx.json --k 5 --budget 5.00 --no-search
+
+collects the other arm: the same questions with no search tool attached at all,
+which is the difference between a brand the model knows from its weights and one
+it finds by retrieval. That arm records itself under its own surface, so the two
+are two files and two conditions, and comparing them is refused by the same rule
+that refuses a comparison between a logged-in browser and an API. On a fee
+charged per search it owes nothing, and `lulu usage` prices it that way instead
+of charging the one-search floor for a search it was never able to run.
 
     lulu usage     # what the rounds on disk cost, from the provider's figures
     lulu verify    # re-derive every chain, and say what that check does not cover

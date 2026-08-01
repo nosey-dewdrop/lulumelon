@@ -48,6 +48,7 @@ from .replica import (
     without,
 )
 from .session import Prompt, RoundResult, run_round, utc_now
+from .subject import Subject, SubjectFileError, load_subject
 
 __all__ = [
     "DIAGNOSTIC_SUBJECT",
@@ -77,10 +78,13 @@ __all__ = [
     "Replay",
     "ReplicaProvider",
     "RoundResult",
+    "Subject",
+    "SubjectFileError",
     "UnknownSchemaVersion",
     "Usage",
     "decode",
     "detect",
+    "load_subject",
     "is_diagnostic",
     "is_replica_surface",
     "is_unsearched_surface",

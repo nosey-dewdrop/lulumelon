@@ -49,6 +49,9 @@ import re
 from dataclasses import dataclass
 from typing import Callable, Iterable, Sequence
 
+from .intervals import Interval, wilson_interval
+from .variance import VarianceSplit, decompose
+
 #: Word n-gram width for near-duplicate comparison. Three is the usual working
 #: figure: pairs collide on any shared phrasing, and longer windows stop
 #: catching a reordered question.
@@ -235,3 +238,158 @@ def stable_ids(
         taken.add(fresh)
         out.append(Candidate(fresh, candidate.text, candidate.source, candidate.evidence))
     return tuple(out)
+
+
+# -- the measurement gate ---------------------------------------------------
+#
+# Everything above is free. This is the part that costs money, and it is the
+# part the four gates exist to protect: no candidate reaches a paid draw until
+# it has been shown to be real, grounded and distinct.
+
+#: The question moved a rival's odds of being named. Keep it.
+CARRIES = "carries"
+#: The question named rivals in too few of its draws to be worth asking again.
+BARREN = "barren"
+#: The interval straddles the floor. Deliberately NOT a pass, for the same
+#: reason `ablation.UNDECIDED` is not: a gate that opens when it cannot tell
+#: opens exactly when the evidence is thinnest.
+UNDECIDED = "undecided"
+
+#: Ceiling on the derived draw count, so an unreachable floor returns a refusal
+#: instead of a budget nobody would approve.
+MAX_DERIVED_DRAWS = 60
+
+
+def minimum_draws(floor: float, confidence: float = 0.95, cap: int = MAX_DERIVED_DRAWS) -> int:
+    """Smallest `k` at which a clean sweep clears `floor`.
+
+    Derived, never fixed. If a question is asked `k` times and names a rival
+    every time, the Wilson lower bound on `k/k` still has to sit above the
+    floor before that sweep means anything. Below this `k`, a perfect result
+    is not evidence and the round buys undecideds.
+
+    The count therefore follows the floor rather than a constant in this file:
+    a stricter floor costs more draws, and the caller sees the price before
+    paying it.
+    """
+    if not 0.0 <= floor < 1.0:
+        raise ValueError(f"floor must be in [0, 1), got {floor}")
+    for k in range(1, cap + 1):
+        if wilson_interval(k, k, confidence=confidence).low > floor:
+            return k
+    raise ValueError(
+        f"no draw count up to {cap} clears a floor of {floor:.3f} at "
+        f"{int(confidence * 100)}% confidence; lower the floor or raise the cap"
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PromptScreen:
+    """One candidate, asked for real, and what its draws decided."""
+
+    candidate: Candidate
+    rival_hits: int
+    draws: int
+    floor: float
+    interval: Interval
+    verdict: str
+
+    @property
+    def kept(self) -> bool:
+        return self.verdict == CARRIES
+
+    def as_text(self) -> str:
+        return (
+            f"[{self.verdict}] {self.candidate.id}: rivals named in "
+            f"{self.rival_hits}/{self.draws}, "
+            f"{int(self.interval.confidence * 100)}% interval "
+            f"{self.interval.low:.3f}..{self.interval.high:.3f} "
+            f"against a floor of {self.floor:.3f}"
+        )
+
+
+def verdict_for(rival_hits: int, draws: int, floor: float, confidence: float = 0.95) -> PromptScreen:
+    """Three-valued, and blind to the subject's own rate on purpose.
+
+    **`rival_hits` counts answers naming a RIVAL, never the tracked brand.**
+    That choice is the whole gate. Screening on the subject's own mentions
+    means dropping the questions it scored zero on, which raises the headline
+    by deleting the evidence against it. That is the inflation this repo was
+    built to name, and a screen that did it would be doing it on purpose.
+
+    The name of the field is the enforcement. A pure function cannot check
+    where its integer came from, so the parameter is named for the only thing
+    it is allowed to be.
+    """
+    if draws < 1:
+        raise ValueError(f"a verdict needs at least one draw, got {draws}")
+    if not 0 <= rival_hits <= draws:
+        raise ValueError(f"rival_hits must be within 0..{draws}, got {rival_hits}")
+    if not 0.0 <= floor < 1.0:
+        raise ValueError(f"floor must be in [0, 1), got {floor}")
+
+    interval = wilson_interval(rival_hits, draws, confidence=confidence)
+    if interval.low > floor:
+        verdict = CARRIES
+    elif interval.high < floor:
+        verdict = BARREN
+    else:
+        verdict = UNDECIDED
+    return PromptScreen(
+        candidate=Candidate("", ""),
+        rival_hits=rival_hits,
+        draws=draws,
+        floor=floor,
+        interval=interval,
+        verdict=verdict,
+    )
+
+
+def screen_by_discrimination(
+    observations: Sequence[tuple[Candidate, Sequence[float]]],
+    *,
+    floor: float,
+    confidence: float = 0.95,
+) -> tuple[PromptScreen, ...]:
+    """Score every candidate from its own draws.
+
+    Each entry pairs a candidate with one value per draw, 1 where the answer
+    named a rival and 0 where it did not. Nothing here asks a model or a
+    network; the draws are already recorded by the time they arrive.
+    """
+    out: list[PromptScreen] = []
+    for candidate, draws in observations:
+        values = list(draws)
+        if not values:
+            raise ValueError(f"candidate {candidate.id} carries no draws")
+        scored = verdict_for(
+            rival_hits=sum(1 for v in values if v > 0),
+            draws=len(values),
+            floor=floor,
+            confidence=confidence,
+        )
+        out.append(
+            PromptScreen(
+                candidate=candidate,
+                rival_hits=scored.rival_hits,
+                draws=scored.draws,
+                floor=scored.floor,
+                interval=scored.interval,
+                verdict=scored.verdict,
+            )
+        )
+    return tuple(out)
+
+
+def pool_variance(
+    observations: Sequence[tuple[Candidate, Sequence[float]]], confidence: float = 0.95
+) -> VarianceSplit:
+    """The variance split across the whole candidate pool.
+
+    The screening round is also the pilot, so the draws that decide which
+    questions survive are the same draws that say how much the choice of
+    question moves a score at all. `noise_floor` read off this pool is the
+    number nobody in the category publishes, and it costs nothing extra
+    because the calls were already made.
+    """
+    return decompose([list(draws) for _, draws in observations], confidence=confidence)

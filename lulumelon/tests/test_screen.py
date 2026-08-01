@@ -11,15 +11,25 @@ at once, and which reason gets recorded is a contract the caller reads.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
+from lulumelon.mirror.intervals import wilson_interval
 from lulumelon.mirror.screen import (
+    BARREN,
+    CARRIES,
     GATES,
+    UNDECIDED,
     Candidate,
     jaccard,
+    minimum_draws,
     normalise,
+    pool_variance,
     screen,
+    screen_by_discrimination,
     stable_ids,
+    verdict_for,
 )
 
 PAGE = (
@@ -202,3 +212,138 @@ def test_a_mixed_set_keeps_the_old_and_numbers_the_new():
 def test_jaccard_is_one_for_identical_text_and_zero_for_disjoint():
     assert jaccard("a b c d", "a b c d") == 1.0
     assert jaccard("a b c d", "w x y z") == 0.0
+
+
+# ===========================================================================
+# the measurement gate: the part that costs money
+# ===========================================================================
+
+# -- the draw count follows the floor, it is not a constant in the file -----
+
+
+def test_the_draw_count_is_derived_from_the_floor():
+    """A stricter floor costs more draws. Nothing here is pinned to a number."""
+    assert minimum_draws(0.3) < minimum_draws(0.5) < minimum_draws(0.6) < minimum_draws(0.75)
+
+
+def test_a_clean_sweep_at_the_derived_count_clears_the_floor():
+    for floor in (0.2, 0.3, 0.5, 0.6, 0.75):
+        k = minimum_draws(floor)
+        assert verdict_for(k, k, floor).verdict == CARRIES
+
+
+def test_one_draw_fewer_than_derived_cannot_decide_even_on_a_clean_sweep():
+    """This is what the derivation buys: below k, a perfect result is not evidence."""
+    for floor in (0.3, 0.5, 0.6, 0.75):
+        k = minimum_draws(floor)
+        assert verdict_for(k - 1, k - 1, floor).verdict != CARRIES
+
+
+def test_the_derived_count_at_a_half_floor_is_four_not_five():
+    """Recorded because the design document said five and derived it wrongly.
+
+    The stated rule is the smallest k whose clean sweep clears the floor. At a
+    floor of 0.5 that is four: 4/4 gives a Wilson lower bound of 0.5101, which
+    is already above 0.5. Five is a defensible choice for margin, but it is a
+    choice, and this repo does not let a chosen number travel as a derived one.
+    """
+    assert minimum_draws(0.5) == 4
+    assert wilson_interval(4, 4, confidence=0.95).low > 0.5
+    assert wilson_interval(3, 3, confidence=0.95).low < 0.5
+
+
+def test_an_unreachable_floor_is_refused_rather_than_priced():
+    with pytest.raises(ValueError, match="no draw count up to"):
+        minimum_draws(0.99, cap=5)
+
+
+def test_a_floor_outside_its_range_is_refused():
+    with pytest.raises(ValueError, match="floor must be in"):
+        minimum_draws(1.0)
+
+
+# -- three values, and undecided is not a pass ------------------------------
+
+
+def test_a_question_whose_interval_sits_above_the_floor_carries():
+    assert verdict_for(8, 8, 0.5).verdict == CARRIES
+
+
+def test_a_question_whose_interval_sits_below_the_floor_is_barren():
+    assert verdict_for(0, 8, 0.5).verdict == BARREN
+
+
+def test_a_question_straddling_the_floor_is_undecided():
+    assert verdict_for(4, 8, 0.5).verdict == UNDECIDED
+
+
+def test_undecided_never_counts_as_kept():
+    screen_result = verdict_for(4, 8, 0.5)
+    assert screen_result.verdict == UNDECIDED
+    assert not screen_result.kept
+
+
+def test_only_carries_counts_as_kept():
+    assert verdict_for(8, 8, 0.5).kept
+    assert not verdict_for(0, 8, 0.5).kept
+
+
+def test_never_naming_a_rival_is_not_certainty_of_zero():
+    """0 of 8 still leaves a real upper bound, which is why Wilson is used."""
+    interval = verdict_for(0, 8, 0.5).interval
+    assert interval.low == 0.0
+    assert interval.high > 0.0
+
+
+# -- the gate is blind to the subject's own rate, structurally --------------
+
+
+def test_the_verdict_takes_no_argument_for_the_subject_s_own_mentions():
+    """A guard against the inflation this repo exists to name.
+
+    Screening on the tracked brand's own hits means deleting the questions it
+    scored zero on, which raises the headline by removing the evidence against
+    it. If someone later adds such a parameter, this fails.
+    """
+    names = set(inspect.signature(verdict_for).parameters)
+    assert names == {"rival_hits", "draws", "floor", "confidence"}
+    assert not any("subject" in n or "brand" in n for n in names)
+
+
+# -- scoring a whole pool ---------------------------------------------------
+
+
+def observed(id_: str, draws: list[float]):
+    return (good(id_, f"question {id_} about draw schedules"), draws)
+
+
+def test_a_pool_is_scored_per_candidate():
+    results = screen_by_discrimination(
+        [observed("p1", [1, 1, 1, 1]), observed("p2", [0, 0, 0, 0])],
+        floor=0.5,
+    )
+    assert [r.verdict for r in results] == [CARRIES, BARREN]
+    assert [r.rival_hits for r in results] == [4, 0]
+
+
+def test_a_candidate_with_no_draws_is_refused():
+    with pytest.raises(ValueError, match="carries no draws"):
+        screen_by_discrimination([observed("p1", [])], floor=0.5)
+
+
+def test_the_screening_round_also_yields_the_variance_split():
+    """The pilot is the screen. The calls were already made."""
+    split = pool_variance([observed("p1", [1, 1, 1, 1]), observed("p2", [0, 0, 0, 0])])
+    assert split.n_prompts == 2
+    assert split.icc == pytest.approx(1.0)
+    assert split.noise_floor > 0
+
+
+def test_a_single_draw_per_candidate_cannot_yield_a_split():
+    with pytest.raises(ValueError):
+        pool_variance([observed("p1", [1]), observed("p2", [0])])
+
+
+def test_an_impossible_hit_count_is_refused():
+    with pytest.raises(ValueError, match="rival_hits must be within"):
+        verdict_for(5, 4, 0.5)

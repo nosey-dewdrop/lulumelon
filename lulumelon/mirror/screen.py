@@ -21,10 +21,18 @@ rather than an accident of implementation, so it is tested.
    question carrying the name is answered with the name whatever the model
    knows, so it measures its own echo. One such question inflated a real
    headline by ten points before this gate existed.
-3. **evidence** — the quote has to appear in the harvested page text as a
-   literal substring. A model that invents a quote fails here, and it cannot
-   route around it, because inventing a passing quote means reproducing text
-   it was never given.
+3. **evidence** — the quote has to appear in **the page the candidate cites**
+   as a literal substring, and a candidate citing a page that was never read
+   fails here too, because a citation that resolves to nothing cannot be
+   checked against anything. A model that invents a quote fails here, and it
+   cannot route around it, because inventing a passing quote means reproducing
+   text it was never given.
+
+   Checked page by page rather than against the whole corpus on purpose. A
+   quote lifted from one page and filed under another is a real quote and a
+   false citation, and pooling every page into one haystack passes it. The
+   rejection this gate writes says "the page it cites", so that is what it has
+   to read.
 4. **duplicate** — near-identical candidates collapse. This one is a
    heuristic and is labelled as such wherever it appears, since a Jaccard
    threshold is a judgement call and the other three are not.
@@ -47,7 +55,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 from .intervals import Interval, wilson_interval
 from .variance import VarianceSplit, decompose
@@ -143,15 +151,22 @@ Detector = Callable[[str], Sequence[str]]
 def screen(
     candidates: Iterable[Candidate],
     *,
-    corpus: str,
+    pages: Mapping[str, str],
     detect_names: Detector,
     duplicate_threshold: float = DEFAULT_DUPLICATE_THRESHOLD,
 ) -> ScreenResult:
-    """Run every gate, keep what survives, and say why the rest did not."""
+    """Run every gate, keep what survives, and say why the rest did not.
+
+    `pages` maps the url of every page that was actually read to its quotable
+    text. A mapping rather than one joined corpus, because the evidence gate
+    checks a quote against the page it was attributed to; given one string it
+    could only check that the quote exists somewhere on the site, which is a
+    weaker claim than the one the rejection prints.
+    """
     if not 0.0 < duplicate_threshold <= 1.0:
         raise ValueError(f"duplicate threshold must be in (0, 1], got {duplicate_threshold}")
 
-    haystack = normalise(corpus)
+    haystacks = {url: normalise(text) for url, text in pages.items()}
     kept: list[Candidate] = []
     rejected: list[Rejection] = []
 
@@ -181,6 +196,16 @@ def screen(
             )
             continue
 
+        haystack = haystacks.get(candidate.source)
+        if haystack is None:
+            rejected.append(
+                Rejection(
+                    candidate,
+                    "evidence",
+                    "cites a page that was never read, so the quote resolves to nothing",
+                )
+            )
+            continue
         if normalise(candidate.evidence) not in haystack:
             rejected.append(
                 Rejection(

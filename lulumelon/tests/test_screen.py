@@ -32,10 +32,16 @@ from lulumelon.mirror.screen import (
     verdict_for,
 )
 
+ABOUT = "https://marx.example/about"
+PRICING = "https://marx.example/pricing"
+
 PAGE = (
     "Marx Finance prices construction risk daily. "
     "Our underwriters review every draw schedule before funds release."
 )
+
+#: A second real page, so a quote can be genuine and still cite the wrong url.
+OTHER_PAGE = "Plans start at four hundred dollars a month with no seat limit."
 
 
 def no_brands(_: str) -> tuple[str, ...]:
@@ -51,11 +57,16 @@ def brands_named(*names: str):
 
 
 def good(id_: str, text: str, evidence: str = "prices construction risk daily") -> Candidate:
-    return Candidate(id=id_, text=text, source="https://marx.example/about", evidence=evidence)
+    return Candidate(id=id_, text=text, source=ABOUT, evidence=evidence)
 
 
-def run(candidates, *, corpus: str = PAGE, detect=no_brands, threshold: float = 0.8):
-    return screen(candidates, corpus=corpus, detect_names=detect, duplicate_threshold=threshold)
+def run(candidates, *, pages=None, detect=no_brands, threshold: float = 0.8):
+    return screen(
+        candidates,
+        pages={ABOUT: PAGE, PRICING: OTHER_PAGE} if pages is None else pages,
+        detect_names=detect,
+        duplicate_threshold=threshold,
+    )
 
 
 # -- a clean candidate survives ---------------------------------------------
@@ -135,6 +146,36 @@ def test_a_quote_survives_whitespace_and_case_differences():
 def test_a_quote_survives_punctuation_the_page_has_and_the_quote_lacks():
     result = run([good("p1", "Which lenders are fastest?", evidence="risk daily Our underwriters")])
     assert len(result.kept) == 1
+
+
+def test_a_real_quote_filed_under_the_wrong_page_is_caught():
+    """The quote exists on the site and not on the page it names.
+
+    Checking one joined corpus passes this, because the words are somewhere in
+    it. The rejection has always said "the page it cites", so the check has to
+    be per page for that sentence to be true.
+    """
+    result = run(
+        [Candidate("p1", "Which lenders are fastest?", ABOUT, "Plans start at four hundred dollars")]
+    )
+    assert result.rejected[0].gate == "evidence"
+    assert "not in the page it cites" in result.rejected[0].reason
+
+
+def test_the_same_quote_under_its_own_page_survives():
+    """The other half of the pair, so the gate is not just refusing everything."""
+    result = run(
+        [Candidate("p1", "Which lenders are fastest?", PRICING, "Plans start at four hundred dollars")]
+    )
+    assert len(result.kept) == 1
+
+
+def test_a_citation_to_a_page_that_was_never_read_is_refused():
+    result = run(
+        [Candidate("p1", "Which lenders are fastest?", "https://marx.example/invented", "anything")]
+    )
+    assert result.rejected[0].gate == "evidence"
+    assert "never read" in result.rejected[0].reason
 
 
 # -- duplicate, and it says it is a heuristic -------------------------------

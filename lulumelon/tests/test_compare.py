@@ -245,3 +245,37 @@ def test_holm_on_empty_input() -> None:
 def test_comparison_needs_overlapping_prompts() -> None:
     with pytest.raises(ValueError):
         paired_difference({"a": [1.0]}, {"b": [1.0]})
+
+
+def _confounded(reasons: tuple[str, ...]) -> str:
+    """One confounded verdict's text, over data that would otherwise be decisive."""
+    before = {f"p{i}": [0.0] * 5 for i in range(10)}
+    after = {f"p{i}": [1.0] * 5 for i in range(10)}
+    return paired_difference(before, after, label="arm", confounded_by=reasons).as_text(scale=100)
+
+
+def test_the_verdict_states_the_reason_it_was_given_and_not_one_of_its_own() -> None:
+    """The renderer used to name the reason itself, and always named the same one.
+
+    It printed that the model version had changed for any confound at all. The
+    first real comparison of two collection arms hit that on a round where one
+    model answered both sides, so the screen carried a sentence about a version
+    change that had not happened. The caller knows which check fired; this
+    class does not, so it prints what it was handed.
+    """
+    text = _confounded(("anthropic (surface)",))
+    assert "confounded by anthropic (surface)" in text
+    assert "model version" not in text
+
+
+def test_a_model_change_still_says_so_when_that_is_what_was_passed() -> None:
+    text = _confounded(("anthropic (model version)",))
+    assert "confounded by anthropic (model version)" in text
+
+
+def test_every_reason_reaches_the_screen() -> None:
+    """Two reasons, both printed. Dropping one would understate why a round is void."""
+    text = _confounded(("anthropic (model version)", "anthropic (surface)"))
+    assert "anthropic (model version)" in text
+    assert "anthropic (surface)" in text
+    assert "raw diff would have been +100.000" in text

@@ -100,7 +100,7 @@ def main() -> None:
             after_drift,
             label="week 1 -> week 3",
             seed=3,
-            confounded_by=["chatgpt"],
+            confounded_by=["chatgpt (model version)"],
         ).as_text(scale=100)
     )
 

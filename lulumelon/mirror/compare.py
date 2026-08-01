@@ -41,6 +41,12 @@ class Verdict:
     interval: Interval
     n_paired: int
     p_value: float | None
+    #: Why this comparison cannot be read, in the caller's own words. The
+    #: caller knows which check fired and this class does not, so what lands
+    #: here is a reason rather than an engine name, and it is printed as given.
+    #: An earlier version wrote the reason itself and always said the model
+    #: version had changed, which put a false sentence on screen the first time
+    #: two arms were compared across surfaces with one model answering both.
     confounded_by: tuple[str, ...]
     method: str
 
@@ -59,7 +65,7 @@ class Verdict:
         if self.confounded_by:
             return (
                 f"{self.label}: CONFOUNDED, no verdict. "
-                f"model version changed on {', '.join(self.confounded_by)}. "
+                f"confounded by {', '.join(self.confounded_by)}. "
                 f"raw diff would have been {self.diff * scale:+.3f}"
             )
         head = "CHANGED" if self.significant else "within noise"

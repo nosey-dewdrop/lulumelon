@@ -427,6 +427,24 @@ def one_prompt_snapshot():
     return snapshot_from_runs("one-prompt", runs)
 
 
+def two_prompt_snapshot():
+    """Two prompts, so one of them can be excluded and one can still be scored."""
+    return snapshot_from_runs(
+        "two-prompt",
+        [
+            Run(
+                prompt_id=f"p{p}",
+                engine="anthropic",
+                model=HAIKU,
+                asked_at=f"2026-08-01T0{i}:00:00Z",
+                brands=("marx",) if i == 0 else ("numerai",),
+            )
+            for p in range(2)
+            for i in range(2)
+        ],
+    )
+
+
 def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
     """Every renderer, at the smallest design each of them accepts.
 
@@ -434,7 +452,10 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
     report which no command currently renders at a count of one is still read.
     """
     snapshot = one_prompt_snapshot()
-    report = brand_report(snapshot, "marx", resamples=200)
+    report = brand_report(snapshot, "marx", self_naming=(), resamples=200)
+    excluded = brand_report(
+        two_prompt_snapshot(), "marx", self_naming=("p0",), resamples=200
+    )
     price = price_for("anthropic", HAIKU)
     assert price is not None
 
@@ -475,7 +496,9 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
     surfaces = {
         "brand report": report.as_text(),
         "brand report advice": report.advice(0.02),
+        "brand report, one prompt excluded": excluded.as_text(),
         "panel": Panel(report=report, audit=site, dropped_runs=1).as_text(),
+        "panel, one prompt excluded": Panel(report=excluded).as_text(),
         "site audit": site.as_text(),
         "paired difference": paired_difference(
             {"p0": [1.0, 0.0]}, {"p0": [0.0, 0.0]}, resamples=200

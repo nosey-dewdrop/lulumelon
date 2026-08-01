@@ -28,7 +28,7 @@ from .intervals import (
     wilson_interval,
 )
 from .lift import SourceEffect, ablation_series, source_effect
-from .report import BrandReport, brand_report
+from .report import BrandReport, NothingLeftToScore, brand_report
 from .stability import Stability, jaccard, rbo, stability_of
 from .types import PromptSample, Run, Snapshot, group_runs, snapshot_from_runs
 from .variance import DesignRequirement, VarianceSplit, decompose, prompts_needed, runs_needed
@@ -38,6 +38,7 @@ __all__ = [
     "DesignRequirement",
     "Gate",
     "Interval",
+    "NothingLeftToScore",
     "PromptSample",
     "Run",
     "Snapshot",

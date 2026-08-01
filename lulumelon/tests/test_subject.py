@@ -198,6 +198,76 @@ def test_a_file_that_is_not_there_is_refused_with_the_path(tmp_path):
         load_subject(tmp_path / "nothing.json")
 
 
+# -- which questions name the brand they ask about ---------------------------
+
+
+def test_the_shipped_file_names_the_brand_in_exactly_one_question():
+    """m1 asks what marx.finance is, so the name is inside the question.
+
+    That one prompt was worth ten points of the headline on the round this repo
+    collected: every answer to it named Marx, and every one of those answers was
+    the model saying it had never heard of marx.finance.
+    """
+    assert load_subject(SHIPPED).self_naming("Marx") == ("m1",)
+
+
+def test_a_question_carrying_only_an_alias_is_self_naming_too(tmp_path):
+    """The declared forms are the whole of what counts, and an alias is one.
+
+    Nothing in this question is the brand's name, so a rule reading the name
+    alone would leave it in the rate while the detector kept firing on it.
+    """
+    doc = altered()
+    doc["subject"]["aliases"] = ["Kapital Labs"]
+    doc["prompts"] = [
+        {"id": "m1", "text": "What does Kapital Labs do?"},
+        {"id": "m2", "text": "Agentic finance platforms in 2026"},
+    ]
+    subject = load_subject(written(tmp_path, doc))
+
+    assert subject.self_naming("Marx") == ("m1",)
+
+
+def test_a_question_that_does_not_name_the_brand_is_left_in(tmp_path):
+    """The rule is per question, so one prompt naming it says nothing about the rest."""
+    subject = load_subject(written(tmp_path, VALID))
+
+    assert [p.id for p in subject.prompts] == ["m1", "m2"]
+    assert subject.self_naming("Marx") == ("m1",)
+
+
+def test_the_match_is_the_one_detect_makes_and_not_a_second_rule(tmp_path):
+    """Case-insensitive, bounded by non-word characters, literals only."""
+    doc = altered()
+    doc["subject"]["aliases"] = []
+    doc["prompts"] = [
+        {"id": "m1", "text": "Who competes with MARX in agentic finance?"},
+        {"id": "m2", "text": "Is Marxism a trading strategy?"},
+        {"id": "m3", "text": "Alternatives to Numerai for crowdsourced trading signals"},
+    ]
+    subject = load_subject(written(tmp_path, doc))
+
+    assert subject.self_naming("Marx") == ("m1",)
+
+
+def test_a_name_the_file_does_not_track_is_refused(tmp_path):
+    """Nothing here declares what would count as naming it, so nothing is guessed."""
+    subject = load_subject(written(tmp_path, VALID))
+
+    with pytest.raises(ValueError, match="not 'Numerai'"):
+        subject.self_naming("Numerai")
+
+
+def test_a_competitor_is_scored_by_its_own_forms(tmp_path):
+    """Each tracked name asks the question about itself, not about the subject."""
+    doc = altered(competitors=[{"name": "Numerai", "aliases": ["numer.ai"]}])
+    doc["prompts"].append({"id": "m3", "text": "Alternatives to Numerai"})
+    subject = load_subject(written(tmp_path, doc))
+
+    assert subject.self_naming("Marx") == ("m1",)
+    assert subject.self_naming("Numerai") == ("m3",)
+
+
 # -- the id has to survive being a file name ---------------------------------
 
 

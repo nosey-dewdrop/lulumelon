@@ -76,7 +76,9 @@ def main() -> None:
 
     rule("2. the same measurement, asked 12 times per prompt")
     snap = snapshot_from_runs("week-1", simulate(101, n_prompts, k, 0.42))
-    report = brand_report(snap, TARGET, seed=7)
+    # No question here carries the brand's name: the prompts are generated ids
+    # with no text at all, so nothing is excluded and the empty list says so.
+    report = brand_report(snap, TARGET, self_naming=(), seed=7)
     print(report.as_text())
     print("\nadvice: " + report.advice(target_half_width=0.03))
 

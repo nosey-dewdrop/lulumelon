@@ -96,6 +96,11 @@ class Panel:
                 f"  {counted(self.dropped_runs, 'ask')} failed and are excluded, "
                 "recorded not dropped"
             )
+        # Verbatim from the report, because a prompt left out of the rate has to
+        # read the same here as it does there. A count that got smaller between
+        # two screens with an explanation on only one of them is worse than no
+        # explanation at all.
+        out.extend(f"  {line}" for line in r.exclusion)
         if r.surface_mix:
             out.append(f"  surfaces mixed: {r.surface_mix}")
         if r.model_drift:

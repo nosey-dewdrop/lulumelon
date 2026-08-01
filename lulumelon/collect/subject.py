@@ -43,7 +43,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .detect import Brand
+from .detect import Brand, detect
 from .ledger import DIAGNOSTIC_SUBJECT
 from .session import Prompt
 
@@ -101,6 +101,35 @@ class Subject:
     def competitors(self) -> tuple[Brand, ...]:
         """Every tracked name except the subject, in the order they were listed."""
         return self.brands[1:]
+
+    def self_naming(self, brand: str) -> tuple[str, ...]:
+        """Ids of the questions whose own text names `brand`.
+
+        Derived from this file rather than declared in it. A question carrying
+        one of a brand's declared forms is answered with that form whatever the
+        model knows, and detection matches declared literals anywhere in the
+        answer, so the mention such a prompt records came out of the question.
+        Both halves of that are in this file already: the forms that count as
+        naming a brand, and the text of every question.
+
+        The matching is `detect` and not a second rule written here. What counts
+        as naming a brand in an answer and what counts as naming one in a
+        question have to be the same thing, or a prompt could be scored under
+        one rule and excluded under another.
+
+        `intent` is not read, and this is the reason it is not. It is a note
+        from whoever wrote the file about why a question is in the set; a
+        question can name the brand under any intent, and one typed wrong would
+        put the prompt back into the rate with nothing on screen to say so.
+        Where a fact is computable, a human label is a place for it to be wrong.
+        """
+        named = next((b for b in self.brands if b.name == brand), None)
+        if named is None:
+            raise ValueError(
+                f"{self.path} tracks {', '.join(b.name for b in self.brands)}, not {brand!r}, "
+                "so nothing here declares which strings count as naming it"
+            )
+        return tuple(p.id for p in self.prompts if named.name in detect(p.text, (named,)))
 
 
 def load_subject(path: Path) -> Subject:

@@ -23,12 +23,22 @@ can be stable while every per-prompt and every rank claim built on it is noise.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Collection
 
 from ..text import counted
 from .intervals import Interval, cluster_bootstrap_ci, wilson_interval, z_for
 from .stability import Stability, stability_of
 from .types import Snapshot
 from .variance import DesignRequirement, VarianceSplit, decompose, prompts_needed, runs_needed
+
+
+class NothingLeftToScore(ValueError):
+    """Every prompt in the round names the brand, so none of them measures it.
+
+    Raised rather than answered with a zero. A rate computed over no prompts is
+    not a low rate, it is an absent one, and the two would print the same digits.
+    A `ValueError`, so a caller reports it the way it reports every other refusal.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +58,26 @@ class BrandReport:
     surface_mix: dict[str, tuple[str, ...]]
     mean_rank: float | None
     rank_reportable: bool
+    self_naming: tuple[str, ...]
+
+    @property
+    def exclusion(self) -> tuple[str, ...]:
+        """What the figures above leave out, and why, or nothing when they leave out nothing.
+
+        Every count on this report is already over the scored prompts alone, so
+        this is the only place the excluded ones are named. It is a tuple of
+        lines rather than a block of text because two surfaces print it and both
+        have to print the same words.
+        """
+        if not self.self_naming:
+            return ()
+        return (
+            f"excluded from the rate and its interval: "
+            f"{counted(len(self.self_naming), 'prompt')} whose own text names "
+            f"{self.brand} ({', '.join(self.self_naming)})",
+            "detection matches declared literals, so a question carrying the name is "
+            "answered with it whatever the model knows",
+        )
 
     @property
     def headline(self) -> str:
@@ -62,6 +92,7 @@ class BrandReport:
             f"design: {counted(self.n_prompts, 'prompt')} x "
             f"{counted(self.total_runs / max(self.n_prompts, 1), 'run', fmt='.1f')} "
             f"= {counted(self.total_runs, 'observation')} on {', '.join(self.engines)}",
+            *self.exclusion,
             f"visibility: {self.headline}   "
             f"(95% CI {self.detection_by_prompt.low * 100:.1f}..{self.detection_by_prompt.high * 100:.1f})",
             f"run-level detection: {self.detection.as_text(digits=1, scale=100, unit='%')}",
@@ -144,11 +175,51 @@ def brand_report(
     snapshot: Snapshot,
     brand: str,
     *,
+    self_naming: Collection[str],
     confidence: float = 0.95,
     resamples: int = 2000,
     seed: int = 0,
 ) -> BrandReport:
-    """Compute every defensible statement about `brand` in `snapshot`."""
+    """Compute every defensible statement about `brand` in `snapshot`.
+
+    `self_naming` is the ids of the prompts whose own question text names the
+    brand. They are excluded from the rate and from its interval, and named on
+    the report instead: a question carrying the brand's name is answered with
+    that name whatever the model knows about the brand, so the mention it
+    records was put there by the question. On the round that produced this rule,
+    one such prompt out of ten was worth ten points of headline visibility, and
+    every one of its answers said the model had never heard of the brand.
+
+    **It is required and it is not defaulted.** A default of "none" is an
+    answer, and it is the answer that produces the inflated number, given
+    silently to any caller who has never heard of the rule. Required, the
+    question is put at every call site, and a caller that passes an empty
+    collection has stated that no question names this brand rather than never
+    having been asked.
+
+    A `Run` carries a prompt id and the brands detected in the answer, and not
+    the question. This module is arithmetic over runs and does not read files,
+    so which ids those are has to arrive from the caller; `collect.subject`
+    derives them from the subject file that stated the questions.
+
+    Raises:
+        NothingLeftToScore: when every prompt in the snapshot is self-naming.
+            There is no rate to divide out, and reporting zero would print the
+            same digits as a brand nobody named.
+    """
+    excluded = tuple(
+        sorted({s.prompt_id for s in snapshot.samples if s.prompt_id in self_naming})
+    )
+    scored = tuple(s for s in snapshot.samples if s.prompt_id not in self_naming)
+    if not scored:
+        raise NothingLeftToScore(
+            f"every prompt in {snapshot.label} names {brand} in its own question text "
+            f"({', '.join(excluded)}), so this round has nothing left to score: a "
+            "question carrying the name is answered with it whatever the model knows"
+        )
+    if excluded:
+        snapshot = Snapshot(label=snapshot.label, samples=scored, meta=dict(snapshot.meta))
+
     clusters = [list(s.detections(brand)) for s in snapshot.samples]
     successes = int(sum(sum(c) for c in clusters))
     n_runs = int(sum(len(c) for c in clusters))
@@ -189,4 +260,5 @@ def brand_report(
         surface_mix=snapshot.surface_mix,
         mean_rank=mean_rank,
         rank_reportable=pooled.is_orderable,
+        self_naming=excluded,
     )

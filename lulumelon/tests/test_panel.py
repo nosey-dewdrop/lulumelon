@@ -45,7 +45,8 @@ def snap(seen_rate=0.5, n_prompts=8, k=6, cite=False):
 
 def panel(**over):
     s = over.pop("snapshot", None) or snap()
-    return Panel(report=brand_report(s, "Marx"), **over)
+    self_naming = over.pop("self_naming", ())
+    return Panel(report=brand_report(s, "Marx", self_naming=self_naming), **over)
 
 
 def test_access_comes_before_the_score():
@@ -98,7 +99,7 @@ def test_failed_asks_are_shown_in_the_design_not_hidden():
 def test_sources_are_never_called_an_effect():
     s = snap(cite=True)
     text = Panel(
-        report=brand_report(s, "Marx"),
+        report=brand_report(s, "Marx", self_naming=()),
         sources=source_graph(s, "Marx", top=3),
     ).as_text()
     assert "These are associations" in text

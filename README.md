@@ -104,7 +104,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 699 tests, offline
+    python3 -m pytest lulumelon/tests   # 707 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -209,6 +209,23 @@ asked what the brand's own domain was. Every answer to it named the brand, and
 every one of those answers was the model saying it had never heard of it. It was
 worth ten points of headline visibility on the arm collected with no search
 tool, which reads 0.0% over the nine questions that remain.
+
+    lulu report --ledger ./ledger --snapshot ROUND \
+                --subject data/subjects/marx.json --brand Marx \
+                --pdf marx.pdf
+
+writes the same report as a document, and adds to it the file the numbers came
+from: the snapshot id, how many records are on it, what the round's own seal
+says it did, the hash the chain ends on, the model as the response reported it,
+the surface, the dates and what the round cost. A number in a PDF with no way
+back to its evidence is the thing this repo exists against.
+
+`--tex PATH` stops after the LaTeX and needs no TeX installed to get there.
+`--pdf PATH` writes that document beside the PDF and runs `tectonic` over it.
+Where there is no engine on the PATH the document is still written, the binary
+that was looked for is named, and the command exits 7, which is outside the
+range the refusals use: a machine with no typesetter on it is not a round that
+could not be scored, and no script should read it as one.
 
     lulu usage     # what the rounds on disk cost, from the provider's figures
     lulu verify    # re-derive every chain, and say what that check does not cover

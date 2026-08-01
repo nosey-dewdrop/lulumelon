@@ -212,9 +212,18 @@ def tex_document(panel: Panel, evidence: Evidence) -> str:
     parts.append("\\begin{tabularx}{\\textwidth}{@{}lX@{}}")
     for label, values in evidence.rows():
         parts.append(f"{escape(label)} & " + " \\newline ".join(_set(v) for v in values) + "\\\\")
-    parts.append("\\end{tabularx}")
+    # The table closes its own paragraph. Without that the rule below it is set
+    # as the next line of the same paragraph, lands hard against the last row,
+    # and reads as the table's bottom border rather than as a rule between two
+    # sections. The vertical space that is supposed to separate them is a
+    # horizontal-mode `\vspace` at that point, and does nothing visible.
+    parts.append("\\end{tabularx}\\par")
 
-    parts.append("\\bigskip")
+    # Air above the rule as well as below it. Set tight against the table it
+    # follows, a plain horizontal line stops reading as a rule between two
+    # sections and starts reading as the bottom border of the thing above it,
+    # which is a box by another name.
+    parts.append("\\vspace{1.6\\baselineskip}")
     parts.append("\\noindent\\rule{\\textwidth}{0.4pt}\\par")
     parts.append(_flowed(panel.limitation()))
     parts.append("\\end{document}")

@@ -12,7 +12,8 @@ repeats would be enough.
 `lulu collect` runs one round end to end and writes it down, under a ceiling it
 prints before it spends anything.
 `lulu report` prints what a collected round measured about one brand, with the
-questions that name the brand excluded from the rate and said out loud.
+questions that name the brand excluded from the rate and said out loud, and
+writes the same thing as a document that carries the ledger it came from.
 `lulu usage` says what the rounds already on disk cost, and `lulu verify`
 re-derives their chains so the person relying on that can check it themselves.
 `lulu ablate` asks whether a replica round tracks the live surface closely
@@ -37,7 +38,10 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence, TextIO
@@ -57,7 +61,7 @@ from .collect.ledger import (
     Record,
     is_diagnostic,
 )
-from .collect.replay import replay
+from .collect.replay import Replay, replay
 from .collect.replica import (
     REPLICA_SURFACE,
     is_replica_surface,
@@ -74,6 +78,7 @@ from .mirror.lift import source_effect
 from .mirror.report import NothingLeftToScore, brand_report
 from .mirror.types import Snapshot, group_runs
 from .mirror.variance import decompose
+from .latex import Evidence, tex_document
 from .keys import (
     KEYCHAIN_SERVICE,
     PROVIDERS,
@@ -943,6 +948,25 @@ def usage(
 
 # -- verify -----------------------------------------------------------------
 
+#: What a round with no closing record says about its own length, which is
+#: nothing. One wording, because two surfaces now print it and a file described
+#: as unsealed on one screen and something else on another is two claims.
+UNSEALED = "length never sealed"
+
+
+def seal_text(seal: Record) -> str:
+    """What a round's own closing record says the round did.
+
+    Beside `UNSEALED` and for the same reason. `lulu verify` says this on the
+    round's line and a printed report says it in its evidence, and the counts
+    are the ones the round wrote down rather than a count of the file: a seal
+    read off the file would agree with a file somebody had just shortened.
+    """
+    return (
+        f"{counted(seal.round_asked, 'call')} sealed, "
+        f"{seal.round_ok} answered, {seal.round_errors} failed"
+    )
+
 
 def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -> int:
     """Re-derive every chain on disk and say what that does and does not prove.
@@ -987,14 +1011,11 @@ def verify(console: Console, *, ledger_dir: Path, snapshot: str | None = None) -
             # where "intact" means less than a reader would take it to mean.
             unsealed += 1
             console.say(
-                f"  intact   {snapshot_id}   {counted(store.count(snapshot_id), 'record')}, "
-                "length never sealed"
+                f"  intact   {snapshot_id}   "
+                f"{counted(store.count(snapshot_id), 'record')}, {UNSEALED}"
             )
             continue
-        console.say(
-            f"  intact   {snapshot_id}   {counted(seal.round_asked, 'call')} sealed, "
-            f"{seal.round_ok} answered, {seal.round_errors} failed"
-        )
+        console.say(f"  intact   {snapshot_id}   {seal_text(seal)}")
 
     console.say()
     console.say(
@@ -1583,6 +1604,23 @@ def lift(
 #: fault that is not there.
 NOTHING_TO_SCORE = 4
 
+#: The typesetter this command shells out to. Named once, because it is printed
+#: when it is missing and a message that says a different binary from the one
+#: that was looked for sends somebody to install the wrong thing.
+TEX_ENGINE = "tectonic"
+
+#: No typesetter on this machine. Deliberately outside the range the refusals
+#: use: 4, 5 and 6 all mean the measurement would not stand up, and a script
+#: that read "nothing here can make a PDF" as one of those would go looking at
+#: the round. The document was written either way, and the arithmetic behind it
+#: is the same arithmetic that just printed to the terminal.
+NO_TEX_ENGINE = 7
+
+#: A typesetter was found and did not produce a PDF. Its own code, because the
+#: remedy is not the remedy for the one above: something is wrong with the run
+#: rather than with the machine, and the engine's last words are printed.
+TEX_ENGINE_FAILED = 8
+
 
 def report(
     console: Console,
@@ -1591,6 +1629,10 @@ def report(
     snapshot: str,
     subject_path: Path,
     brand: str,
+    tex_path: Path | None = None,
+    pdf_path: Path | None = None,
+    which: Callable[[str], str | None] | None = None,
+    run: Callable[..., subprocess.CompletedProcess] | None = None,
 ) -> int:
     """Print what one recorded round measured about one brand.
 
@@ -1607,6 +1649,18 @@ def report(
     The chain is re-derived before anything is computed, through the same check
     `lulu verify` runs rather than a second copy of it. A number derived from a
     round that does not re-derive is not a number.
+
+    **The terminal is still the default and still the whole of it.** `tex_path`
+    and `pdf_path` add a file each; neither changes a line of what is printed,
+    because a report somebody has been reading for weeks should not move because
+    a colleague wanted a PDF of it.
+
+    `which` and `run` are injected for the reason every stream in this file is:
+    both arms are exercised in a suite that has no typesetter installed and
+    never runs one. They default to nothing rather than to the library
+    functions, because a default evaluated in the signature is bound once and
+    a suite that replaced it afterwards would be testing a path this command
+    does not take.
     """
     store = Ledger(ledger_dir)
     subject = load_subject(subject_path)
@@ -1630,8 +1684,93 @@ def report(
         console.say(f"  {e}")
         return NOTHING_TO_SCORE
 
-    for line in Panel(report=scored, dropped_runs=played.dropped).as_text().splitlines():
+    panel = Panel(report=scored, dropped_runs=played.dropped)
+    for line in panel.as_text().splitlines():
         console.say(f"  {line}" if line else "")
+
+    if tex_path is None and pdf_path is None:
+        return 0
+    written = tex_path if tex_path is not None else pdf_path.with_suffix(".tex")
+    if not written.parent.is_dir():
+        raise ValueError(
+            f"{written.parent} is not a directory, so {written} cannot be written there"
+        )
+    written.write_text(tex_document(panel, evidence_of(store, snapshot, played)), encoding="utf-8")
+    console.say()
+    console.say(f"  wrote {written}")
+    if pdf_path is None:
+        return 0
+    return typeset(console, tex=written, pdf=pdf_path, which=which, run=run)
+
+
+def evidence_of(store: Ledger, snapshot: str, played: Replay) -> Evidence:
+    """The facts about the file a printed report is checked against.
+
+    Read here rather than in the renderer, which is not allowed to know that a
+    file exists. The round has already re-derived by the time this runs, so
+    what is written down is what the chain was checked as, and the hash on the
+    last record is the hash a reader recomputes to check it again.
+
+    The dates come off the asks and not off the seal. A round is closed once
+    and asked over however long it took, so the closing timestamp is when the
+    collector stopped rather than when the answers were collected.
+    """
+    records = list(store.read(snapshot))
+    last = records[-1]
+    return Evidence(
+        records=len(records),
+        seal=seal_text(last) if last.is_seal else UNSEALED,
+        final_hash=last.hash,
+        models=played.models,
+        surfaces=played.surfaces,
+        dates=tuple(sorted({rec.asked_at[:10] for rec in records if not rec.is_seal})),
+        cost=spend_of(records).total_lines(),
+    )
+
+
+def typeset(
+    console: Console,
+    *,
+    tex: Path,
+    pdf: Path,
+    which: Callable[[str], str | None] | None = None,
+    run: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> int:
+    """Run the typesetter over a document that has already been written.
+
+    This is the only part of printing a report that is not a pure function of
+    the round, which is why it is here and not beside the renderer: producing
+    the string reaches nothing, and spawning a process reaches a machine.
+
+    The document is written before this is called and stays written whatever
+    happens next. A command that deleted its own output on a failed compile
+    would leave somebody with no PDF, no `.tex` and nothing to send to whoever
+    could tell them why.
+
+    The engine builds in a temporary directory and the result is moved onto the
+    path that was asked for. Working in the destination would leave whatever
+    the engine keeps beside the PDF in a directory somebody chose for one file,
+    and it would name the output after the document rather than after the
+    request.
+    """
+    binary = (which or shutil.which)(TEX_ENGINE)
+    if binary is None:
+        console.warn(f"  no {TEX_ENGINE} on PATH, so nothing typeset the document.")
+        console.warn(f"  {tex} is written and is what an engine would be given.")
+        return NO_TEX_ENGINE
+    with tempfile.TemporaryDirectory() as build:
+        done = (run or subprocess.run)(
+            [binary, "--chatter", "minimal", "--outdir", build, str(tex)],
+            capture_output=True,
+            text=True,
+        )
+        if done.returncode != 0:
+            console.warn(f"  {TEX_ENGINE} exited {done.returncode} and produced no PDF.")
+            for line in (done.stderr or done.stdout).strip().splitlines()[-10:]:
+                console.warn(f"    {line}")
+            return TEX_ENGINE_FAILED
+        shutil.move(str(Path(build) / f"{tex.stem}.pdf"), pdf)
+    console.say(f"  wrote {pdf}")
     return 0
 
 
@@ -1795,6 +1934,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_report.add_argument("--brand", required=True, help="which tracked name the round is scored for")
     p_report.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the round lives in")
+    # Both are additions to the screen rather than replacements of it. Neither
+    # has a default: a command that wrote a file nobody asked for would put a
+    # customer's round somewhere they did not choose.
+    p_report.add_argument(
+        "--tex",
+        default=None,
+        metavar="PATH",
+        help="also write the report as a standalone LaTeX document; needs no TeX installed",
+    )
+    p_report.add_argument(
+        "--pdf",
+        default=None,
+        metavar="PATH",
+        help=f"also typeset that document to a PDF, through {TEX_ENGINE}",
+    )
 
     p_verify = sub.add_parser("verify", help="re-derive every chain on disk and report what moved")
     p_verify.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds were written to")
@@ -1933,6 +2087,8 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 snapshot=args.snapshot,
                 subject_path=Path(args.subject),
                 brand=args.brand,
+                tex_path=None if args.tex is None else Path(args.tex),
+                pdf_path=None if args.pdf is None else Path(args.pdf),
             )
         if args.command == "verify":
             return verify(console, ledger_dir=Path(args.ledger), snapshot=args.snapshot)

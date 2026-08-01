@@ -7,6 +7,13 @@ screen can be wrong: a number derived from a file that does not re-derive, a
 number inflated by a question carrying the brand's own name, and a round where
 every question does that and there is no number at all.
 
+The output flags are here too, and the property they are held to is that they
+add a file and change nothing else. A `.tex` is written on a machine with no
+TeX on it at all; a PDF is not, and the difference is said out loud and carried
+in an exit code that no script can confuse with a round that would not score.
+No test in this file runs a typesetter. The one that exercises a successful
+compile is handed a stand-in, for the reason the collector is handed one.
+
 Everything runs against the deterministic stub with the network closed, and the
 round is built by the collector rather than assembled by hand, so what is
 reported here came down the same path a real round comes down.
@@ -16,11 +23,21 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from lulumelon.cli import CHAIN_BROKEN, NOTHING_TO_SCORE, Console, main, report
+from lulumelon.cli import (
+    CHAIN_BROKEN,
+    NOTHING_TO_SCORE,
+    NO_TEX_ENGINE,
+    TEX_ENGINE,
+    TEX_ENGINE_FAILED,
+    Console,
+    main,
+    report,
+)
 from lulumelon.collect import FakeProvider, Ledger, load_subject, replay, run_round
 from lulumelon.mirror.report import brand_report
 from lulumelon.mirror.types import Snapshot, group_runs
@@ -205,3 +222,212 @@ def test_the_command_line_carries_all_four_of_them(tmp_path):
 
     assert code == 0
     assert "APPEARANCE" in rec.text
+
+
+# -- the two output flags ----------------------------------------------------
+
+#: A machine with nothing installed on it. Every test below that is about the
+#: `.tex` uses this, so "writing the document needs no TeX" is a property the
+#: suite holds rather than a sentence in a docstring.
+NO_ENGINE = lambda _: None  # noqa: E731 - one expression, named for what it is
+
+
+def unusable(_cmd, **_kwargs):
+    """A typesetter that must never be reached, so reaching one is a failure."""
+    raise AssertionError("the suite ran a typesetter")
+
+
+def stand_in(returncode: int = 0, stderr: str = "", *, seen: list | None = None):
+    """A typesetter, as far as this command can tell.
+
+    Writes the file the engine would write, where the engine would write it,
+    which is what the code after the call has to find. Named after the engine's
+    contract rather than after tectonic: what is being tested is that a PDF
+    produced in a build directory arrives at the path that was asked for.
+    """
+
+    def run(cmd, **_kwargs):
+        if seen is not None:
+            seen.append(cmd)
+        if returncode == 0:
+            build = Path(cmd[cmd.index("--outdir") + 1])
+            (build / f"{Path(cmd[-1]).stem}.pdf").write_bytes(b"%PDF-1.7\n")
+        return subprocess.CompletedProcess(cmd, returncode, "", stderr)
+
+    return run
+
+
+def test_the_tex_is_written_on_a_machine_with_no_tex_on_it(tmp_path):
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+    tex = tmp_path / "round.tex"
+
+    code = report(
+        rec.console,
+        ledger_dir=ledger.root,
+        snapshot=snapshot,
+        subject_path=subject,
+        brand="Marx",
+        tex_path=tex,
+        which=NO_ENGINE,
+        run=unusable,
+    )
+
+    assert code == 0
+    assert tex.read_text(encoding="utf-8").startswith("\\documentclass")
+    assert snapshot.replace("_", "\\_") in tex.read_text(encoding="utf-8")
+    assert f"wrote {tex}" in rec.text
+
+
+def test_the_screen_is_the_same_screen_with_the_flag_and_without_it(tmp_path):
+    """A report somebody has been reading for weeks does not move for a file."""
+    ledger, snapshot, subject = collected(tmp_path)
+
+    plain = Recorder()
+    report(
+        plain.console,
+        ledger_dir=ledger.root,
+        snapshot=snapshot,
+        subject_path=subject,
+        brand="Marx",
+    )
+    with_file = Recorder()
+    report(
+        with_file.console,
+        ledger_dir=ledger.root,
+        snapshot=snapshot,
+        subject_path=subject,
+        brand="Marx",
+        tex_path=tmp_path / "round.tex",
+        which=NO_ENGINE,
+        run=unusable,
+    )
+
+    added = with_file.text[len(plain.text) :]
+    assert with_file.text.startswith(plain.text)
+    assert added.strip() == f"wrote {tmp_path / 'round.tex'}"
+
+
+def test_no_engine_still_writes_the_document_and_says_which_binary_was_looked_for(tmp_path):
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+    pdf = tmp_path / "round.pdf"
+
+    code = report(
+        rec.console,
+        ledger_dir=ledger.root,
+        snapshot=snapshot,
+        subject_path=subject,
+        brand="Marx",
+        pdf_path=pdf,
+        which=NO_ENGINE,
+        run=unusable,
+    )
+
+    assert code == NO_TEX_ENGINE
+    assert not pdf.exists()
+    assert pdf.with_suffix(".tex").is_file()
+    assert TEX_ENGINE in rec.text
+    assert str(pdf.with_suffix(".tex")) in rec.text
+
+
+def test_a_missing_engine_is_not_a_measurement_refusal():
+    """4, 5 and 6 all mean a number would not stand up. This means neither did.
+
+    Pinned as a set rather than one at a time, so a refusal added later that
+    reaches for the next free number collides here instead of colliding in
+    somebody's build script.
+    """
+    assert NO_TEX_ENGINE not in {0, NOTHING_TO_SCORE, CHAIN_BROKEN, 5, 6}
+    assert TEX_ENGINE_FAILED not in {0, NOTHING_TO_SCORE, CHAIN_BROKEN, 5, 6, NO_TEX_ENGINE}
+
+
+def test_the_pdf_lands_on_the_path_that_was_asked_for(tmp_path):
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+    pdf = tmp_path / "somewhere" / "named-by-the-caller.pdf"
+    pdf.parent.mkdir()
+    seen: list = []
+
+    code = report(
+        rec.console,
+        ledger_dir=ledger.root,
+        snapshot=snapshot,
+        subject_path=subject,
+        brand="Marx",
+        pdf_path=pdf,
+        which=lambda name: f"/usr/local/bin/{name}",
+        run=stand_in(seen=seen),
+    )
+
+    assert code == 0
+    assert pdf.read_bytes().startswith(b"%PDF")
+    assert pdf.with_suffix(".tex").is_file()
+    assert seen[0][-1] == str(pdf.with_suffix(".tex"))
+    assert f"wrote {pdf}" in rec.text
+
+
+def test_an_engine_that_fails_leaves_the_document_and_says_what_it_said(tmp_path):
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+    pdf = tmp_path / "round.pdf"
+
+    code = report(
+        rec.console,
+        ledger_dir=ledger.root,
+        snapshot=snapshot,
+        subject_path=subject,
+        brand="Marx",
+        pdf_path=pdf,
+        which=lambda name: f"/usr/local/bin/{name}",
+        run=stand_in(returncode=1, stderr="error: Undefined control sequence"),
+    )
+
+    assert code == TEX_ENGINE_FAILED
+    assert not pdf.exists()
+    assert pdf.with_suffix(".tex").is_file()
+    assert "Undefined control sequence" in rec.text
+
+
+def test_a_directory_that_does_not_exist_is_refused_rather_than_made(tmp_path):
+    """The one command line mistake here, reported as one."""
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+
+    with pytest.raises(ValueError, match="is not a directory"):
+        report(
+            rec.console,
+            ledger_dir=ledger.root,
+            snapshot=snapshot,
+            subject_path=subject,
+            brand="Marx",
+            tex_path=tmp_path / "nowhere" / "round.tex",
+            which=NO_ENGINE,
+            run=unusable,
+        )
+
+
+def test_both_flags_reach_the_command(tmp_path, monkeypatch):
+    """Through `main`, which is where the defaults for the two callables live."""
+    rec = Recorder()
+    ledger, snapshot, subject = collected(tmp_path)
+    monkeypatch.setattr("lulumelon.cli.shutil.which", NO_ENGINE)
+    tex = tmp_path / "elsewhere.tex"
+    pdf = tmp_path / "round.pdf"
+
+    code = main(
+        [
+            "report",
+            "--ledger", str(ledger.root),
+            "--snapshot", snapshot,
+            "--subject", str(subject),
+            "--brand", "Marx",
+            "--tex", str(tex),
+            "--pdf", str(pdf),
+        ],
+        console=rec.console,
+    )
+
+    assert code == NO_TEX_ENGINE
+    assert tex.is_file(), "the named path is used rather than one derived from the pdf"
+    assert not pdf.with_suffix(".tex").exists()

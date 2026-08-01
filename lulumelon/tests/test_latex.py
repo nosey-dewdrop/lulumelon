@@ -224,8 +224,8 @@ model & claude-haiku-4-5, as reported by the response\\\\
 surfaces & api\\\\
 collected & 2026-08-01\\\\
 cost & total\\quad{}\\$0.060000 to \\$0.060000\\quad{}(0 of 6 priced calls metered) \\newline per call\\quad{}\\$0.010000 to \\$0.010000\\\\
-\\end{tabularx}
-\\bigskip
+\\end{tabularx}\\par
+\\vspace{1.6\\baselineskip}
 \\noindent\\rule{\\textwidth}{0.4pt}\\par
 Computed from the recorded answers of this round only, on the surfaces listed above. Every number here is reproducible from the ledger, and the raw answer behind any of them can be printed on request.\\par
 \\end{document}

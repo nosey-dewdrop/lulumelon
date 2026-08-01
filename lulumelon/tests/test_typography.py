@@ -54,6 +54,7 @@ from lulumelon.cli import (
     lift,
     questions_of,
     report,
+    setup,
     storage_menu,
 )
 from lulumelon.cli import plan as run_plan
@@ -73,6 +74,7 @@ from lulumelon.collect import (
     without,
 )
 from lulumelon.collect.audit import audit
+from lulumelon.keys import KeychainRefused
 from lulumelon.latex import escape, tex_document
 from lulumelon.mirror.compare import paired_difference
 from lulumelon.mirror.intervals import wilson_interval
@@ -302,6 +304,11 @@ def arms(tmp_path: Path):
 # -- the commands ------------------------------------------------------------
 
 
+def _refusing_keychain(service, account, key, keychain=None):
+    """A keychain that will not take the key, in the words a Mac used."""
+    raise KeychainRefused("no keychain could be found to store the item")
+
+
 def test_no_command_prints_a_dash(tmp_path, monkeypatch):
     """Every command a customer can run, driven to completion.
 
@@ -309,10 +316,40 @@ def test_no_command_prints_a_dash(tmp_path, monkeypatch):
     a dash are the menu, and the step after it writes a key into the machine's
     own keychain, which a test suite has no business doing. The keychain is
     forced on so the option that only exists on a Mac is printed and read.
+
+    `setup` is read on both of its arms. It is the first command the README
+    tells a reader to type and it was not in this sweep at all, which meant the
+    lines it prints when the keychain will not take a key were written and never
+    looked at. The keychain call is replaced rather than made, for the same
+    reason `init` stops at the menu.
     """
     surfaces = reported(tmp_path, SUBJECT, SCRIPT, "Marx", folder="marx")
 
-    monkeypatch.setattr(cli, "keychain_available", lambda *a: True)
+    monkeypatch.setattr(cli, "keychain_supported", lambda *a: True)
+
+    def ran_the_check(console, spec, key, **kw):
+        console.say("check ran")
+        return 0
+
+    for label, write in (
+        ("setup, keychain takes it", lambda *a, **kw: None),
+        ("setup, keychain refuses", _refusing_keychain),
+    ):
+        monkeypatch.setattr(cli, "keychain_write", write)
+        rec = Recorder()
+        assert (
+            setup(
+                rec.console,
+                key=KEY,
+                cwd=tmp_path / "setup",
+                home=tmp_path / "setup",
+                check=ran_the_check,
+            )
+            == 0
+        )
+        assert rec.text
+        surfaces[label] = rec.text
+
     menu = Recorder()
     assert (
         init(

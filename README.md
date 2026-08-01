@@ -104,8 +104,13 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 732 tests, offline
+    python3 -m pytest lulumelon/tests   # 746 tests, offline
     npm test                            # 45 tests, offline
+
+Offline and self contained: the suite closes every socket for the length of a
+run, and the one test that drives the OS keychain makes a keychain of its own,
+uses it, and deletes it. Running these tests does not change the machine that
+ran them.
 
 ## getting started
 
@@ -116,10 +121,17 @@ published prices.
     lulu setup     # paste the key when it asks, or pipe it in: pbpaste | lulu setup
 
 That is the whole of it. One command, no questions. It reads which engine the
-key belongs to off the key, stores it in the OS keychain where there is one and
-in a file with owner-only permissions where there is not, says where it went,
-and then spends about a cent proving that the key works, that the search tool is
-switched on for your account, and that a search actually comes back with pages.
+key belongs to off the key, offers it to the OS keychain, falls back to a file
+with owner-only permissions when the keychain will not take it, says which of
+the two happened and why, and then spends about a cent proving that the key
+works, that the search tool is switched on for your account, and that a search
+actually comes back with pages.
+
+The fallback is not decoration. A Mac whose default keychain is locked or
+missing answers the store request with a dialog and then with nothing, so
+"macOS" and "a key can be stored right now" are two different facts and this
+command only believes the second one after it has asked. Whichever way it goes
+it prints the place and the command to read the key back yourself.
 
 That call is billed, so it is written down. It lands in `./ledger` under a name
 beginning `diagnostic__`, and the command says the path on the way past. A round

@@ -82,13 +82,14 @@ from .latex import Evidence, tex_document
 from .keys import (
     KEYCHAIN_SERVICE,
     PROVIDERS,
+    KeychainRefused,
     ProviderSpec,
     Resolution,
     ensure_gitignored,
     env_file_candidates,
     fingerprint,
     inspect_key,
-    keychain_available,
+    keychain_supported,
     keychain_write,
     redact,
     resolve,
@@ -212,6 +213,16 @@ def setup(
     So the engine is read off the key, the safest storage the machine has is
     used without a menu, and the check call runs in the same breath. What is
     left to the person is the part only they can do, which is having a key.
+
+    **The safest storage is the one that takes the key, not the one the
+    platform implies.** This asked `keychain_available()` whether a Mac has a
+    keychain, was told yes, and then had nowhere to go when the write failed:
+    thirty seconds of nothing, a `TimeoutExpired` that the caller did not catch
+    because it is not a `RuntimeError`, and a stack trace under a key that had
+    been stored in no place at all. The file the page promises was written on
+    the other side of a branch that a Mac could never reach. So the keychain is
+    attempted, a refusal is reported in the reader's words, and the file that
+    was always documented is where the key then goes.
     """
     key = key.strip()
     if not key:
@@ -230,19 +241,37 @@ def setup(
     for problem in inspect_key(spec, key):
         console.warn(f"note: {problem}")
 
-    # No menu. The keychain where the machine has one, a file with owner-only
-    # permissions where it does not, and the answer printed rather than asked.
-    if keychain_available():
+    # No menu. The keychain first where the platform has one, the file the page
+    # already documents where the keychain will not take it, and the answer
+    # printed rather than asked.
+    where = ""
+    reread = ""
+    refusal = ""
+    if keychain_supported():
         try:
             keychain_write(KEYCHAIN_SERVICE, spec.name, key)
-        except (RuntimeError, ValueError) as e:
-            console.warn(f"The keychain refused it: {redact(str(e), key)}")
+        except ValueError as e:
+            # The key itself cannot be stored by any route here, so there is
+            # nothing to fall back to and saying so is the whole of the job.
+            console.warn(f"This key cannot be stored as it stands: {redact(str(e), key)}")
             return 1
-        where = f"the OS keychain, service {KEYCHAIN_SERVICE}, account {spec.name}"
-        reread = f"security find-generic-password -s {KEYCHAIN_SERVICE} -a {spec.name} -w"
-    else:
+        except KeychainRefused as e:
+            refusal = redact(str(e), key)
+        else:
+            where = f"the OS keychain, service {KEYCHAIN_SERVICE}, account {spec.name}"
+            reread = f"security find-generic-password -s {KEYCHAIN_SERVICE} -a {spec.name} -w"
+
+    if not where:
+        if refusal:
+            console.warn(f"The keychain would not take it: {refusal}")
+            console.warn("The key went to a file instead, which lulu reads after the keychain.")
         _, home_file = env_file_candidates(cwd, home)
-        path = write_env_file(home_file, spec.env_var, key)
+        try:
+            path = write_env_file(home_file, spec.env_var, key)
+        except OSError as e:
+            console.warn(f"{home_file} would not take it either: {e.strerror}.")
+            console.warn(f"Nothing was stored. Export {spec.env_var} in this shell to get moving.")
+            return 1
         where = f"{path}, permissions 600, owner only"
         reread = f"grep {spec.env_var} {path}"
 
@@ -267,7 +296,7 @@ def storage_menu(cwd: Path, home: Path) -> list[tuple[str, str]]:
     """
     local, home_file = env_file_candidates(cwd, home)
     menu = []
-    if keychain_available():
+    if keychain_supported():
         menu.append(("keychain", f"the OS keychain (service {KEYCHAIN_SERVICE}), not a file and not in the repo"))
     menu.append(("local", f"{local}, read only in this directory"))
     menu.append(("home", f"{home_file}, read from anywhere"))
@@ -382,8 +411,12 @@ def init(
     if kind == "keychain":
         try:
             keychain_write(KEYCHAIN_SERVICE, spec.name, key)
-        except (RuntimeError, ValueError) as e:
+        except (KeychainRefused, ValueError) as e:
+            # No silent fallback here, unlike `setup`. The person picked this
+            # option off a menu, so quietly writing the key to a file they did
+            # not choose would answer a question they had already answered.
             console.warn(f"The keychain refused it: {redact(str(e), key)}")
+            console.warn("Run lulu init again and pick a file, or lulu setup, which falls back itself.")
             return 1
         where = f"the OS keychain, service {KEYCHAIN_SERVICE}, account {spec.name}"
         reread = f"security find-generic-password -s {KEYCHAIN_SERVICE} -a {spec.name} -w"

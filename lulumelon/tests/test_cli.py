@@ -43,7 +43,7 @@ def scripted(*answers: str):
 
 
 def no_keychain(monkeypatch):
-    monkeypatch.setattr(cli, "keychain_available", lambda *a: False)
+    monkeypatch.setattr(cli, "keychain_supported", lambda *a: False)
 
 
 class FakeResponse(io.BytesIO):
@@ -155,9 +155,9 @@ def test_init_refuses_a_choice_that_is_not_on_the_menu(tmp_path: Path, monkeypat
 
 
 def test_the_keychain_option_is_offered_only_where_it_works(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(cli, "keychain_available", lambda *a: True)
+    monkeypatch.setattr(cli, "keychain_supported", lambda *a: True)
     assert cli.storage_menu(tmp_path, tmp_path)[0][0] == "keychain"
-    monkeypatch.setattr(cli, "keychain_available", lambda *a: False)
+    monkeypatch.setattr(cli, "keychain_supported", lambda *a: False)
     assert [kind for kind, _ in cli.storage_menu(tmp_path, tmp_path)] == ["local", "home"]
 
 

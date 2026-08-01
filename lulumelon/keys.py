@@ -25,6 +25,13 @@ enough that scrubbing on the way in is cheaper than auditing every surface.
 trailing newline from a paste, a pair of shell quotes captured into the value,
 or a key from a different provider all produce the same opaque 401. Those are
 distinguishable locally, for free, so they are distinguished locally.
+
+**Storage is attempted, never predicted.** Whether the machine has a keychain
+and whether it will take a key right now are two questions, and answering them
+with one boolean is how a Mac with no writable default keychain ended up
+storing the key nowhere at all. `keychain_supported` answers the first;
+`keychain_write` raising `KeychainRefused` answers the second. Every caller
+therefore has a second place to put the key, and reaches it.
 """
 
 from __future__ import annotations
@@ -210,9 +217,54 @@ def env_file_candidates(cwd: Path, home: Path) -> tuple[Path, ...]:
 
 # -- reading the OS keychain ------------------------------------------------
 
+#: How long `security` is given to accept a key. Generous, because the command
+#: can be sitting behind an authorisation dialog nobody is looking at, and
+#: finite, because a dialog nobody answers is precisely the state the file
+#: fallback exists for.
+KEYCHAIN_WRITE_TIMEOUT_SECONDS = 30
 
-def keychain_available(system: str | None = None) -> bool:
-    """True only where the read and write paths below are actually exercised.
+#: Reading is not allowed to hold a command up for as long as writing, because
+#: it happens on every lookup rather than once at setup.
+KEYCHAIN_READ_TIMEOUT_SECONDS = 15
+
+
+class KeychainRefused(RuntimeError):
+    """The keychain did not take the key, for a reason worth printing.
+
+    Every way `security` can decline arrives as this one type, because the
+    decision behind all of them is the same: stop asking the keychain and store
+    the key somewhere the caller can name. A timeout, a missing binary and a
+    non-zero exit are three subprocess facts and one product fact.
+
+    Nothing is swallowed on the way. The message carries the reason, redacted,
+    and the original exception is kept as `__cause__`, so naming the condition
+    costs no detail. It is a `RuntimeError` because it describes the state of
+    the machine rather than a bad argument, which is what `ValueError` is left
+    to mean here: a key this transport cannot carry at all.
+    """
+
+
+def keychain_supported(system: str | None = None) -> bool:
+    """Whether this build has a keychain implementation for this platform.
+
+    It answers that question and it is named for that question. It was called
+    `keychain_available`, which reads like "a keychain is available to store a
+    key in", and that reading is what broke `lulu setup`: the command branched
+    on it, took the keychain arm because the platform was macOS, and had no way
+    back to the file arm when the write then failed. The key was stored
+    nowhere and the reader got a stack trace.
+
+    The two questions cannot share a boolean, because the second one has no
+    honest answer short of asking. A keychain can be locked, deleted, or have
+    its authorisation dialog cancelled between any probe and the write that
+    follows, so a probe that says yes is a statement about the past. And the
+    only probe that would exercise the write path is a write, which would leave
+    a test item in a stranger's keychain every time they ran a command.
+
+    So the split is: this decides whether the keychain is worth attempting, and
+    `keychain_write` raising `KeychainRefused` is the answer to whether it
+    could actually be stored. A refusal is an ordinary outcome with a fallback
+    behind it rather than a failure of the command.
 
     macOS for now. A Linux implementation lands with a Linux test rather than
     ahead of one, because an untested storage backend that silently fails to
@@ -221,21 +273,38 @@ def keychain_available(system: str | None = None) -> bool:
     return (system or platform.system()) == "Darwin"
 
 
-def keychain_read(service: str, account: str) -> str | None:
+def _in_keychain(keychain: Path | str | None) -> list[str]:
+    """The trailing keychain argument `security` takes, or nothing at all.
+
+    Nothing means the machine's default keychain, which is what every caller in
+    this package wants and what the user's other tools already read. A path is
+    passed only by a caller that made a keychain of its own, so that exercising
+    the real `security` binary does not mean writing into somebody's login
+    keychain, which is what the round trip test used to do on every run.
+
+    For the two calls that go through argv, where the list is the argument
+    boundary and no quoting exists or is needed. `keychain_write` drives the
+    interactive parser instead and has to quote the path itself.
+    """
+    return [] if keychain is None else [str(keychain)]
+
+
+def keychain_read(service: str, account: str, keychain: Path | str | None = None) -> str | None:
     """Read one generic password, or None when there is no such item.
 
     A non-zero exit is not an error here: "not found" is the normal case on a
     first run and has to be reportable as a step in the trail rather than as a
     crash.
     """
-    if not keychain_available():
+    if not keychain_supported():
         return None
     try:
         done = subprocess.run(
-            ["security", "find-generic-password", "-s", service, "-a", account, "-w"],
+            ["security", "find-generic-password", "-s", service, "-a", account, "-w"]
+            + _in_keychain(keychain),
             capture_output=True,
             text=True,
-            timeout=15,
+            timeout=KEYCHAIN_READ_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -245,38 +314,61 @@ def keychain_read(service: str, account: str) -> str | None:
     return value or None
 
 
-def keychain_write(service: str, account: str, key: str) -> None:
+def keychain_write(
+    service: str, account: str, key: str, keychain: Path | str | None = None
+) -> None:
     """Store a key without ever putting it in a command line.
 
     `security` is driven through its interactive mode so the secret travels on
     stdin. Passed as an argument it would be visible in the process list to
     every other user on the machine for the lifetime of the call.
+
+    `keychain` names the file to write into and defaults to the machine's
+    default one. It is quoted, and only it: the interactive parser splits on
+    whitespace, a home directory with a space in its name is ordinary, and a
+    keychain path is the one argument here this package generates rather than
+    fixes. The key stays unquoted because a quote character inside a key would
+    then be the thing that broke it.
+
+    Raises `KeychainRefused` for every way the keychain can decline, including
+    the timeout, and `ValueError` for a key this transport cannot carry.
     """
-    if not keychain_available():
-        raise RuntimeError("no OS keychain on this platform; use the file option instead")
+    if not keychain_supported():
+        raise KeychainRefused("this platform has no keychain that lulu knows how to write to")
     if "\n" in key or "\r" in key:
         raise ValueError("a key containing a newline cannot be stored this way")
-    command = f"add-generic-password -s {service} -a {account} -w {key} -U\n"
-    done = subprocess.run(
-        ["security", "-i"],
-        input=command,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    target = "" if keychain is None else f' "{keychain}"'
+    command = f"add-generic-password -s {service} -a {account} -w {key} -U{target}\n"
+    try:
+        done = subprocess.run(
+            ["security", "-i"],
+            input=command,
+            capture_output=True,
+            text=True,
+            timeout=KEYCHAIN_WRITE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise KeychainRefused(
+            f"it did not answer within {counted(KEYCHAIN_WRITE_TIMEOUT_SECONDS, 'second')}, "
+            "which is how a locked or missing default keychain looks from here"
+        ) from e
+    except OSError as e:
+        raise KeychainRefused(f"the security command could not be run: {e.strerror}") from e
     if done.returncode != 0:
-        raise RuntimeError(redact((done.stderr or done.stdout).strip(), key) or "keychain write failed")
+        reason = redact((done.stderr or done.stdout).strip(), key)
+        raise KeychainRefused(reason or "it exited without saying why")
 
 
-def keychain_delete(service: str, account: str) -> bool:
+def keychain_delete(service: str, account: str, keychain: Path | str | None = None) -> bool:
     """Remove a stored key. Returns whether there was one to remove."""
-    if not keychain_available():
+    if not keychain_supported():
         return False
     done = subprocess.run(
-        ["security", "delete-generic-password", "-s", service, "-a", account],
+        ["security", "delete-generic-password", "-s", service, "-a", account]
+        + _in_keychain(keychain),
         capture_output=True,
         text=True,
-        timeout=15,
+        timeout=KEYCHAIN_READ_TIMEOUT_SECONDS,
     )
     return done.returncode == 0
 
@@ -351,7 +443,7 @@ def resolve(
             return Resolution(spec.name, tuple(trail), source=f"environment variable {name}", key=value)
 
     where_chain = f"OS keychain (service {KEYCHAIN_SERVICE}, account {spec.name})"
-    if keychain_available(system):
+    if keychain_supported(system):
         stored = keychain(KEYCHAIN_SERVICE, spec.name)
         stored = (stored or "").strip()
         trail.append(Probe(where=where_chain, found=bool(stored)))

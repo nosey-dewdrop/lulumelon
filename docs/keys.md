@@ -60,11 +60,13 @@ repository.
 
 ```bash
 pip install -e .
-lulu init
+lulu setup
 ```
 
-`lulu init` asks for the key without echoing it, then asks where to keep it,
-then tells you exactly where it went and how to read it back yourself.
+`lulu setup` asks nothing. It reads which engine the key belongs to off the key,
+puts it in the safest place that will actually take it, and tells you where that
+was. `lulu init` is the older wizard, for when you want to pick the place
+yourself.
 
 Three places, in the order `lulu` reads them:
 
@@ -77,6 +79,14 @@ Three places, in the order `lulu` reads them:
 The first one that has a value wins, so an exported variable always overrides a
 stored key. If you write the key into `./.env` inside a git repository,
 `lulu init` adds `.env` to `.gitignore` first and says so.
+
+**Row 3 is where `lulu setup` goes when row 2 refuses.** Being on a Mac is not
+the same as having a keychain that will take a key: it can be locked, it can be
+missing, and the authorisation dialog it puts up can be cancelled or never seen.
+So `setup` offers the key to the keychain, and if the keychain does not take it,
+writes `~/.lulu/env` instead, prints the reason the keychain gave, and names the
+file. It never stores the key in no place at all, and it never ends in a stack
+trace.
 
 There is no search up the directory tree. `lulu` reads `./.env` and
 `~/.lulu/env` and nothing else, so a run can never quietly pick up a key from a
@@ -182,6 +192,11 @@ no route, DNS, or a proxy in the way.
 
 **The endpoint is gone (404).** Our bug, not your setup. The provider moved it.
 
+**The keychain would not take it.** `lulu setup` says so and writes
+`~/.lulu/env` instead, so the key is stored and you can carry on. To use the
+keychain after all, unlock it in Keychain Access, or create a login keychain if
+the account has none, then run `lulu setup` again.
+
 If the key is stored but malformed, `lulu doctor` says so before spending
 anything: a pasted newline, a pair of shell quotes captured into the value, or
 a key from the wrong provider all produce the same 401, and all three are
@@ -201,5 +216,8 @@ detectable locally for free.
 - Storing it in the keychain does not put it on a command line, where every
   other user of the machine could read it out of the process list.
 - A file written by `lulu init` is created with permissions `600`, owner only.
+- Running the test suite does not touch your keychain. The one test that
+  exercises the real `security` binary creates a keychain of its own, never
+  makes it the default, and deletes it afterwards.
 
 The key is sent to exactly one place: the provider it belongs to.

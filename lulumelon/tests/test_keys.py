@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
+import secrets
+import shutil
 import stat
 import subprocess
+import tempfile
 from pathlib import Path
 from unittest import mock
 
@@ -11,15 +15,17 @@ import pytest
 
 from lulumelon.keys import (
     KEYCHAIN_SERVICE,
+    KEYCHAIN_WRITE_TIMEOUT_SECONDS,
     REDACTED,
+    KeychainRefused,
     Resolution,
     ensure_gitignored,
     env_file_candidates,
     fingerprint,
     inspect_key,
-    keychain_available,
     keychain_delete,
     keychain_read,
+    keychain_supported,
     keychain_write,
     parse_env,
     redact,
@@ -30,6 +36,12 @@ from lulumelon.keys import (
 
 PPLX = spec_for("perplexity")
 KEY = "pplx-" + "a1b2c3d4e5" * 4
+
+#: What the round trip files its fake key under. Named so that a stray item
+#: left on a machine can be found and removed by hand, and so the acceptance
+#: check for "the user's own keychain is clean" has one string to look for.
+PYTEST_SERVICE = "lulumelon-pytest"
+PYTEST_ACCOUNT = "roundtrip"
 
 
 def no_keychain(service: str, account: str) -> str | None:
@@ -297,32 +309,146 @@ def test_writing_keeps_the_other_lines(tmp_path: Path):
 # -- the real keychain ------------------------------------------------------
 
 
-@pytest.mark.skipif(not keychain_available(), reason="no OS keychain on this platform")
+def _security(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["security", *args], capture_output=True, text=True, timeout=30)
+
+
+@contextlib.contextmanager
+def temporary_keychain():
+    """A keychain of this suite's own, made and destroyed around one test.
+
+    It exists so the round trip below can drive the real `security` binary
+    without writing into the keychain the person running the suite keeps their
+    own passwords in. That is not hypothetical. Every `pytest` run on this
+    repository put an item in the runner's login keychain, and on a machine
+    with no default keychain it put an authorisation dialog on their screen and
+    then failed.
+
+    Three properties, each of them a way this could otherwise still change a
+    machine that only ran the tests.
+
+    **It never becomes the default and never joins the search list.** Neither
+    `security default-keychain -s` nor `security list-keychains -s` is called
+    here, and neither may be added: a crash between setting one and restoring
+    it would leave a stranger's Mac pointed at a keychain this suite then
+    deletes. A keychain named as an argument needs no such registration, which
+    is what makes the honest version of this also the simple one.
+
+    **It is removed whatever the test does**, from a `finally`, along with the
+    directory holding it.
+
+    **If it cannot be made, the test skips and says so.** There is no fallback
+    to the default keychain, because a round trip that quietly ran against the
+    real one is the exact failure this helper was written to remove.
+    """
+    if not keychain_supported():
+        pytest.skip("no OS keychain on this platform")
+    directory = Path(tempfile.mkdtemp(prefix="lulumelon-keychain-"))
+    path = directory / "lulumelon-pytest.keychain"
+    # Not protecting anything: this keychain holds one fake key for the length
+    # of one test and is deleted with the file. It is random rather than fixed
+    # only so that no real keychain anywhere shares a password with a literal
+    # committed to a public repository.
+    password = secrets.token_hex(16)
+    try:
+        made = _security("create-keychain", "-p", password, str(path))
+    except (OSError, subprocess.SubprocessError) as e:
+        shutil.rmtree(directory, ignore_errors=True)
+        pytest.skip(f"a temporary keychain could not be created: {e}")
+    if made.returncode != 0:
+        shutil.rmtree(directory, ignore_errors=True)
+        pytest.skip(
+            "a temporary keychain could not be created, so this test will not fall back on "
+            f"the real one: {(made.stderr or made.stdout).strip()}"
+        )
+    try:
+        yield path
+    finally:
+        _security("delete-keychain", str(path))
+        shutil.rmtree(directory, ignore_errors=True)
+
+
 def test_a_key_survives_a_round_trip_through_the_real_keychain():
-    """The storage backend is exercised for real, under its own service name.
+    """The storage backend is exercised for real, in a keychain of its own.
 
     Mocking this would test the mock. A key written but not readable is the one
     failure mode that makes the whole setup path silently useless, and it can
     only be seen by talking to the actual keychain.
+
+    What changed is which keychain. It used to write into whichever one the
+    machine calls default, which on anybody's Mac is the login keychain holding
+    their own passwords, so running the suite modified the machine that ran it.
+    `security` takes a keychain file as an argument, so the storage functions
+    take one too and this test brings its own.
     """
-    service = "lulumelon-pytest"
-    account = "roundtrip"
-    try:
-        keychain_write(service, account, KEY)
-        assert keychain_read(service, account) == KEY
-        keychain_write(service, account, KEY + "-second")
-        assert keychain_read(service, account) == KEY + "-second"
-    finally:
-        keychain_delete(service, account)
-    assert keychain_read(service, account) is None
+    with temporary_keychain() as keychain:
+        keychain_write(PYTEST_SERVICE, PYTEST_ACCOUNT, KEY, keychain)
+        assert keychain_read(PYTEST_SERVICE, PYTEST_ACCOUNT, keychain) == KEY
+
+        keychain_write(PYTEST_SERVICE, PYTEST_ACCOUNT, KEY + "-second", keychain)
+        assert keychain_read(PYTEST_SERVICE, PYTEST_ACCOUNT, keychain) == KEY + "-second"
+
+        assert keychain_delete(PYTEST_SERVICE, PYTEST_ACCOUNT, keychain)
+        assert keychain_read(PYTEST_SERVICE, PYTEST_ACCOUNT, keychain) is None
 
 
-@pytest.mark.skipif(not keychain_available(), reason="no OS keychain on this platform")
+def test_the_round_trip_leaves_the_default_keychain_untouched():
+    """The property without which the round trip above is not worth running.
+
+    Written to the temporary keychain, then read back with no keychain named,
+    which is the default one. Finding nothing is the assertion that the old
+    version of this file could never have made.
+    """
+    with temporary_keychain() as keychain:
+        keychain_write(PYTEST_SERVICE, PYTEST_ACCOUNT, KEY, keychain)
+        assert keychain_read(PYTEST_SERVICE, PYTEST_ACCOUNT) is None, (
+            f"an item for service {PYTEST_SERVICE} is in the default keychain. An older "
+            "version of this suite put it there. Remove it with: security "
+            f"delete-generic-password -s {PYTEST_SERVICE} -a {PYTEST_ACCOUNT}"
+        )
+
+
+def test_the_temporary_keychain_is_never_made_the_default_one():
+    """Not even for the length of the test, because a crash does not restore.
+
+    Read back from `security` itself rather than from a promise in a comment,
+    since the damage this prevents lands on a machine that merely ran the
+    tests once.
+    """
+    if not keychain_supported():
+        pytest.skip("no OS keychain on this platform")
+    before = _security("default-keychain").stdout
+    with temporary_keychain() as keychain:
+        assert _security("default-keychain").stdout == before
+        assert str(keychain) not in _security("list-keychains").stdout
+    assert _security("default-keychain").stdout == before
+
+
+def test_the_temporary_keychain_is_removed_even_when_the_test_using_it_fails():
+    """Cleanup on the failing path, which is the path that leaves debris."""
+
+    class Failed(RuntimeError):
+        pass
+
+    made: list[Path] = []
+    with pytest.raises(Failed):
+        with temporary_keychain() as keychain:
+            made.append(keychain)
+            keychain_write(PYTEST_SERVICE, PYTEST_ACCOUNT, KEY, keychain)
+            raise Failed("as a test would")
+
+    assert made, "the helper skipped rather than yielding, so nothing was proved"
+    assert not made[0].exists()
+    assert not made[0].parent.exists()
+
+
 def test_the_keychain_write_does_not_put_the_key_on_a_command_line():
     """Read the argv the helper would use, and prove the secret is not in it.
 
     Anything passed as an argument is visible in `ps` to every other user on
-    the machine while the call runs.
+    the machine while the call runs. The keychain file is not a secret and is
+    quoted onto the interactive line, where nothing outside this process can
+    read it.
     """
     seen: list[list[str]] = []
 
@@ -332,9 +458,111 @@ def test_the_keychain_write_does_not_put_the_key_on_a_command_line():
         return subprocess.CompletedProcess(args, 0, "", "")
 
     with mock.patch.object(subprocess, "run", spy):
-        keychain_write("lulumelon-pytest", "argv", KEY)
+        keychain_write(PYTEST_SERVICE, "argv", KEY)
+        keychain_write(PYTEST_SERVICE, "argv", KEY, "/tmp/a keychain with spaces.keychain")
 
-    assert seen == [["security", "-i"]]
+    assert seen == [["security", "-i"], ["security", "-i"]]
+
+
+def test_a_named_keychain_reaches_security_quoted_and_the_default_one_is_unnamed():
+    """A home directory with a space in it is ordinary, and would split.
+
+    The interactive parser tokenises on whitespace, so the one argument this
+    package generates rather than fixes is the one that gets quotes.
+    """
+    written: list[str] = []
+
+    def spy(args, **kwargs):
+        written.append(kwargs.get("input", ""))
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    with mock.patch.object(subprocess, "run", spy):
+        keychain_write(PYTEST_SERVICE, "quoting", KEY)
+        keychain_write(PYTEST_SERVICE, "quoting", KEY, "/Users/a b/c.keychain")
+
+    assert written[0].rstrip("\n").endswith("-U")
+    assert written[1].rstrip("\n").endswith('-U "/Users/a b/c.keychain"')
+
+
+# -- a keychain that will not take it ---------------------------------------
+
+
+def test_a_keychain_that_never_answers_is_a_refusal_and_not_a_raw_timeout(monkeypatch):
+    """The thirty seconds of silence that ended in a stack trace.
+
+    `security -i` sat behind an authorisation dialog and `TimeoutExpired` came
+    out of here. It is a `SubprocessError`, not a `RuntimeError`, so callers
+    catching the documented pair missed it entirely and printed a traceback to
+    somebody who was trying to store a key. Naming it keeps the cause.
+    """
+    monkeypatch.setattr("lulumelon.keys.keychain_supported", lambda *a: True)
+
+    def hangs(args, **kwargs):
+        raise subprocess.TimeoutExpired(list(args), kwargs["timeout"])
+
+    with mock.patch.object(subprocess, "run", hangs):
+        with pytest.raises(KeychainRefused) as raised:
+            keychain_write(PYTEST_SERVICE, "timeout", KEY)
+
+    assert isinstance(raised.value, RuntimeError), "the type callers already catch"
+    assert isinstance(raised.value.__cause__, subprocess.TimeoutExpired), "the cause is kept"
+    assert str(KEYCHAIN_WRITE_TIMEOUT_SECONDS) in str(raised.value)
+    assert KEY not in str(raised.value)
+
+
+def test_a_keychain_that_says_no_repeats_its_reason_without_the_key(monkeypatch):
+    """The words `security` used, which name the state, minus the secret."""
+    monkeypatch.setattr("lulumelon.keys.keychain_supported", lambda *a: True)
+    said = f"security: no keychain could be found to store the item, while sending {KEY}"
+
+    def refuses(args, **kwargs):
+        return subprocess.CompletedProcess(args, 1, "", said)
+
+    with mock.patch.object(subprocess, "run", refuses):
+        with pytest.raises(KeychainRefused) as raised:
+            keychain_write(PYTEST_SERVICE, "refused", KEY)
+
+    assert "no keychain could be found" in str(raised.value)
+    assert KEY not in str(raised.value)
+    assert REDACTED in str(raised.value)
+
+
+def test_a_security_binary_that_is_not_there_is_also_a_refusal(monkeypatch):
+    """A Mac is not a guarantee that the tool is on the path."""
+    monkeypatch.setattr("lulumelon.keys.keychain_supported", lambda *a: True)
+
+    def missing(args, **kwargs):
+        raise FileNotFoundError(2, "No such file or directory")
+
+    with mock.patch.object(subprocess, "run", missing):
+        with pytest.raises(KeychainRefused, match="could not be run"):
+            keychain_write(PYTEST_SERVICE, "missing", KEY)
+
+
+def test_a_platform_with_no_keychain_refuses_before_running_anything(monkeypatch):
+    """No subprocess at all, so a Linux box cannot be told to shell out."""
+    monkeypatch.setattr("lulumelon.keys.keychain_supported", lambda *a: False)
+
+    def never(args, **kwargs):
+        raise AssertionError("security was run on a platform with no keychain")
+
+    with mock.patch.object(subprocess, "run", never):
+        with pytest.raises(KeychainRefused, match="no keychain"):
+            keychain_write(PYTEST_SERVICE, "linux", KEY)
+        assert keychain_read(PYTEST_SERVICE, "linux") is None
+        assert keychain_delete(PYTEST_SERVICE, "linux") is False
+
+
+def test_a_key_with_a_newline_is_a_bad_argument_rather_than_a_refusal(monkeypatch):
+    """The one failure with no fallback behind it, so it keeps its own type.
+
+    A refusal means try somewhere else. This means the string itself cannot be
+    stored, and the file path could not hold it either, so `setup` has to stop
+    rather than fall through.
+    """
+    monkeypatch.setattr("lulumelon.keys.keychain_supported", lambda *a: True)
+    with pytest.raises(ValueError, match="newline"):
+        keychain_write(PYTEST_SERVICE, "newline", KEY + "\ninjected")
 
 
 def test_a_key_file_in_a_repository_gets_ignored(tmp_path: Path):

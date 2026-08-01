@@ -22,7 +22,7 @@ that will confidently attribute the provider's change to the customer's work.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Hashable, Mapping, Sequence
 
 import numpy as np
 from scipy import stats
@@ -72,10 +72,17 @@ class Verdict:
 
 
 def _paired_means(
-    before: Mapping[str, Sequence[float]],
-    after: Mapping[str, Sequence[float]],
-) -> tuple[list[str], np.ndarray]:
-    """Per-prompt difference of means, over prompts present on both sides."""
+    before: Mapping[Hashable, Sequence[float]],
+    after: Mapping[Hashable, Sequence[float]],
+) -> tuple[list[Hashable], np.ndarray]:
+    """Per-unit difference of means, over the units present on both sides.
+
+    The key is whatever the two sides are paired on and this module does not
+    choose it, but both sides have to have chosen the same thing: pairing is by
+    equal keys, so a side keyed more narrowly than the other pairs on nothing.
+    The callers in this repo key by the sample, which is one prompt on one
+    engine.
+    """
     keys = sorted(set(before) & set(after))
     keys = [k for k in keys if len(before[k]) > 0 and len(after[k]) > 0]
     if not keys:
@@ -88,8 +95,8 @@ def _paired_means(
 
 
 def paired_difference(
-    before: Mapping[str, Sequence[float]],
-    after: Mapping[str, Sequence[float]],
+    before: Mapping[Hashable, Sequence[float]],
+    after: Mapping[Hashable, Sequence[float]],
     *,
     label: str = "diff",
     confidence: float = 0.95,
@@ -135,8 +142,8 @@ def paired_difference(
 
 
 def mcnemar_detection(
-    before: Mapping[str, Sequence[float]],
-    after: Mapping[str, Sequence[float]],
+    before: Mapping[Hashable, Sequence[float]],
+    after: Mapping[Hashable, Sequence[float]],
     *,
     label: str = "detection",
     confidence: float = 0.95,

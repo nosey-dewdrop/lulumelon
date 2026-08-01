@@ -101,7 +101,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 565 tests, offline
+    python3 -m pytest lulumelon/tests   # 569 tests, offline
     npm test                            # 45 tests, offline
 
 ## getting started
@@ -194,6 +194,13 @@ The source list is not taken on trust either. A replica round records the
 digest of the exact material it was shown, so the list given on the command
 line is checked against the evidence file, and a reordered list, a swapped pair
 of arms or an edited instruction is refused by name rather than measured.
+
+Neither command scores a round whose answers did not all come from one engine.
+A round is one engine and one surface, so a file holding two was not written by
+one round: keyed by the question alone one engine's answers replace the other's,
+and keyed by the sample the two sides pair on nothing they share. Both are
+numbers about the collector, so such a round is refused and the engines it
+holds are named.
 
 `lulu usage` keeps three bases apart and never merges them: an amount the
 provider stated, a cost computed from tokens it reported, and a floor for calls

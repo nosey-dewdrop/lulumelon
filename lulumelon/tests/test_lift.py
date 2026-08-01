@@ -415,6 +415,7 @@ from lulumelon.collect import (  # noqa: E402
     Prompt,
     ReplicaProvider,
     replica_prompt,
+    replica_surface,
     run_round,
     without,
 )
@@ -653,3 +654,21 @@ def test_the_sentence_the_readme_quotes_is_the_one_the_command_prints(tmp_path):
 
     readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
     assert f"`{low}% without it, {high}%\nwith it, {gap} points`" in readme
+
+
+def test_an_arm_carrying_two_engines_is_refused_by_name(tmp_path, two_engine_round):
+    """Both commands read their rounds through one door, so both refuse here.
+
+    The mixed round is given the held arm's own surface, so the only thing left
+    for the refusal to be about is the engine.
+    """
+    _, live, _, dropped = three_rounds(tmp_path)
+    _, mixed = two_engine_round(
+        tmp_path,
+        {"perplexity": ("marx.",), "anthropic": ("nobody.",)},
+        brands=MARX,
+        surface=replica_surface(SRC),
+    )
+    with pytest.raises(ValueError, match="more than one engine") as refused:
+        run_lift(tmp_path, mixed, dropped, live=live)
+    assert "perplexity, anthropic" in str(refused.value)

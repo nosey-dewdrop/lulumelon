@@ -34,14 +34,24 @@ class Replay:
     """A snapshot, split into what can be measured and what cannot.
 
     `dropped` counts asks with a non-ok status, and the record that closes a
-    round is not an ask, so it is in neither number. `surfaces` and `models` are
-    the distinct values seen in the round: more than one of either means the
-    snapshot mixes conditions, and `mirror.compare` will refuse to compare it
-    with anything. Surfaced here so that refusal is not a surprise later.
+    round is not an ask, so it is in neither number. `engines`, `surfaces` and
+    `models` are the distinct values seen in the round: more than one of any of
+    them means the snapshot mixes conditions, and `mirror.compare` will refuse
+    to compare it with anything. Surfaced here so that refusal is not a surprise
+    later.
+
+    The engine is on that list for the same reason the other two are, and it
+    was the one missing. `session.run_round` asks through a single provider and
+    stamps its name on every record, and the engine is part of the snapshot's
+    own file name, so a round is one engine the way it is one surface. Two of
+    them in one file is not a round, and a reader that could see the mixed
+    surface but not the mixed engine could be told a number was about one
+    provider when half of it came from another.
     """
 
     runs: tuple[Run, ...]
     dropped: int
+    engines: tuple[str, ...]
     surfaces: tuple[str, ...]
     models: tuple[str, ...]
 
@@ -51,7 +61,7 @@ class Replay:
 
     @property
     def is_single_condition(self) -> bool:
-        return len(self.surfaces) <= 1 and len(self.models) <= 1
+        return len(self.engines) <= 1 and len(self.surfaces) <= 1 and len(self.models) <= 1
 
     def as_text(self) -> str:
         head = f"{len(self.runs)} usable of {self.total} asked"
@@ -60,7 +70,8 @@ class Replay:
         if not self.is_single_condition:
             head += (
                 f"\nWARNING: this round mixes conditions "
-                f"(surfaces: {', '.join(self.surfaces)}; models: {', '.join(self.models)}); "
+                f"(engines: {', '.join(self.engines)}; "
+                f"surfaces: {', '.join(self.surfaces)}; models: {', '.join(self.models)}); "
                 "a score computed across them describes the collector as much as the brand"
             )
         return head
@@ -86,6 +97,7 @@ def replay(ledger: Ledger, snapshot_id: str) -> Replay:
 
     runs: list[Run] = []
     dropped = 0
+    engines: dict[str, None] = {}
     surfaces: dict[str, None] = {}
     models: dict[str, None] = {}
 
@@ -100,6 +112,7 @@ def replay(ledger: Ledger, snapshot_id: str) -> Replay:
         if rec.status != "ok":
             dropped += 1
             continue
+        engines[rec.engine] = None
         surfaces[rec.surface] = None
         models[rec.model] = None
         runs.append(
@@ -117,6 +130,7 @@ def replay(ledger: Ledger, snapshot_id: str) -> Replay:
     return Replay(
         runs=tuple(runs),
         dropped=dropped,
+        engines=tuple(engines),
         surfaces=tuple(surfaces),
         models=tuple(models),
     )

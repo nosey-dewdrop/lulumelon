@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Hashable, Mapping, Sequence
 
 from ..plan import critical_value, draws_needed, icc_of, variance_of
 from .compare import Verdict, paired_difference
@@ -143,8 +143,8 @@ class Gate:
 
 
 def replica_gate(
-    live: Mapping[str, Sequence[float]],
-    replica: Mapping[str, Sequence[float]],
+    live: Mapping[Hashable, Sequence[float]],
+    replica: Mapping[Hashable, Sequence[float]],
     *,
     margin: float,
     confidence: float = 0.95,
@@ -156,8 +156,10 @@ def replica_gate(
 ) -> Gate:
     """Decide whether `replica` may stand in for `live`, at `margin`.
 
-    Both sides are per-prompt sequences of 1/0 detections for one brand, keyed
-    by prompt id, and they are compared pairwise over the prompts they share.
+    Both sides are sequences of 1/0 detections for one brand, keyed by the unit
+    they were measured on, and they are compared pairwise over the units they
+    share. The caller decides that key and both sides must use the same one;
+    `lulu` keys by the sample, which is one prompt on one engine.
 
     `margin` is in rate units, so 0.05 is five points, and it is required. A
     default would be this module inventing the one number that decides what
@@ -232,13 +234,13 @@ def replica_gate(
     )
 
 
-def _calls_in(side: Mapping[str, Sequence[float]]) -> int:
+def _calls_in(side: Mapping[Hashable, Sequence[float]]) -> int:
     return sum(len(v) for v in side.values())
 
 
 def design_that_would_decide(
-    live: Mapping[str, Sequence[float]],
-    replica: Mapping[str, Sequence[float]],
+    live: Mapping[Hashable, Sequence[float]],
+    replica: Mapping[Hashable, Sequence[float]],
     *,
     margin: float,
     confidence: float,

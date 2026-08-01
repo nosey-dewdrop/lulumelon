@@ -343,3 +343,61 @@ def test_the_screen_names_both_rounds_and_what_was_usable_in_them(tmp_path):
     _, text = run_ablate(tmp_path, live, replica)
     assert live in text and replica in text
     assert "120 usable of 120 asked" in text
+
+
+# -- a round that carries two engines ---------------------------------------
+
+from lulumelon.cli import _detections  # noqa: E402
+from lulumelon.collect import replay, replica_surface  # noqa: E402
+from lulumelon.mirror.types import group_runs  # noqa: E402
+
+#: One engine names the brand every time, the other never does. Keyed by the
+#: prompt alone the two collapse onto one entry, so whichever engine was
+#: written second decides whether the round reads as 100% or as 0%.
+MIXED = {"perplexity": ("marx.",), "anthropic": ("nobody.",)}
+
+
+def test_two_engines_answering_one_prompt_stay_two_samples(tmp_path, two_engine_round):
+    """The keying collision, on the smallest round that can show it.
+
+    `group_runs` buckets by (prompt, engine), and this mapping is built out of
+    those buckets, so keying it by the prompt alone is narrower than the thing
+    it is built from: the two samples for `p0` land on one key and the second
+    overwrites the first. Nothing raises, nothing is printed, and one engine's
+    answers to every prompt leave the sample.
+    """
+    ledger, snapshot = two_engine_round(tmp_path, MIXED, brands=MARX)
+    played = replay(ledger, snapshot)
+
+    kept = _detections(played, "marx")
+    assert set(kept) == {(s.prompt_id, s.engine) for s in group_runs(played.runs)}
+    assert sum(len(runs) for runs in kept.values()) == len(played.runs)
+
+
+def test_a_live_round_carrying_two_engines_is_refused_by_name(tmp_path, two_engine_round):
+    """A round is one engine, so two of them is not a round to key around."""
+    _, _, replica = two_rounds(tmp_path, SOME, SOME)
+    _, mixed = two_engine_round(tmp_path, MIXED, brands=MARX)
+
+    rec = Recorder()
+    with pytest.raises(ValueError, match="more than one engine") as refused:
+        ablate(
+            rec.console,
+            ledger_dir=Path(tmp_path),
+            live=mixed,
+            replica=replica,
+            brand="marx",
+            margin=0.05,
+        )
+    assert "perplexity, anthropic" in str(refused.value)
+    assert mixed in str(refused.value)
+    assert "engines: perplexity, anthropic" in rec.text
+
+
+def test_the_replica_side_is_refused_for_the_same_reason(tmp_path, two_engine_round):
+    _, live, _ = two_rounds(tmp_path, SOME, SOME)
+    _, mixed = two_engine_round(
+        tmp_path, MIXED, brands=MARX, surface=replica_surface(SRC)
+    )
+    with pytest.raises(ValueError, match="more than one engine"):
+        run_ablate(tmp_path, live, mixed)

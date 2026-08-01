@@ -1034,6 +1034,11 @@ def _verified(store: Ledger, console: Console, role: str, snapshot_id: str):
     Shared by the two commands that read rounds off disk to compare them.
     Copying this would eventually give the same broken file two different
     treatments depending on which command opened it.
+
+    The engine check is here for the same reason: it is the one door every
+    round of every comparison below comes through, so a round nothing here can
+    pair is refused once, in front of the person who asked for the comparison,
+    rather than in whichever of the two commands happened to open it.
     """
     problems = store.verify(snapshot_id)
     if problems:
@@ -1043,11 +1048,56 @@ def _verified(store: Ledger, console: Console, role: str, snapshot_id: str):
     played = replay(store, snapshot_id)
     console.say(f"  {role:<8} {snapshot_id}")
     console.say(f"           {played.as_text()}")
+    _one_engine(played, snapshot_id)
     return played
 
 
-def _detections(played, brand: str) -> dict[str, tuple[int, ...]]:
-    return {s.prompt_id: s.detections(brand) for s in group_runs(played.runs)}
+def _one_engine(played, snapshot_id: str) -> None:
+    """Refuse a round whose answers did not all come from one engine.
+
+    A round is one engine and one surface. `collect.session.run_round` asks
+    through a single provider and writes that provider's name on every record,
+    and the engine is part of the snapshot's own file name, so a file holding
+    two of them was not written by one round.
+
+    It is refused rather than keyed around because there is no reading of it
+    that is about a brand. Keyed by the prompt alone, one engine's answers
+    replace the other's and the round is scored on whichever was written last.
+    Keyed by the sample, the pairing below either drops every prompt the two
+    engines do not share or matches a question asked of one provider against
+    the same question asked of another. Both produce a number about the
+    collector, and the first produces it silently.
+    """
+    if len(played.engines) > 1:
+        raise ValueError(
+            f"{snapshot_id} carries answers from more than one engine "
+            f"({', '.join(played.engines)}), and a round is one engine and one surface. "
+            "nothing here can pair two providers' answers to the same question, so this "
+            "round is refused rather than scored on whichever engine was written last"
+        )
+
+
+def _detections(played, brand: str) -> dict[tuple[str, str], tuple[int, ...]]:
+    """Per-run detections of one brand, keyed by the sample they came from.
+
+    The key is the pair `(prompt_id, engine)`. That is the correct one because
+    it is the identity the rest of the layer already uses: `group_runs` buckets
+    by it, a `PromptSample` is defined as one prompt on one engine, and
+    `Snapshot` refuses two samples that share it. This mapping is built out of
+    exactly those samples, so keying it by the prompt alone was narrower than
+    the thing it was built from, and a dict comprehension over a narrower key
+    does not merge, it overwrites.
+
+    With one engine in a round the two keyings agree, which is why this cost
+    nothing until the build could call a second engine. With two, the samples
+    for one prompt collapse onto one entry and one engine's answers leave the
+    sample with nothing raised and nothing printed.
+
+    The pair is what the comparisons downstream pair on, so it also stops a
+    prompt asked of one engine being matched against the same prompt asked of
+    another.
+    """
+    return {(s.prompt_id, s.engine): s.detections(brand) for s in group_runs(played.runs)}
 
 
 def ablate(

@@ -64,7 +64,7 @@ a decision on screen that the printed interval disagrees with.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Hashable, Mapping, Sequence
 
 import numpy as np
 
@@ -240,8 +240,8 @@ class SourceEffect:
 
 
 def source_effect(
-    held: Mapping[str, Sequence[float]],
-    dropped: Mapping[str, Sequence[float]],
+    held: Mapping[Hashable, Sequence[float]],
+    dropped: Mapping[Hashable, Sequence[float]],
     *,
     source: str,
     margin: float,
@@ -256,8 +256,10 @@ def source_effect(
 ) -> SourceEffect:
     """What removing `source` did, measured on the arms that did and did not carry it.
 
-    `held` and `dropped` are per-prompt sequences of 1/0 detections for one
-    brand, keyed by prompt id. `held` is the arm asked with the full list.
+    `held` and `dropped` are sequences of 1/0 detections for one brand, keyed
+    by the unit they were measured on and keyed the same way on both sides;
+    `lulu` keys by the sample, which is one prompt on one engine. `held` is the
+    arm asked with the full list.
 
     `gate` has no default. Passing `None` is allowed and says out loud that this
     contrast has no live surface behind it; a default would make the ungated
@@ -386,8 +388,8 @@ def source_effect(
 
 
 def ablation_series(
-    held: Mapping[str, Sequence[float]],
-    arms: Mapping[str, Mapping[str, Sequence[float]]],
+    held: Mapping[Hashable, Sequence[float]],
+    arms: Mapping[str, Mapping[Hashable, Sequence[float]]],
     *,
     margin: float,
     gate: Gate | None,

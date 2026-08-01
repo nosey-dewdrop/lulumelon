@@ -46,6 +46,13 @@ times owes three fees. The search count is on the record from schema v3 on, so
 it is what the fee runs on; before that the record cannot say, and a call whose
 count is missing is charged as one search, which is the floor and is named as
 one on screen rather than left to be read as a total.
+
+That floor rests on a call having been able to search at all, so it is not
+applied to the arm that was collected with no search tool attached. Those
+rounds record themselves under their own surface, which is on every line of the
+file, and a call that could not search owes no fee rather than the least fee.
+Charging them one each would bill the unsearched arm for the one thing that
+defines it, and would do it at the moment the two arms are compared.
 """
 
 from __future__ import annotations
@@ -53,6 +60,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
+from .collect.ask import is_unsearched_surface
 from .collect.ledger import Record
 from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for
 
@@ -71,6 +79,12 @@ class ModelSpend:
     `unreported_searches` is how many of them are in that second world and did
     not say how many searches they ran, so the number is a floor by exactly
     that many fees.
+
+    `unsearched` counts the calls collected with no search tool attached. They
+    owe no fee at all on a per-search price, and the count is kept rather than
+    inferred from `fee_units` being zero: a call that was offered the tool and
+    reported running no search also owes nothing, and the two are different
+    statements about what the round was.
     """
 
     provider: str
@@ -84,6 +98,7 @@ class ModelSpend:
     floor_cost: Cost | None
     fee_units: int
     unreported_searches: int
+    unsearched: int
 
     @property
     def label(self) -> str:
@@ -144,18 +159,38 @@ class Spend:
         return sum(m.calls for m in self.by_model if m.price is None)
 
     @property
+    def unpriceable(self) -> int:
+        """Answered calls that carry no figure at all, not even a floor.
+
+        A call that reported neither tokens nor an amount and could not run a
+        search owes nothing in fees and an unknown amount in tokens. There is
+        no number to put on it, which is a different state from the three
+        bases: `silent` is priced at its fee, and this has no fee.
+
+        Kept out of `priced` for the same reason `unrecorded` is. A round made
+        only of these would otherwise print a total of $0.000000 over one
+        priced call, which is the most flattering wrong number this file can
+        produce, and a mixed round would report every other call as cheaper
+        than it was.
+        """
+        return sum(
+            m.silent for m in self.by_model if m.price is not None and m.floor_cost is None
+        )
+
+    @property
     def priced(self) -> int:
         """The divisor for every per-call figure, and only it.
 
         `metered`, `counted` and `silent` each contribute to the total, so all
         three belong underneath it. `silent` stays in because a silent call
-        still carries a request fee. `unrecorded` comes out, because those rows
-        carry no cost and the same screen already says they are not counted.
-        Dividing by `answered` instead spreads a measured total over rows that
-        were never part of it, and the error grows with the size of the archive
-        a customer is carrying.
+        still carries a request fee, and comes back out again when it does not:
+        that is what `unpriceable` subtracts. `unrecorded` comes out, because
+        those rows carry no cost and the same screen already says they are not
+        counted. Dividing by `answered` instead spreads a measured total over
+        rows that were never part of it, and the error grows with the size of
+        the archive a customer is carrying.
         """
-        return self.metered + self.counted + self.silent
+        return self.metered + self.counted + self.silent - self.unpriceable
 
     @property
     def input_tokens(self) -> int:
@@ -229,16 +264,31 @@ class Spend:
                     f"  {bucket.label}: a floor for {_calls(bucket.silent)} that reported neither"
                 )
                 lines.append(f"    {bucket.floor_cost.as_text()}")
-            if bucket.price.fee_unit == FEE_PER_SEARCH:
-                line = (
-                    f"  {bucket.label}: charged {bucket.fee_units} search fees "
-                    f"over {_calls(bucket.calls)}"
+            elif bucket.silent:
+                # Nothing is known about these at all. The floor of a call that
+                # owes no fee and reported no tokens is zero, and a zero printed
+                # under a COST heading reads as a call that was free.
+                lines.append(
+                    f"  {bucket.label}: {_calls(bucket.silent)} reported neither tokens nor an "
+                    "amount and could run no search, so what they cost is unknown rather than "
+                    "nothing, and no floor is quoted for them"
                 )
-                if bucket.unreported_searches:
-                    line += (
-                        f", of which {bucket.unreported_searches} did not report a search count "
-                        "and are charged as one search each, which is a floor"
+            if bucket.price.fee_unit == FEE_PER_SEARCH:
+                if bucket.unsearched == bucket.calls:
+                    line = (
+                        f"  {bucket.label}: no search fee over {_calls(bucket.calls)}, which were "
+                        "collected with no search tool attached and could not run one"
                     )
+                else:
+                    line = (
+                        f"  {bucket.label}: charged {bucket.fee_units} search fees "
+                        f"over {_calls(bucket.calls)}"
+                    )
+                    if bucket.unreported_searches:
+                        line += (
+                            f", of which {bucket.unreported_searches} did not report a search "
+                            "count and are charged as one search each, which is a floor"
+                        )
                 lines.append(line)
         if self.failed:
             lines.append(
@@ -270,6 +320,11 @@ class Spend:
                 f"  {self.unpriced} of the answered calls could not be priced at all, so every "
                 "figure above is a total for the rest of the round only"
             )
+        if self.unpriceable:
+            lines.append(
+                f"  no figure covers {_calls(self.unpriceable)}: no fee is owed and no tokens "
+                "were reported, so what they cost is in no total above"
+            )
         return "\n".join(lines)
 
 
@@ -293,6 +348,12 @@ class _Fees:
     `searches` is what those calls said they did; `unreported` is one fee for
     each call that said nothing, which is the least it can have cost, since a
     call reaching a search-billed engine ran at least one.
+
+    That last clause is what `could_search` qualifies. It holds for a call that
+    was handed the search tool and holds for no other kind, so a call collected
+    with the tool left off adds nothing to either half: it owes no fee, and
+    charging it the one-search floor would bill an arm for the thing it was
+    defined by not doing.
     """
 
     searches: int = 0
@@ -302,11 +363,11 @@ class _Fees:
     def units(self) -> int:
         return self.searches + self.unreported
 
-    def add(self, searches: int | None) -> None:
-        if searches is None:
-            self.unreported += 1
-        else:
+    def add(self, searches: int | None, *, could_search: bool) -> None:
+        if searches is not None:
             self.searches += searches
+        elif could_search:
+            self.unreported += 1
 
 
 @dataclass
@@ -315,6 +376,7 @@ class _Bucket:
 
     counted: int = 0
     silent: int = 0
+    unsearched: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
     counted_fees: _Fees = field(default_factory=_Fees)
@@ -372,15 +434,22 @@ def spend_of(records: Iterable[Record]) -> Spend:
             continue
 
         bucket = buckets.setdefault((record.provider, record.model), _Bucket())
+        # Read off the record rather than passed in, because the condition is a
+        # property of the round that was collected and not of the command that
+        # is pricing it afterwards. The surface is where a round says which arm
+        # it was, and it is on every line of the file.
+        could_search = not is_unsearched_surface(record.surface)
+        if not could_search:
+            bucket.unsearched += 1
         if both_tokens:
             token_reporters += 1
             bucket.counted += 1
             bucket.input_tokens += usage.input_tokens
             bucket.output_tokens += usage.output_tokens
-            bucket.counted_fees.add(usage.searches)
+            bucket.counted_fees.add(usage.searches, could_search=could_search)
         else:
             bucket.silent += 1
-            bucket.silent_fees.add(usage.searches)
+            bucket.silent_fees.add(usage.searches, could_search=could_search)
 
     by_model = tuple(
         _priced(provider, model, bucket)
@@ -408,6 +477,11 @@ def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
     rather than the call count: on a per-search price the number of fees is the
     number of searches those calls reported, and quoting one fee per call there
     understates a bill by however many times each model chose to look.
+
+    A floor is quoted only where there is a fee to floor. Calls that reported
+    nothing and could not search have no known cost at all, and `fees()` over
+    no units would hand back $0 for them, which is the one figure on this
+    screen that a reader would take for an invoice rather than for an absence.
     """
     price = price_for(provider, model)
     counted_cost = floor_cost = None
@@ -424,7 +498,7 @@ def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
             output_tokens=bucket.output_tokens,
             fee_units=counted_units,
         )
-    if price is not None and bucket.silent:
+    if price is not None and bucket.silent and silent_units:
         floor_cost = fees(price, fee_units=silent_units)
     return ModelSpend(
         provider=provider,
@@ -440,6 +514,7 @@ def _priced(provider: str, model: str, bucket: _Bucket) -> ModelSpend:
         unreported_searches=(
             bucket.counted_fees.unreported + bucket.silent_fees.unreported if per_search else 0
         ),
+        unsearched=bucket.unsearched,
     )
 
 

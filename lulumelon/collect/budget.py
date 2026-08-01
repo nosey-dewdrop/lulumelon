@@ -20,6 +20,13 @@ stopped being able to see. So a call nobody metered costs the most it could
 have: the full search cap, plus tokens at the rate this round has been running
 at, or at a stated worst case before anything has been measured.
 
+The one exception is stated rather than inferred. A round collected with no
+search tool attached has a search cap of nothing, because the call was never
+able to run one, and there the missing count is a fact about the request we
+sent rather than a silence from the provider. It is a constructor argument and
+not a reading of the response, since the ceiling is needed before the response
+exists.
+
 **The check happens before the call, not after it.** Asking whether the last
 call fit is one call too late; every overrun is discovered by committing it.
 What is asked instead is whether the next one still fits at its own ceiling.
@@ -64,6 +71,13 @@ class Budget:
     price: Price
     limit_usd: float
     max_searches: int = 1
+    #: Whether the round this guards was given a search tool at all. False is
+    #: the unsearched arm, where no call can run a search and therefore no call
+    #: can owe a fee charged per search. It is stated by the caller rather than
+    #: inferred, because the ceiling is asked for before the first call exists
+    #: to be looked at, and a ceiling that guessed would be the one number here
+    #: that is a guess.
+    can_search: bool = True
     spent_usd: float = 0.0
     metered_calls: int = 0
     unmetered_calls: int = 0
@@ -76,7 +90,7 @@ class Budget:
                 f"a budget of {self.limit_usd} buys nothing; a round with no ceiling is the "
                 "thing this class exists to refuse"
             )
-        if self.max_searches < 1:
+        if self.can_search and self.max_searches < 1:
             raise ValueError("a call runs at least one search, so its ceiling is at least one fee")
 
     @property
@@ -101,6 +115,13 @@ class Budget:
         goes on. The fee term does not: a call may search up to its cap and the
         cap is what is charged, because the alternative is discovering the
         difference after paying it.
+
+        On the unsearched arm there is no fee term at all. That is not an
+        optimistic reading of a silence, which is what every other zero in this
+        file would be: the tool was never sent, so the next call cannot run a
+        search whatever it does with the question. Charging the cap anyway
+        would stop that arm at a fraction of the calls it can afford and report
+        the difference as a budget it never spent.
         """
         per_input, per_output = self.measured_rate or (
             UNMEASURED_INPUT_TOKENS,
@@ -109,7 +130,10 @@ class Budget:
         tokens = (
             per_input * self.price.input_per_mtok_usd + per_output * self.price.output_per_mtok_usd
         ) / 1_000_000
-        searches = self.max_searches if self.price.fee_unit == FEE_PER_SEARCH else 1
+        if self.price.fee_unit != FEE_PER_SEARCH:
+            searches = 1
+        else:
+            searches = self.max_searches if self.can_search else 0
         return tokens + searches * self.price.fee_per_k_high_usd / 1000
 
     def can_afford_another(self) -> bool:
@@ -151,10 +175,19 @@ class Budget:
                 + per_output * self.price.output_per_mtok_usd
             ) / 1_000_000
 
-        if self.price.fee_unit == FEE_PER_SEARCH:
-            searches = usage.searches if usage.searches is not None else self.max_searches
-        else:
+        if self.price.fee_unit != FEE_PER_SEARCH:
             searches = 1
+        elif usage.searches is not None:
+            searches = usage.searches
+        elif self.can_search:
+            searches = self.max_searches
+        else:
+            # The second honest zero here, on the same ground as the first: a
+            # call that was never handed the tool cannot have searched, so this
+            # silence is a measurement rather than a provider that stopped
+            # reporting. A count that arrives anyway is still charged above,
+            # because what the provider says it did outranks what we sent.
+            searches = 0
         cost = tokens + searches * self.price.fee_per_k_high_usd / 1000
 
         self.spent_usd += cost

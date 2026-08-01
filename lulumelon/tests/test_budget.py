@@ -127,6 +127,64 @@ def test_a_per_request_price_charges_one_fee_whatever_the_searches_were():
     assert without_count == pytest.approx(with_count)
 
 
+def test_the_arm_that_cannot_search_is_charged_no_search_fee():
+    """The fee is per search, and this arm was never handed the tool.
+
+    Charged at the cap the way an unmetered call is, a 50 call round would
+    reserve $1.50 of fees that cannot be incurred, stop a third of the way
+    through, and report the rest as a budget it never spent.
+    """
+    b = Budget(price=OPUS, limit_usd=1.0, max_searches=3, can_search=False)
+    tokens_only = (
+        UNMEASURED_INPUT_TOKENS * OPUS.input_per_mtok_usd
+        + UNMEASURED_OUTPUT_TOKENS * OPUS.output_per_mtok_usd
+    ) / 1_000_000
+
+    assert b.next_call_ceiling_usd() == pytest.approx(tokens_only)
+    assert b.next_call_ceiling_usd() == pytest.approx(0.07)
+    assert b.charge(answered(input_tokens=1000, output_tokens=200)) == pytest.approx(0.01)
+
+
+def test_a_search_the_provider_reports_anyway_is_charged_anyway():
+    """What the provider says it did outranks what the request said it may do.
+
+    The zero above is a fact about a request we sent, and this is the case
+    where that fact turns out to be wrong. A guard that trusted its own
+    argument over the response would under-count exactly when it is wrong about
+    the arm it is guarding.
+    """
+    b = Budget(price=OPUS, limit_usd=1.0, max_searches=3, can_search=False)
+    assert b.charge(
+        answered(input_tokens=1000, output_tokens=200, searches=2)
+    ) == pytest.approx(0.01 + 2 * SEARCH_FEE)
+
+
+def test_a_cap_is_not_required_on_an_arm_that_cannot_search():
+    """The cap bounds a fee, and there is no fee here to bound."""
+    b = Budget(price=OPUS, limit_usd=1.0, max_searches=0, can_search=False)
+    assert b.next_call_ceiling_usd() == pytest.approx(0.07)
+
+
+def test_an_unmetered_call_on_the_unsearched_arm_is_still_charged_at_its_ceiling():
+    """Only the fee term is known to be zero; the tokens are still unknown."""
+    b = Budget(price=OPUS, limit_usd=1.0, max_searches=3, can_search=False)
+    assert b.charge(answered()) == pytest.approx(0.07)
+    assert b.unmetered_calls == 1
+
+
+def test_a_per_request_price_is_unmoved_by_which_arm_it_is_guarding():
+    """The other provider bills once per call, and both arms are one call."""
+    searching = Budget(price=SONAR, limit_usd=1.0, max_searches=3)
+    not_searching = Budget(price=SONAR, limit_usd=1.0, max_searches=3, can_search=False)
+
+    assert not_searching.next_call_ceiling_usd() == pytest.approx(
+        searching.next_call_ceiling_usd()
+    )
+    assert not_searching.charge(answered(input_tokens=1000, output_tokens=200)) == pytest.approx(
+        0.0012 + REQUEST_FEE
+    )
+
+
 def test_a_call_that_failed_is_charged_nothing():
     # the one zero here that is a measurement rather than an absence: the
     # provider states that a search which errors is not billed.

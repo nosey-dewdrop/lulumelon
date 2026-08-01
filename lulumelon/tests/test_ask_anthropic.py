@@ -23,7 +23,9 @@ import pytest
 
 from lulumelon.collect.ask import (
     DEFAULT_MAX_SEARCHES,
+    SURFACES,
     UNKNOWN_MODEL,
+    UNSEARCHED_SURFACE,
     WEB_SEARCH_TOOL,
     AnthropicProvider,
     PerplexityProvider,
@@ -107,9 +109,71 @@ def test_the_key_goes_in_the_header_the_api_documents(monkeypatch):
     assert headers["Anthropic-version".lower()] == "2023-06-01"
 
 
-def test_a_round_with_no_search_at_all_is_refused_by_name():
+def test_a_cap_of_zero_with_the_tool_still_attached_is_refused_by_name():
+    """A model told it may look and then refused is neither arm of anything."""
     with pytest.raises(ValueError, match="ungrounded model"):
         AnthropicProvider(api_key=KEY, max_searches=0)
+
+
+# -- the arm that does not search -------------------------------------------
+
+
+def test_the_unsearched_arm_sends_no_search_tool_at_all(monkeypatch):
+    """Absent, not capped at nothing.
+
+    The two arms exist to separate a brand the model knows from one it finds,
+    so the second arm has to be a request with no retrieval offered in it. A
+    tool sent with `max_uses: 0` is still a tool the model was shown, which is
+    a third condition and not the one being collected.
+    """
+    seen: list = []
+    monkeypatch.setattr(
+        urllib.request, "urlopen", answering(message([{"type": "text", "text": "ok"}]), seen)
+    )
+    AnthropicProvider(api_key=KEY, can_search=False).ask("who should I use?")
+
+    body = json.loads(seen[0].data.decode("utf-8"))
+    assert "tools" not in body
+    assert body["messages"] == [{"role": "user", "content": "who should I use?"}]
+    assert body["model"] == "claude-opus-5"
+
+
+def test_the_unsearched_arm_records_itself_under_its_own_surface(monkeypatch):
+    """The difference has to be on the record, or the two arms pool.
+
+    Everything downstream reads the condition off the surface: it is on every
+    line of the ledger, it is in the snapshot's file name, and it is what
+    `mirror.compare.surface_confounds` voids a comparison on. Two arms filed
+    under `api` would be one name over two conditions, and the surface effect
+    is larger than the noise the round is being collected to measure.
+    """
+    monkeypatch.setattr(
+        urllib.request, "urlopen", answering(message([{"type": "text", "text": "ok"}]))
+    )
+    unsearched = AnthropicProvider(api_key=KEY, can_search=False)
+    searched_arm = AnthropicProvider(api_key=KEY)
+
+    assert unsearched.surface == UNSEARCHED_SURFACE
+    assert unsearched.surface != searched_arm.surface
+    assert UNSEARCHED_SURFACE in SURFACES, "a surface outside the list is a provider bug"
+    assert unsearched.ask("q").surface == UNSEARCHED_SURFACE
+
+
+def test_the_surface_of_the_unsearched_arm_cannot_be_passed_in():
+    """Derived, so no round can be filed under the other arm's name."""
+    mislabelled = AnthropicProvider(api_key=KEY, can_search=False, surface="api")
+    assert mislabelled.surface == UNSEARCHED_SURFACE
+
+
+def test_the_search_cap_is_not_consulted_when_no_tool_is_sent(monkeypatch):
+    """A cap on a fee that cannot be incurred is not a refusal worth making."""
+    seen: list = []
+    monkeypatch.setattr(
+        urllib.request, "urlopen", answering(message([{"type": "text", "text": "ok"}]), seen)
+    )
+    AnthropicProvider(api_key=KEY, can_search=False, max_searches=0).ask("q")
+
+    assert "tools" not in json.loads(seen[0].data.decode("utf-8"))
 
 
 # -- what comes back --------------------------------------------------------
@@ -298,6 +362,23 @@ def test_the_factory_returns_the_engine_that_was_named():
     assert isinstance(provider_for("anthropic", KEY), AnthropicProvider)
     assert isinstance(provider_for("perplexity", "pplx-x"), PerplexityProvider)
     assert provider_for("anthropic", KEY, model="claude-opus-5").model == "claude-opus-5"
+
+
+def test_the_factory_builds_the_arm_that_does_not_search():
+    built = provider_for("anthropic", KEY, can_search=False, max_searches=3)
+    assert built.can_search is False
+    assert built.surface == UNSEARCHED_SURFACE
+
+
+def test_an_engine_that_always_searches_has_no_unsearched_arm_to_offer():
+    """Refused rather than ignored.
+
+    Dropped silently, the searched arm would be collected under the unsearched
+    arm's name and the two would then be compared as though one thing had
+    changed between them.
+    """
+    with pytest.raises(ValueError, match="no unsearched arm"):
+        provider_for("perplexity", "pplx-x", can_search=False)
 
 
 def test_an_engine_this_build_cannot_call_is_refused_with_the_list():

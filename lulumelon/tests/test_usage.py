@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from lulumelon.cli import Console, usage as run_usage
-from lulumelon.collect import Ledger, Record
+from lulumelon.collect import UNSEARCHED_SURFACE, Ledger, Record
 from lulumelon.prices import price_for
 from lulumelon.usage import spend_of, token_rate
 
@@ -477,6 +477,49 @@ def test_a_call_that_did_not_say_how_often_it_searched_is_charged_one_and_says_s
     assert "charged 3 search fees over 2 calls" in text
     assert "1 did not report a search count" in text
     assert "which is a floor" in text
+
+
+def test_the_arm_that_could_not_search_owes_no_fee_at_all():
+    """The floor of one search rests on the call having been able to search.
+
+    These calls were collected with no search tool attached, so the missing
+    count is a fact about the request rather than a silence from the provider.
+    Charged one each they would owe $0.02 of fees the account was never billed,
+    on the screen a buyer checks against their own invoice.
+    """
+    spend = spend_of(
+        [counted(1000, 200, surface=UNSEARCHED_SURFACE, **HAIKU) for _ in range(2)]
+    )
+    bucket = spend.by_model[0]
+
+    assert (bucket.fee_units, bucket.unreported_searches, bucket.unsearched) == (0, 0, 2)
+    assert spend.low_usd == pytest.approx(0.004)
+    assert spend.low_usd == spend.high_usd
+
+    text = spend.as_text()
+    assert "no search fee over 2 calls" in text
+    assert "no search tool attached" in text
+    assert "which is a floor" not in text
+
+
+def test_a_silent_call_that_could_not_search_has_no_floor_to_quote():
+    """Nothing is known about what it cost, and $0.000000 is not nothing.
+
+    A call that reported no tokens and could run no search leaves the fee at
+    zero and the tokens unknown. Printing the sum as a floor would put a free
+    call under a heading that reads COST.
+    """
+    spend = spend_of([silent(surface=UNSEARCHED_SURFACE, **HAIKU)])
+    bucket = spend.by_model[0]
+
+    assert bucket.floor_cost is None
+    assert bucket.silent == 1
+    assert (spend.unpriceable, spend.priced) == (1, 0)
+
+    text = spend.as_text()
+    assert "unknown rather than nothing" in text
+    assert "no figure covers 1 call" in text
+    assert "$0.000000" not in text, "a round with no known cost is not a free round"
 
 
 def test_a_fee_charged_per_request_is_not_multiplied_by_anything():

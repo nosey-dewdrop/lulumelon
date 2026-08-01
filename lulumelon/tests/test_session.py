@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from lulumelon.collect import (
+    UNSEARCHED_SURFACE,
     Brand,
     Budget,
     FakeProvider,
@@ -14,6 +15,8 @@ from lulumelon.collect import (
     replay,
     run_round,
 )
+from lulumelon.mirror.compare import surface_confounds
+from lulumelon.mirror.types import snapshot_from_runs
 from lulumelon.prices import price_for
 
 BRANDS = (Brand("Marx", aliases=("marx.finance",)), Brand("Rival"))
@@ -218,6 +221,43 @@ def test_a_completed_round_ends_with_one_seal_saying_what_it_did(led):
     assert (seal.round_asked, seal.round_ok, seal.round_errors) == (4, 3, 1)
     assert seal.asked_at, "the seal records when the round closed"
     assert led.verify(result.snapshot_id) == []
+
+
+def test_the_two_arms_are_two_conditions_everywhere_they_are_read(led):
+    """The same questions, asked with search on and with search off.
+
+    The difference between them is the finding: whether the model knows the
+    brand from its weights or finds it by retrieval. That only holds if nothing
+    can pool them, so the condition is checked in all three places a round is
+    read from — the file name, every record, and the comparison that would
+    otherwise put a number on the gap between them.
+    """
+    searched = run_round(
+        ledger=led, provider=FakeProvider(script={P1.text: ("Marx leads.",)}),
+        prompts=[P1], brands=BRANDS, k=2, subject="marx", clock=ticking_clock(),
+    )
+    unsearched = run_round(
+        ledger=led,
+        provider=FakeProvider(script={P1.text: ("Marx leads.",)}, surface=UNSEARCHED_SURFACE),
+        prompts=[P1], brands=BRANDS, k=2, subject="marx", clock=ticking_clock(),
+    )
+
+    assert searched.snapshot_id != unsearched.snapshot_id
+    assert f"__{UNSEARCHED_SURFACE}__" in unsearched.snapshot_id
+    assert "__api__" in searched.snapshot_id
+    assert f"__{UNSEARCHED_SURFACE}__" not in searched.snapshot_id
+
+    played = {name: replay(led, name) for name in (searched.snapshot_id, unsearched.snapshot_id)}
+    assert played[unsearched.snapshot_id].surfaces == (UNSEARCHED_SURFACE,)
+    assert played[searched.snapshot_id].surfaces == ("api",)
+
+    # The refusal that matters: a before/after across the two arms is a
+    # comparison across surfaces, and this engine voids those rather than
+    # printing the difference as a change in the brand.
+    assert surface_confounds(
+        snapshot_from_runs("searched", played[searched.snapshot_id].runs),
+        snapshot_from_runs("unsearched", played[unsearched.snapshot_id].runs),
+    ) == ("fake",)
 
 
 def test_the_collector_computes_no_score(led):

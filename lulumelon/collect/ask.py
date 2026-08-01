@@ -50,9 +50,35 @@ from ..keys import redact
 #: collected with the sources supplied as context, which is a laboratory
 #: condition, and it is a surface so that `mirror` treats a snapshot mixing it
 #: with live answers as the mixed condition it is rather than pooling the two.
-SURFACES = ("logged_in", "logged_out", "api", "replica", "unspecified")
+SURFACES = ("logged_in", "logged_out", "api", "api_unsearched", "replica", "unspecified")
+
+#: The API with no search tool attached. A separate surface from `api` because
+#: it is a separate condition: the same question answered from the weights alone
+#: rather than from pages fetched while answering, which is the whole point of
+#: collecting it. Two arms both filed under `api` would be two conditions
+#: wearing one name, poolable by everything downstream, and the measured surface
+#: effect runs 1.5 to 3.6 times the run-to-run noise this library exists to
+#: quantify, so pooling them would swamp the number being measured with the
+#: difference between the arms.
+#:
+#: It is a surface rather than a flag on the round because a surface is already
+#: carried on every record, printed into the snapshot's file name and read by
+#: `mirror.compare.surface_confounds`, which voids a comparison across two of
+#: them. A new field would have to be taught to all three.
+UNSEARCHED_SURFACE = "api_unsearched"
 
 UNKNOWN_MODEL = "unknown"
+
+
+def is_unsearched_surface(surface: str) -> bool:
+    """Whether a round on this surface could have run a search at all.
+
+    Read by anything that prices a recorded call. A fee charged per search is
+    owed once per search, and a call that was never given the tool ran none, so
+    the absence of a search count on one of these records is a measured zero
+    rather than a silence to be charged at the floor.
+    """
+    return surface == UNSEARCHED_SURFACE
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +152,12 @@ class Answer:
 
 
 def provider_for(
-    name: str, api_key: str, *, model: str | None = None, max_searches: int | None = None
+    name: str,
+    api_key: str,
+    *,
+    model: str | None = None,
+    max_searches: int | None = None,
+    can_search: bool = True,
 ) -> "Provider":
     """The live provider for one engine name, or a refusal that lists the rest.
 
@@ -138,6 +169,12 @@ def provider_for(
     caller that wants the cheapest possible call sets it to one, and on an
     engine billed per request it changes nothing and is dropped rather than
     raising, so a caller does not have to know which engine it got.
+
+    `can_search=False` is the opposite: it is refused where it means nothing,
+    because it names a condition rather than a preference. An engine that
+    answers by searching and cannot be asked not to would quietly collect the
+    searched arm under the unsearched arm's name, and the two would then be
+    compared as if one thing had changed between them.
     """
     builders = {"perplexity": PerplexityProvider, "anthropic": AnthropicProvider}
     try:
@@ -150,6 +187,15 @@ def provider_for(
         kwargs["model"] = model
     if max_searches is not None and builder is AnthropicProvider:
         kwargs["max_searches"] = max_searches
+    if not can_search:
+        if builder is not AnthropicProvider:
+            raise ValueError(
+                f"{name} answers by searching and this build cannot ask it not to, so there is "
+                "no unsearched arm to collect from it. the contrast is between one engine asked "
+                "with the tool and the same engine asked without it, and half of that is not a "
+                "contrast"
+            )
+        kwargs["can_search"] = False
     return builder(**kwargs)
 
 
@@ -504,7 +550,7 @@ def _anthropic_sources(content: list) -> tuple[tuple[str, ...], tuple[str, ...]]
 
 @dataclass
 class AnthropicProvider:
-    """Claude on the Messages API, with the web search tool switched on.
+    """Claude on the Messages API, with the web search tool on or left off.
 
     The second engine here, and the reason for a second one is not redundancy.
     A visibility number is about one door, and the published gap between doors
@@ -532,6 +578,20 @@ class AnthropicProvider:
     with `pause_turn` and expects the message sent back to continue. Recording
     the fragment would enter a half-finished answer as an observation, and every
     such fragment is one where the brand had less room to be named.
+
+    **`can_search=False` is the other arm, not a cheaper version of this one.**
+    The tool is left off the request entirely rather than capped at nothing, so
+    the model answers from its weights instead of from pages it fetched while
+    answering. That difference is the measurement: it separates a brand the
+    model knows from one it finds. A cap of zero with the tool still attached
+    would be a third thing again, a model told it may look and then refused,
+    and it is not what either arm is asking.
+
+    The arm records itself under its own surface, derived here and never
+    accepted from a caller, so no round can be filed under the other arm's
+    name. That is what stops the two being pooled: everything downstream reads
+    the condition off the record and the file name, and a label that could be
+    passed in is a label that can be passed in wrong.
     """
 
     api_key: str = field(repr=False)
@@ -539,32 +599,43 @@ class AnthropicProvider:
     surface: str = "api"
     model: str = "claude-opus-5"
     max_searches: int = DEFAULT_MAX_SEARCHES
+    can_search: bool = True
     max_tokens: int = 1024
     endpoint: str = "https://api.anthropic.com/v1/messages"
     timeout_s: float = 90.0
 
     def __post_init__(self) -> None:
+        if not self.can_search:
+            # Derived, never accepted, for the same reason a replica arm derives
+            # its own: two conditions filed under one surface are poolable by
+            # everything that reads a round, and nothing on disk would disagree.
+            self.surface = UNSEARCHED_SURFACE
+            return
         if self.max_searches < 1:
             raise ValueError(
                 f"max_searches={self.max_searches} would collect answers with no search behind "
-                "them, which is the ungrounded model and a different experiment"
+                "them, which is the ungrounded model and a different experiment. that experiment "
+                "is collected with can_search=False, which sends no search tool at all"
             )
 
     def ask(self, prompt: str) -> Answer:
-        body = json.dumps(
-            {
-                "model": self.model,
-                "max_tokens": self.max_tokens,
-                "messages": [{"role": "user", "content": prompt}],
-                "tools": [
-                    {
-                        "type": WEB_SEARCH_TOOL,
-                        "name": "web_search",
-                        "max_uses": self.max_searches,
-                    }
-                ],
-            }
-        ).encode("utf-8")
+        payload: dict = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if self.can_search:
+            # Absent rather than empty on the other arm. A tool sent with a cap
+            # of zero is still a tool the model was offered, and what is being
+            # measured is an answer composed without one.
+            payload["tools"] = [
+                {
+                    "type": WEB_SEARCH_TOOL,
+                    "name": "web_search",
+                    "max_uses": self.max_searches,
+                }
+            ]
+        body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             self.endpoint,
             data=body,

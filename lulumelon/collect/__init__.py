@@ -6,7 +6,17 @@ so nothing in `mirror` is allowed to reach the network, and nothing here is
 allowed to compute a score.
 """
 
-from .ask import SURFACES, UNKNOWN_MODEL, Answer, FakeProvider, PerplexityProvider, Provider, Usage
+from .ask import (
+    SURFACES,
+    UNKNOWN_MODEL,
+    UNSEARCHED_SURFACE,
+    Answer,
+    FakeProvider,
+    PerplexityProvider,
+    Provider,
+    Usage,
+    is_unsearched_surface,
+)
 from .budget import UNMEASURED_INPUT_TOKENS, UNMEASURED_OUTPUT_TOKENS, Budget
 from .detect import Brand, detect, normalise, occurrences
 from .ledger import (
@@ -51,6 +61,7 @@ __all__ = [
     "SEALING_VERSION",
     "SURFACES",
     "UNKNOWN_MODEL",
+    "UNSEARCHED_SURFACE",
     "UNMEASURED_INPUT_TOKENS",
     "UNMEASURED_OUTPUT_TOKENS",
     "Answer",
@@ -72,6 +83,7 @@ __all__ = [
     "detect",
     "is_diagnostic",
     "is_replica_surface",
+    "is_unsearched_surface",
     "normalise",
     "occurrences",
     "replay",

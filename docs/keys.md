@@ -209,8 +209,14 @@ detectable locally for free.
 - It is never printed. Not by `init`, not by `doctor`, not in an error.
   The tests place a known key and assert it does not appear on any output
   surface.
-- It is never written to the ledger. Provider error text is scrubbed on the way
-  in, including keys we do not own that a model answer happened to quote.
+- It is never written to the ledger. Two separate guards, because they catch
+  two different secrets. The provider boundary redacts our own key out of an
+  error body, which it can do because it holds the key. The ledger redacts
+  anything key-shaped out of every answer and every error it writes, which is
+  what catches a key nobody here holds, quoted by a model out of a page that
+  leaked it. That second pass runs before the card and phone rules, since those
+  match digit runs anywhere and would otherwise take a key's digits and leave
+  its prefix and issuer on disk.
 - The provider object does not carry it in its `repr`, so a traceback or a
   debugger frame cannot spill it.
 - Storing it in the keychain does not put it on a command line, where every

@@ -274,6 +274,73 @@ def test_scrub_leaves_ordinary_text_alone():
     assert scrub(text) == text
 
 
+# -- a key nobody here holds ------------------------------------------------
+#
+# The provider boundary redacts our own key out of an error body, with the key
+# in hand. These are about the other one: a key this process never held,
+# arriving inside an answer because the model quoted a page that leaked it. It
+# comes in on the ordinary write path, and the ledger is append-only and
+# hash-chained, so a key that reaches disk cannot be taken off it afterwards
+# without reforging every record that followed.
+
+#: A key shaped like the ones this build issues, whose tail is also a valid card
+#: number. Both rules match it, and which one runs first decides whether the
+#: whole token goes or only its middle.
+KEYLIKE_AND_LUHN = "sk-ant-4111111111111111"
+
+
+def test_a_key_quoted_in_an_answer_never_reaches_the_file(led):
+    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    written = led.append(
+        sid, rec(answer_text=f"Their docs example uses {KEYLIKE_AND_LUHN} as the token.")
+    )
+    led.seal(sid, asked=1, ok=1, errors=0)
+
+    assert KEYLIKE_AND_LUHN not in written.answer_text
+    assert "[redacted key]" in written.answer_text
+    raw = led.path_of(sid).read_text(encoding="utf-8")
+    assert KEYLIKE_AND_LUHN not in raw
+    assert "4111111111111111" not in raw
+    assert led.verify(sid) == []
+
+
+def test_a_key_in_an_error_body_is_caught_by_the_ledger_too(led):
+    """A second net, under the one at the provider boundary.
+
+    `ask` already redacts before an error becomes an `Answer`, so this is not
+    the only guard. It is the one that still holds when a provider class is
+    added and its author does not know that rule exists.
+    """
+    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    written = led.append(
+        sid, rec(status="error", answer_text="", error=f"401 for {KEYLIKE_AND_LUHN}")
+    )
+    assert KEYLIKE_AND_LUHN not in written.error
+    assert KEYLIKE_AND_LUHN not in led.path_of(sid).read_text(encoding="utf-8")
+
+
+def test_the_key_rule_runs_before_the_card_rule():
+    """Order, asserted as the half-redaction it prevents.
+
+    The card rule matches a digit run wherever it finds one, so a key reaching
+    it first comes out as its prefix followed by `[card]`. That is the token's
+    shape and its issuer confirmed with only the digits removed, which is not a
+    redaction, and it reads on disk like a card was found rather than a key.
+    """
+    out = scrub(f"token {KEYLIKE_AND_LUHN} here")
+    assert out == "token [redacted key] here"
+    assert "[card]" not in out
+    assert "sk-ant-" not in out
+
+
+def test_a_hyphenated_word_that_is_not_a_key_survives():
+    for text in (
+        "the sk-learn tutorial",
+        "Marx ranked 2nd with 41% share of voice.",
+    ):
+        assert scrub(text) == text
+
+
 #: Formats a contact page plausibly carries. The first one is why this list
 #: exists: the rule this replaced matched a shape three groups long, so a
 #: four-group number came out of it as `[phone] 33`, and half a phone number on

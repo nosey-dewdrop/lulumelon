@@ -65,6 +65,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from ..keys import redact
 from ..text import counted
 from .ask import Usage
 
@@ -317,7 +318,7 @@ def _is_card(candidate: str) -> bool:
 
 
 def scrub(text: str) -> str:
-    """Remove the two kinds of personal data a stored string plausibly leaks.
+    """Remove the kinds of secret a stored string plausibly leaks.
 
     We ask public, buyer-intent questions, so the expected leak surface is
     small: an answer that quotes a contact page, or a provider error whose body
@@ -332,7 +333,22 @@ def scrub(text: str) -> str:
 
     Cards are looked for before phones, because the two patterns overlap and the
     card test is the one that can be checked rather than guessed.
+
+    **Keys are looked for before all of them.** An api key is a run of letters
+    and digits behind a short prefix, and the card and phone rules match digit
+    runs wherever they find them, so a key reaching those rules first comes out
+    as a prefix followed by `[card]`, which is a key with its middle removed
+    and its shape confirmed. Redacting keys first means the whole token goes.
+
+    The key pass is here rather than only at the provider boundary because the
+    two paths are not the same secret. `ask` redacts our own key out of an
+    error body with the key in hand, which this cannot do and does not need to.
+    What this catches is the key nobody here holds: a model answer that quoted
+    a page which leaked one. That text arrives as an ordinary answer, on the
+    ordinary write path, and the doc has promised it was handled since before
+    it was.
     """
+    text = redact(text)
     text = _EMAIL.sub("[email]", text)
     text = _CARD_CANDIDATE.sub(
         lambda m: "[card]" if _is_card(m.group(0)) else m.group(0), text

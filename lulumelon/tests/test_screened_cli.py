@@ -17,7 +17,7 @@ import io
 import json
 from pathlib import Path
 
-from lulumelon.cli import NOT_A_DRAFT, Console, screened
+from lulumelon.cli import CHAIN_BROKEN, NOT_A_DRAFT, Console, screened
 from lulumelon.collect import Brand, FakeProvider, Ledger, Prompt, Usage, run_round
 
 
@@ -273,11 +273,51 @@ def test_a_name_list_the_document_cut_says_it_was_cut(tmp_path):
     assert "`lulu rivals` prints the whole list" in rec.text
 
 
-def test_a_round_that_cannot_be_opened_says_so_where_the_names_would_be(tmp_path):
-    """An empty table reads as an answer. A missing round has to read as missing."""
-    _, text = read(tmp_path, screening_snapshot="ornek__anthropic__api__20260804T000000Z__0009")
-    assert "holds no readable answer in" in text
-    assert "NAMED" in text, "the heading stays, with the reason under it"
+def test_a_document_is_refused_when_its_round_does_not_re_derive(tmp_path):
+    """The rule every other command that reads a round lives by.
+
+    Each verdict in this document was measured on that round. Printing them off
+    a round that no longer re-derives, or that this ledger does not hold at
+    all, is the number nobody can check that this repository exists against.
+    """
+    rec = Recorder()
+    code = screened(
+        rec.console,
+        draft_path=draft_file(
+            tmp_path, screening_snapshot="ornek__anthropic__api__20260804T000000Z__0009"
+        ),
+        ledger_dir=tmp_path / "ledger",
+    )
+
+    assert code == CHAIN_BROKEN
+    assert "no verdict is computed from a round that does not re-derive" in rec.text
+    assert "MEASURED" not in rec.text, "nothing is printed off it"
+
+
+def test_a_round_of_nothing_but_failures_says_so_where_the_names_would_be(tmp_path):
+    """An empty table reads as an answer. A round with no answer in it must not."""
+    ledger_dir = tmp_path / "ledger"
+    led = Ledger(ledger_dir)
+    result = run_round(
+        ledger=led,
+        provider=FakeProvider(fail_on=(0, 1), usage=Usage(input_tokens=1, output_tokens=1)),
+        prompts=[Prompt(id="p1", text="q")],
+        brands=[Brand(name="ornek", aliases=())],
+        k=2,
+        subject="ornek",
+        clock=lambda: "2026-08-04T23:00:00Z",
+    )
+
+    rec = Recorder()
+    code = screened(
+        rec.console,
+        draft_path=draft_file(tmp_path, screening_snapshot=result.snapshot_id),
+        ledger_dir=ledger_dir,
+    )
+
+    assert code == 0
+    assert "holds no readable answer in" in rec.text
+    assert "NAMED" in rec.text, "the heading stays, with the reason under it"
 
 
 # -- the document ------------------------------------------------------------

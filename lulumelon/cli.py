@@ -2478,13 +2478,31 @@ def screened(
     """
     try:
         draft = json.loads(draft_path.read_text(encoding="utf-8"))
-        panel = _screen_panel(draft, ledger_dir)
-    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+    except (OSError, json.JSONDecodeError, ValueError) as e:
         console.warn(f"{draft_path} is not a draft ledger this build can read: {e}")
         return NOT_A_DRAFT
 
     console.say(f"lulu screened: {draft_path}")
     console.say()
+
+    # The chain is re-derived before a line of this is printed, through the
+    # same check `lulu verify` runs. Every verdict below was measured on that
+    # round, and a document quoting them off a round that no longer re-derives
+    # is the number nobody can check that this repository exists against.
+    snapshot = str(draft.get("screening_snapshot") or "")
+    if snapshot:
+        try:
+            _verified(Ledger(ledger_dir), console, "round", snapshot)
+        except BrokenChain:
+            return CHAIN_BROKEN
+        console.say()
+
+    try:
+        panel = _screen_panel(draft, ledger_dir)
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        console.warn(f"{draft_path} is not a draft ledger this build can read: {e}")
+        return NOT_A_DRAFT
+
     for line in panel.as_text().splitlines():
         console.say(f"  {line}" if line else "")
 

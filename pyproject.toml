@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=68"]
+# 77, not 68. The SPDX string in `[project]` below is read as a table by any
+# backend older than that, and 68, 70 and 76 all stop with the same unhelpful
+# error, so the floor this file carried was a floor that did not hold.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,6 +12,7 @@ description = "Measure how an answer engine talks about a brand, with the uncert
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Damla Su Bilge" }]
 keywords = ["llm", "measurement", "confidence-interval", "answer-engine", "brand-visibility"]
 classifiers = [
@@ -28,7 +32,9 @@ Source = "https://github.com/nosey-dewdrop/lulumelon"
 lulu = "lulumelon.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+# 8.1, not 8. The suite raises 22 errors on 8.0.0 and is clean from 8.1, so a
+# floor of 8 points at a version this cannot run under.
+dev = ["pytest>=8.1"]
 
 [tool.setuptools.packages.find]
 include = ["lulumelon*"]

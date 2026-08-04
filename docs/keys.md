@@ -5,10 +5,32 @@ run, and it is also the only step where a new user can get stuck with nothing
 to read. So this page is exact: the pages to open, the money involved, and the
 one command that tells you what is wrong when it does not work.
 
-Every figure below was read from Perplexity's own documentation on
-**31 July 2026** and is linked to the page it came from. Nothing here is
-estimated. Where their docs do not state something, this page says so instead
-of filling the gap.
+**Two engines exist in this build, and this page is written for the second
+one.** Everything below is Perplexity, read from their own documentation on
+**31 July 2026** and linked to the page it came from. The engine both paid
+commands default to is Claude, and the short version for it is this.
+
+1. Open <https://console.anthropic.com>, sign in, and generate a key under
+   **API keys**. It is shown once.
+2. Put it where `lulu` looks first, which is the OS keychain.
+
+       lulu setup --provider anthropic
+
+   That stores it under the service `lulumelon` and the account `anthropic`.
+   Nothing else on the machine reads that pair.
+3. Check it with one small call.
+
+       lulu doctor --provider anthropic
+
+The environment variables it reads, in the order it reads them, are
+`ANTHROPIC_API_KEY` and `LULU_ANTHROPIC_API_KEY`, and then a `.env` file beside
+you or in your home directory. `.env.example` in this repository lists all of
+them. A key written by `lulu setup` into a `.env` is created private, at 0600,
+rather than corrected to it afterwards.
+
+Everything after this line is Perplexity. Nothing here is estimated, and where
+their docs do not state something this page says so instead of filling the
+gap.
 
 ---
 

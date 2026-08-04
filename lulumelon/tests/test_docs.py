@@ -219,3 +219,66 @@ def test_the_test_counts_in_the_readme_are_the_counts_that_run():
     counted = re.search(r"^. tests (\d+)$", node.stdout, re.M)
     assert counted, node.stdout[-500:] + node.stderr[-500:]
     assert f"# {counted.group(1)} tests, offline" in README_TEXT
+
+
+def test_the_repository_carries_the_licence_its_metadata_claims():
+    """A package that says MIT and ships no licence has made a claim nobody can accept.
+
+    Read from the file rather than trusted, and checked against the field that
+    names it, because the two of them disagreeing is the state this repository
+    was in.
+    """
+    licence = ROOT / "LICENSE"
+    assert licence.is_file(), "metadata says MIT and the file it refers to is not here"
+    text = licence.read_text(encoding="utf-8")
+    assert "MIT License" in text
+    assert "Damla Su Bilge" in text
+
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'license = "MIT"' in pyproject
+    assert 'license-files = ["LICENSE"]' in pyproject, "so the file travels inside the wheel"
+
+
+def test_the_build_floor_is_the_one_the_licence_field_needs():
+    """68 was a floor that did not hold.
+
+    `license = "MIT"` is the SPDX form. Backends before 77 read that field as a
+    table, and the build stops with a configuration error rather than with
+    anything that names the version. Measured on 4 August 2026: 76 fails, 77
+    builds and puts LICENSE inside the wheel.
+    """
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'requires = ["setuptools>=77"]' in pyproject
+    assert 'dev = ["pytest>=8.1"]' in pyproject, "8.0.0 raises 22 errors in this suite"
+
+
+def test_the_key_file_example_lists_the_variables_this_build_reads():
+    """It listed a set of variables no command in this repository has ever read.
+
+    `LLM_PROVIDER`, `LLM_BASE_URL` and a pair of per-role model names, none of
+    which exist here, which makes the file a set of instructions that cannot
+    work followed by nothing that can.
+    """
+    from lulumelon.keys import spec_for
+
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    for provider in ("anthropic", "perplexity"):
+        for name in spec_for(provider).env_names:
+            assert name in example, name
+    for invented in ("LLM_PROVIDER", "LLM_BASE_URL", "LLM_MODEL_ANSWER"):
+        assert invented not in example, invented
+
+
+def test_the_key_page_covers_the_engine_the_paid_commands_default_to():
+    """It was written for the other one, end to end."""
+    keys = (ROOT / "docs" / "keys.md").read_text(encoding="utf-8")
+    assert "console.anthropic.com" in keys
+    assert "ANTHROPIC_API_KEY" in keys
+    assert "lulu setup --provider anthropic" in keys
+
+
+def test_the_readme_says_how_to_install_the_thing_it_documents():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "pip install -e ." in readme
+    assert "python3 -m venv" in readme
+    assert "Python 3.11 or newer" in readme

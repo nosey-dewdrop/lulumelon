@@ -131,13 +131,34 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 957 tests, offline
+    python3 -m pytest lulumelon/tests   # 962 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
 run, and the one test that drives the OS keychain makes a keychain of its own,
 uses it, and deletes it. Running these tests does not change the machine that
 ran them.
+
+## install
+
+Python 3.11 or newer, and nothing else to decide. The two dependencies are the
+arithmetic; everything on the network path is standard library, because an HTTP
+client is not worth a supply chain for one POST.
+
+    git clone https://github.com/nosey-dewdrop/lulumelon.git
+    cd lulumelon
+    python3 -m venv .venv && source .venv/bin/activate
+    pip install -e .
+
+That puts `lulu` on the path. Without the install the same commands run as
+`python3 -m lulumelon.cli`, and the tests run either way.
+
+    pip install -e ".[dev]"     # pytest, to run the suite
+    python3 lulumelon/demo.py   # the argument this exists for, no key, no network
+
+Building it as a package needs setuptools 77 or newer, which is stated in
+`pyproject.toml` and is not a preference: the licence field here is the SPDX
+string, and every backend before 77 reads that as a table and stops.
 
 ## getting started
 

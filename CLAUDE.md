@@ -65,8 +65,13 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 - Renk dünyası pembe ve lila, ve ikisi de terminalin kendi paletinden gelir
   (`--lilac`, `--pink`). Dışarıdan palet getirilmez, gradient yoktur, köşe
   yarıçapı 3px'i geçmez, dinlenme halinde gölge yoktur.
-- Terminal sayfanın EN ÜSTÜNDE durur ve ziyaretçi tek kelime okumadan koşar.
-  Ürünün iddiası bir cümle değil, olan bir şey.
+- Terminal sayfanın EN ÜSTÜNDE durur, başlıktan da wordmark'tan da önce.
+  Ziyaretçi tek kelime okumadan koşuyor olmalı; marka adını terminalin kendi
+  ilk satırı söylüyor. Ürünün iddiası bir cümle değil, olan bir şey.
+- Tipografi küçük tutulur. Gövde 13.5px, ikincil 12px, kart başlığı 1.05rem,
+  h1 1.85rem. Damla büyük puntoyu "gözüm yoruldu" diye reddetti (5 Ağu).
+- Sayfayı kapatan kanıt şeridi ORTALI, rakam üstte yazı altında. Rakamı geniş
+  bir boşlukla yazısından ayıran satır düzeni reddedildi.
 - Sayfadaki her sayı ölçülmüş bir turdan gelir. Bir ölçüm ürününün vitrininde
   uydurma rakam, ürünün var olma sebebinin ihlalidir.
 - Kaydırınca beliren bloklar ve sayan rakamlar Damla'nın istediği hareketlerdir,

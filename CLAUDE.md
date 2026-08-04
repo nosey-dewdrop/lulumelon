@@ -10,7 +10,7 @@ ya da kişisel not yazılmaz. Oturum devri notları repo dışında,
 
 ## durum
 
-967 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
+968 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
 
     python3 -m pytest lulumelon/tests
     npm test
@@ -59,25 +59,15 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 
 ## açık borç
 
-- `lulumelon/demo.py` çalışmıyor, relative import hatası.
-- README'de kurulum talimatı yok.
-- `/ledger/` sadece repo kökünde gitignore'da; alt dizinlerdeki ledger korumasız
-  ve `ensure_gitignored` ledger'ı hiç eklemiyor.
-- `.env` anahtarı diske 0644 ile düşüyor, 0600 sonradan veriliyor (`keys.py:444`).
-  Doğrusu `os.open(..., O_CREAT|O_EXCL, 0o600)`.
-- `pyproject.toml` setuptools>=68 diyor ama `license = "MIT"` setuptools 77
-  istiyor; 68, 70 ve 76 ile build çöküyor. `pytest>=8` tabanı da yanlış,
-  8.0.0'da 22 hata veriyor, 8.1'de temiz.
-- LICENSE dosyası yok ama metadata MIT diyor.
-- Sağlayıcı varsayılanları komutlar arası ayrışıyor: init, doctor ve plan
-  perplexity; collect ve draft anthropic. `docs/keys.md` baştan sona Perplexity
-  anlatıyor.
-- Bu build sadece iki motor çağırabiliyor, perplexity ve anthropic.
-- Ölçülüp elenen sorunun METNİ kayboluyor. Taslak defteri `p7 barren` yazıyor,
-  kayıtlar promptun id'sini taşıyor ve sözlerini taşımıyor, konu dosyasına da
-  sadece geçen soru giriyor. 4 Ağustos'ta 20 sorudan 19'unun metni bu yüzden
-  hiçbir yerde kalmadı. "Ölen hiçbir şey kaybolmaz" kuralı bedava kapılarda
-  tutuyor, ücretli ölçümde tutmuyor.
-- `lulu rivals` bir turun adlarını sayar ama isimleri hâlâ elle `--rivals`'a
-  geçiriliyor; iki ucu birleştiren adım yazılmadı. Sayım, bir turda hiç cümle
-  içinde geçmeyen ve imlasında iz taşımayan adı düşürür (`Twelve Data`).
+- Bu build sadece iki motor çağırabiliyor, perplexity ve anthropic. ChatGPT ve
+  Gemini yok, ve ikisini eklemek canlı anahtarla doğrulama ister.
+- `lulu rivals` tablosunda tür kelimeleri (API, AI, ML) gerçek adların üstünde
+  duruyor. Kural konumsal ve korpus içi küçük harf kanıtına dayanıyor, bunlar o
+  iki kapıdan da geçiyor. Okuyan insan kesiyor.
+- Ad sayımı bir turda hiç cümle içinde geçmeyen ve imlasında iz taşımayan adı
+  düşürür (4 Ağustos turunda `Twelve Data`).
+- Perplexity artık `max_tokens` gönderiyor. Canlı anahtar olmadığı için
+  DOĞRULANMADI.
+- Rakip listesi hâlâ elle `--rivals`'a geçiriliyor. Tur artık listenin kaçırdığı
+  adları basıyor ama listeyi kendisi kurmuyor, ve konu dosyası rakiplerin hangi
+  koldan okunduğunu yazmıyor.

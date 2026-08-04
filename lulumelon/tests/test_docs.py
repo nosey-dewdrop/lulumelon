@@ -282,3 +282,25 @@ def test_the_readme_says_how_to_install_the_thing_it_documents():
     assert "pip install -e ." in readme
     assert "python3 -m venv" in readme
     assert "Python 3.11 or newer" in readme
+
+
+def test_every_command_defaults_to_the_same_engine():
+    """A key checked on one account and a round spent on another.
+
+    `init`, `doctor` and `plan` defaulted to one provider while `collect` and
+    `draft` defaulted to the other. Somebody who set a key up with the first
+    command and then spent money with the second was told their account worked
+    by a check that never touched the account the money came out of.
+    """
+    from lulumelon.cli import DEFAULT_PROVIDER
+
+    parser = build_parser()
+    commands = parser._subparsers._group_actions[0].choices
+    defaults = {}
+    for name, sub in commands.items():
+        for action in sub._actions:
+            if action.dest == "provider" and action.default is not None:
+                defaults[name] = action.default
+
+    assert defaults, "no command takes a provider, which cannot be right"
+    assert set(defaults.values()) == {DEFAULT_PROVIDER}, defaults

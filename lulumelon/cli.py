@@ -2407,6 +2407,13 @@ def report(
     return typeset(console, tex=written, pdf=pdf_path, which=which, run=run)
 
 
+#: The engine every command defaults to. One name rather than six literals:
+#: `init`, `doctor` and `plan` defaulted to one provider while `collect` and
+#: `draft` defaulted to the other, so a person who set a key up with the first
+#: command and then spent money with the second was checked on an account the
+#: paid round never touched.
+DEFAULT_PROVIDER = "anthropic"
+
 #: A draft ledger that is not one, or one this build cannot read. Its own code
 #: rather than the argument error it would otherwise share: the file exists and
 #: was opened, and the remedy is a different file rather than a different flag.
@@ -2718,7 +2725,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_init = sub.add_parser("init", help="the older wizard, which asks where to store the key")
-    p_init.add_argument("--provider", default="perplexity", help="which engine the key is for")
+    p_init.add_argument("--provider", default=DEFAULT_PROVIDER, help="which engine the key is for")
     p_init.add_argument(
         "--from-file",
         default=None,
@@ -2732,7 +2739,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_doctor = sub.add_parser("doctor", help="find the key, test it, and price the call")
-    p_doctor.add_argument("--provider", default="perplexity", help="which engine to check")
+    p_doctor.add_argument("--provider", default=DEFAULT_PROVIDER, help="which engine to check")
     p_doctor.add_argument(
         "--offline",
         action="store_true",
@@ -2764,7 +2771,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="hard ceiling for this round in dollars; a round with no ceiling is refused",
     )
     p_collect.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the round is written to")
-    p_collect.add_argument("--provider", default="anthropic", help="which engine answers")
+    p_collect.add_argument("--provider", default=DEFAULT_PROVIDER, help="which engine answers")
     p_collect.add_argument(
         "--model", default=None, help="model to ask; the provider's check model by default"
     )
@@ -2812,7 +2819,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma separated names the questions are screened on; without them the paid round is refused",
     )
     p_draft.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the screening round is written to")
-    p_draft.add_argument("--provider", default="anthropic", help="which engine answers")
+    p_draft.add_argument("--provider", default=DEFAULT_PROVIDER, help="which engine answers")
     p_draft.add_argument("--model", default=None, help="model to ask; the provider's check model by default")
     p_draft.add_argument(
         "--max-searches", type=int, default=DEFAULT_MAX_SEARCHES, help="searches one call may run"
@@ -2980,7 +2987,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_plan.add_argument("--pilot", default=None, help="a recorded round to measure the split from")
     p_plan.add_argument("--brand", default=None, help="which brand the pilot is scored for")
     p_plan.add_argument("--ledger", default=DEFAULT_LEDGER, help="where the pilot round lives")
-    p_plan.add_argument("--provider", default="perplexity", help="which engine's price table to use")
+    p_plan.add_argument("--provider", default=DEFAULT_PROVIDER, help="which engine's price table to use")
     p_plan.add_argument(
         "--searches-per-call",
         type=int,

@@ -10,7 +10,7 @@ ya da kişisel not yazılmaz. Oturum devri notları repo dışında,
 
 ## durum
 
-935 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
+949 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
 
     python3 -m pytest lulumelon/tests
     npm test
@@ -23,7 +23,7 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 
 - `mirror/` — intervals, variance, ablation, lift, compare, report, sources, stability, types, screen, names
 - `collect/` — ask, ledger, session, budget, detect, subject, audit, harvest, propose, replica, replay
-- `cli.py` — setup, init, doctor, collect, draft, usage, ablate, lift, report, rivals, verify, plan, size
+- `cli.py` — setup, init, doctor, collect, draft, usage, ablate, lift, report, rivals, screened, verify, plan, size
 
 ## kalıcı kararlar
 

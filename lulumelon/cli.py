@@ -99,7 +99,7 @@ from .mirror.names import names_in
 from .mirror.report import NothingLeftToScore, brand_report
 from .mirror.types import Reply, Snapshot, group_runs
 from .mirror.variance import decompose
-from .latex import Evidence, tex_document
+from .latex import Evidence, tex_document, tex_screening
 from .keys import (
     KEYCHAIN_SERVICE,
     PROVIDERS,
@@ -133,7 +133,7 @@ from .plan import (
     total_variance,
     variance_of,
 )
-from .panel import Panel, Question
+from .panel import Panel, Question, ScreenPanel, Screened
 from .text import counted
 from .usage import spend_of, token_rate
 
@@ -2330,6 +2330,123 @@ def report(
     return typeset(console, tex=written, pdf=pdf_path, which=which, run=run)
 
 
+#: A draft ledger that is not one, or one this build cannot read. Its own code
+#: rather than the argument error it would otherwise share: the file exists and
+#: was opened, and the remedy is a different file rather than a different flag.
+NOT_A_DRAFT = 9
+
+
+def screened(
+    console: Console,
+    *,
+    draft_path: Path,
+    ledger_dir: Path,
+    tex_path: Path | None = None,
+    pdf_path: Path | None = None,
+    which: Callable[[str], str | None] | None = None,
+    run: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> int:
+    """Read a finished screening round back, and say what it found.
+
+    `lulu draft` prints this once while it is spending, and afterwards the round
+    is a scroll of terminal output and two files of JSON. That is enough to run
+    the next command and not enough to hand to anybody, which left the strongest
+    finding this library has produced with nowhere to be read: a round where
+    most questions come back naming nobody at all says something larger about a
+    market than any percentage would, and it was living in a scrollback.
+
+    Nothing is spent and nothing is asked. Every figure comes out of the draft
+    ledger and the round it names, so the same two files give the same document
+    forever, including to whoever is checking whether it was true.
+    """
+    try:
+        draft = json.loads(draft_path.read_text(encoding="utf-8"))
+        panel = _screen_panel(draft, ledger_dir)
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        console.warn(f"{draft_path} is not a draft ledger this build can read: {e}")
+        return NOT_A_DRAFT
+
+    console.say(f"lulu screened: {draft_path}")
+    console.say()
+    for line in panel.as_text().splitlines():
+        console.say(f"  {line}" if line else "")
+
+    if tex_path is None and pdf_path is None:
+        return 0
+    written = tex_path if tex_path is not None else pdf_path.with_suffix(".tex")
+    if not written.parent.is_dir():
+        raise ValueError(
+            f"{written.parent} is not a directory, so {written} cannot be written there"
+        )
+    written.write_text(tex_screening(panel), encoding="utf-8")
+    console.say()
+    console.say(f"  wrote {written}")
+    if pdf_path is None:
+        return 0
+    return typeset(console, tex=written, pdf=pdf_path, which=which, run=run)
+
+
+def _screen_panel(draft: dict, ledger_dir: Path) -> ScreenPanel:
+    """The draft ledger as the surface prints it, with the names joined back on.
+
+    The names come off the round rather than out of the draft file, because the
+    draft records which declared rivals were hit and the interesting list is the
+    one nobody declared. A round that cannot be opened leaves that section out
+    and says why, rather than printing an empty table that reads as an answer.
+    """
+    snapshot = str(draft.get("screening_snapshot") or "")
+    named: tuple = ()
+    named_from = ""
+    if not snapshot:
+        named_from = "no draws were bought, so nothing was named"
+    else:
+        try:
+            store = Ledger(ledger_dir)
+            replies = tuple(
+                Reply(prompt_id=rec.prompt_id, draw=rec.repeat, text=rec.answer_text)
+                for rec in store.read(snapshot)
+                if rec.prompt_id and rec.status == "ok" and rec.answer_text
+            )
+            named = names_in(replies)
+            if not replies:
+                # An empty read is not an exception here: a directory with no
+                # such round in it answers with nothing. Printing an empty
+                # table under a heading would read as a round that named
+                # nobody, which is the opposite of a round nobody could open.
+                named_from = f"{snapshot} holds no readable answer in {ledger_dir}"
+        except (OSError, LedgerFormatError, ValueError) as e:
+            named_from = f"{snapshot} could not be read from {ledger_dir}: {e}"
+
+    return ScreenPanel(
+        site=str(draft["site"]),
+        snapshot=snapshot,
+        corpus_digest=str(draft.get("corpus_digest", "")),
+        pages_read=len(draft.get("pages_read", ())),
+        proposed=int(draft["proposed"]),
+        unreadable=len(draft.get("unreadable_entries", ())),
+        dropped=tuple((str(r["gate"]), str(r["id"])) for r in draft.get("rejected", ())),
+        screened=tuple(
+            Screened(
+                id=str(one["id"]),
+                # Read with a default so a draft written before the words were
+                # kept still opens, and it says so on the line rather than
+                # printing a blank where a sentence belongs.
+                text=str(one.get("text") or "(not recorded by the build that wrote this draft)"),
+                verdict=str(one["verdict"]),
+                rival_hits=int(one["rival_hits"]),
+                draws=int(one["draws"]),
+                floor=float(one["floor"]),
+                low=float(one["interval"][0]),
+                high=float(one["interval"][1]),
+            )
+            for one in draft.get("measured", ())
+        ),
+        noise_floor=None if draft.get("noise_floor") is None else float(draft["noise_floor"]),
+        named=named,
+        named_from=named_from,
+    )
+
+
 def rivals(console: Console, *, ledger_dir: Path, snapshot: str, least: int = 1) -> int:
     """Print every name a recorded round reached for, and where it reached for it.
 
@@ -2699,6 +2816,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_lift.add_argument("--per-brand", action="store_true")
     p_lift.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds live in")
 
+    p_screened = sub.add_parser(
+        "screened", help="read a finished screening round back, and what it found"
+    )
+    p_screened.add_argument(
+        "--draft", required=True, metavar="PATH", help="the .draft.json a draft wrote"
+    )
+    p_screened.add_argument(
+        "--ledger", default=DEFAULT_LEDGER, help="directory the screening round lives in"
+    )
+    p_screened.add_argument("--tex", default=None, metavar="PATH", help="write the document here")
+    p_screened.add_argument(
+        "--pdf", default=None, metavar="PATH", help="write the document and typeset it here"
+    )
+
     p_rivals = sub.add_parser(
         "rivals", help="every name a recorded round reached for, and in which questions"
     )
@@ -2937,6 +3068,14 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 wanted=args.candidates,
                 harvest_only=args.harvest_only,
                 dry_run=args.dry_run,
+            )
+        if args.command == "screened":
+            return screened(
+                console,
+                draft_path=Path(args.draft),
+                ledger_dir=Path(args.ledger),
+                tex_path=None if args.tex is None else Path(args.tex),
+                pdf_path=None if args.pdf is None else Path(args.pdf),
             )
         if args.command == "rivals":
             return rivals(

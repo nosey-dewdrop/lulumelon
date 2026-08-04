@@ -35,7 +35,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .panel import Panel
+from .panel import Panel, ScreenPanel
 from .text import counted
 
 #: Every character TeX reads as an instruction, and what it is written as when
@@ -237,6 +237,38 @@ def tex_document(panel: Panel, evidence: Evidence) -> str:
     # follows, a plain horizontal line stops reading as a rule between two
     # sections and starts reading as the bottom border of the thing above it,
     # which is a box by another name.
+    parts.append("\\vspace{1.6\\baselineskip}")
+    parts.append("\\noindent\\rule{\\textwidth}{0.4pt}\\par")
+    parts.append(_flowed(panel.limitation()))
+    parts.append("\\end{document}")
+    return "\n".join(parts) + "\n"
+
+
+SCREENING_TITLE = "lulu screened"
+
+
+def tex_screening(panel: ScreenPanel) -> str:
+    """One screening round as a standalone document.
+
+    Through `ScreenPanel` for the reason the report goes through `Panel`. The
+    sentence a customer reads about a question that named nobody is the same
+    sentence on the screen and on the page, because the two surfaces disagreeing
+    about a refusal is worse than either of them being terse.
+    """
+    parts = [
+        PREAMBLE,
+        f"{{\\large\\bfseries {escape(SCREENING_TITLE)}\\par}}",
+        _set(f"{panel.site}, snapshot {panel.snapshot or 'none'}") + "\\par",
+    ]
+    for block in (
+        panel.round_section(),
+        panel.gate_section(),
+        panel.verdict_section(),
+        panel.named_section(),
+    ):
+        if block:
+            parts.extend(_section(block))
+
     parts.append("\\vspace{1.6\\baselineskip}")
     parts.append("\\noindent\\rule{\\textwidth}{0.4pt}\\par")
     parts.append(_flowed(panel.limitation()))

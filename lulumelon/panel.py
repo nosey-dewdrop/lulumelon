@@ -354,3 +354,180 @@ class Panel:
         lines.append(RULE)
         lines.extend(self.limitation())
         return "\n".join(lines)
+
+
+# -- the round before the round ---------------------------------------------
+
+
+#: Verdicts a screened question comes back with, in the order a reader wants
+#: them: the ones that will be measured, the ones the evidence could not
+#: decide, and the ones that named nobody at all.
+VERDICT_ORDER = ("carries", "undecided", "barren")
+
+#: Names the document prints before it stops. A screening round of twenty
+#: questions reaches for well over a hundred, most of them the genre words a
+#: model writes with rather than companies, and a page of those is a page
+#: nobody reads to the end. What is cut is said out loud on the line below the
+#: list, because a table that quietly stops is a table that reads as complete.
+NAMED_IN_DOCUMENT = 25
+
+
+@dataclass(frozen=True, slots=True)
+class Screened:
+    """One candidate question, and what the draws did with it."""
+
+    id: str
+    text: str
+    verdict: str
+    rival_hits: int
+    draws: int
+    floor: float
+    low: float
+    high: float
+
+    def as_line(self) -> str:
+        return (
+            f"  [{self.verdict}] {self.id}   named in {self.rival_hits}/{self.draws}, "
+            f"{_pct(self.low)}..{_pct(self.high)} against a floor of {_pct(self.floor)}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ScreenPanel:
+    """What one screening round found, ready to print.
+
+    The round this renders is the one that decides which questions are worth
+    paying to measure, and until now its whole output was a scroll of terminal
+    lines and two files of JSON. That is enough to run the next command and not
+    enough to hand anybody, which left the strongest finding this library has
+    produced with nowhere to be read.
+
+    **A question nobody was named in is the finding, not the leftovers.** It is
+    printed with its words, in full, because `barren` on its own is a verdict a
+    reader cannot check and because a round where most questions come back that
+    way is telling the customer something larger than a percentage would.
+    """
+
+    site: str
+    snapshot: str
+    corpus_digest: str
+    pages_read: int
+    proposed: int
+    unreadable: int
+    dropped: tuple[tuple[str, str], ...] = ()
+    screened: tuple[Screened, ...] = ()
+    noise_floor: float | None = None
+    named: tuple = ()
+    named_from: str = ""
+
+    def counts(self) -> dict[str, int]:
+        return {v: sum(1 for one in self.screened if one.verdict == v) for v in VERDICT_ORDER}
+
+    def round_section(self) -> list[str]:
+        return [
+            f"SCREENING  {self.site}",
+            f"  snapshot  {self.snapshot or 'none, the draws were never made'}",
+            f"  corpus    {self.corpus_digest[:16]}, {counted(self.pages_read, 'page')} read",
+            f"  proposed  {counted(self.proposed, 'candidate')}"
+            + (f", {counted(self.unreadable, 'entry')} unreadable" if self.unreadable else ""),
+        ]
+
+    def gate_section(self) -> list[str]:
+        if not self.dropped:
+            return []
+        by_gate: dict[str, int] = {}
+        for gate, _ in self.dropped:
+            by_gate[gate] = by_gate.get(gate, 0) + 1
+        out = ["FREE GATES", "  what was refused before a draw was bought", ""]
+        for gate, n in sorted(by_gate.items()):
+            out.append(f"  {gate:<10} {n} dropped")
+        return out
+
+    def verdict_section(self) -> list[str]:
+        if not self.screened:
+            return []
+        counts = self.counts()
+        out = [
+            "MEASURED",
+            f"  {counts['carries']} of {len(self.screened)} questions clear the floor, "
+            f"{counts['undecided']} are undecided, and {counts['barren']} named nobody",
+            "",
+        ]
+        for verdict in VERDICT_ORDER:
+            group = [one for one in self.screened if one.verdict == verdict]
+            for one in group:
+                out.append(one.as_line())
+                out.append(f"      {one.text}")
+        return out
+
+    def named_section(self) -> list[str]:
+        if not self.named:
+            return (
+                ["NAMED", f"  {self.named_from}"] if self.named_from else []
+            )
+        shown = self.named[:NAMED_IN_DOCUMENT]
+        out = [
+            "NAMED",
+            "  who the answers reached for, counted off the same draws",
+            "",
+        ]
+        for one in shown:
+            out.append(f"  {one.as_text()}")
+        out.append("")
+        if len(self.named) > len(shown):
+            out.append(
+                f"  {len(shown)} of {len(self.named)} names, the ones in the most questions."
+            )
+            out.append("  `lulu rivals` prints the whole list off the same round.")
+        out.append("  A name here is a name the model wrote. Which of them competes with")
+        out.append("  this site is the one judgement a round cannot make from its answers.")
+        return out
+
+    def limitation(self) -> list[str]:
+        counts = self.counts()
+        out = [
+            "A barren question is one where none of the declared rivals was named in",
+            "any draw. That is a fact about the list that was declared, and it is not",
+            "a claim that nobody sells into that question.",
+        ]
+        if self.noise_floor is not None:
+            out.append("")
+            # "points", the way the draft that produced this file said it. The
+            # same fact worded two ways on two surfaces is how a reader ends up
+            # believing they are two facts.
+            out.append(
+                f"{self.noise_floor * 100:.1f} points is the noise floor of this pool, which is"
+            )
+            out.append(
+                "how far a score can move without anything about the brand changing. It"
+            )
+            out.append("was read off the draws that decided the questions, and cost nothing.")
+        if counts["undecided"]:
+            out.append("")
+            out.append(
+                f"{counts['undecided']} questions came back undecided, and undecided is not a pass."
+            )
+            out.append("The interval covers the floor, so these draws do not say which side of")
+            out.append("it the question sits on. More draws would, and they are not free.")
+        return out
+
+    def as_text(self) -> str:
+        blocks = [
+            self.round_section(),
+            self.gate_section(),
+            self.verdict_section(),
+            self.named_section(),
+        ]
+        lines: list[str] = []
+        for block in blocks:
+            if not block:
+                continue
+            if lines:
+                lines.append("")
+                lines.append(RULE)
+                lines.append("")
+            lines.extend(block)
+        lines.append("")
+        lines.append(RULE)
+        lines.extend(self.limitation())
+        return "\n".join(lines)

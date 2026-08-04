@@ -131,7 +131,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 935 tests, offline
+    python3 -m pytest lulumelon/tests   # 949 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
@@ -355,6 +355,19 @@ name is printed when the round wrote it inside a sentence at least once, or when
 it is spelled the way no ordinary word is, and never when the same round also
 wrote it in lower case. Every name printed appears in a recorded answer character
 for character, which is the rule a quote is held to everywhere else here.
+
+`lulu draft` prints its screening round once, while it is spending, and then that
+round is a scrollback and two files of JSON. `lulu screened` reads it back and
+turns it into the document, with every question it measured printed beside its
+verdict and the names the same draws reached for underneath.
+
+    lulu screened --draft data/subjects/ornek.draft.json --pdf screened.pdf
+
+A question that named nobody is printed in full rather than summarised away. On
+the first paid screening round this library ran, eleven of twenty questions came
+back with none of the declared rivals named in any draw, which is a larger
+statement about a market than the one score that round produced, and it had
+nowhere to be read until this command existed.
 
 Every round closes with a record saying how many calls it made and how they
 came out, hashed into the same chain as the answers. That is what makes a short

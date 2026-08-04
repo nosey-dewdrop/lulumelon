@@ -275,7 +275,7 @@ export function Terminal() {
           <span className="h-[11px] w-[11px] rounded-full bg-light-green" />
         </span>
         <span className="truncate pl-2 text-term-text">
-          youkiddingme, · what do the models actually say, ± recording
+          lulumelon, · what do the models actually say, ± recording
         </span>
       </div>
 
@@ -337,7 +337,7 @@ export function Terminal() {
       {/* status bar */}
       <div className="border-t border-term-rule px-3 py-[6px] text-[11.5px]">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-term-muted">youkiddingme</span>
+          <span className="text-term-muted">lulumelon</span>
           <span className="text-term-rule">·</span>
           <span className="text-term-muted">wilson 95%</span>
           <span className="text-term-lilac">*</span>

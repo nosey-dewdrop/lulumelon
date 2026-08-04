@@ -84,7 +84,10 @@ export default function Page() {
 
           The brand still arrives first, because the terminal's own opening
           line says it. */}
-      <section aria-label="recorded measurement">
+      <section aria-label="recorded measurement" className="mx-auto max-w-[58rem]">
+        {/* Narrower than the page and centred. A terminal set to the full
+            measure spends its right half on nothing, because the widest line
+            in it is a sentence and the rest is a table. */}
         <Terminal />
         <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px] text-ink-soft">
           <span>a recording. typing here calls nothing and costs nothing.</span>
@@ -314,7 +317,7 @@ export default function Page() {
 
       {/* ---------------------------------------------------------- footer */}
       <footer className="mt-24 border-t border-rule pt-6 text-[11.5px] text-ink-soft">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2">
           <span className="text-ink">lulumelon</span>
           <Pm />
           <a

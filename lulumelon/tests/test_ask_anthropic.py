@@ -359,6 +359,59 @@ def test_a_paused_turn_is_not_a_short_answer(monkeypatch):
     assert "fragment" in got.error
 
 
+def test_a_reply_that_stopped_at_its_cap_is_a_fragment_too(monkeypatch):
+    """The same rule as the paused turn, for the fragment this class makes itself.
+
+    The first one that reached a reader was a JSON array cut inside a value.
+    Nothing about it said it had been cut: it simply ended, so a paid call came
+    back reported as candidates that failed to parse rather than as a call that
+    was never given room to answer.
+    """
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        answering(
+            message([{"type": "text", "text": '[{"question": "wh'}], stop_reason="max_tokens")
+        ),
+    )
+    got = AnthropicProvider(api_key=KEY, max_output_tokens=1024).ask("q")
+    assert not got.ok
+    assert "fragment" in got.error
+    assert "1024" in got.error, "the cap is in the error, because it is the thing to raise"
+
+
+def test_the_cap_the_guard_prices_is_the_cap_the_request_carries(monkeypatch):
+    """One number, read by the layer that pays for a call and sent by the layer that makes it."""
+    seen: list = []
+    monkeypatch.setattr(
+        urllib.request, "urlopen", answering(message([{"type": "text", "text": "ok"}]), seen)
+    )
+    engine = AnthropicProvider(api_key=KEY, max_output_tokens=4100)
+    engine.ask("q")
+
+    assert json.loads(seen[0].data.decode("utf-8"))["max_tokens"] == engine.max_output_tokens
+
+
+def test_capping_one_call_leaves_the_round_s_own_provider_alone(monkeypatch):
+    """A round's ceiling is one number, and one call inside it may need another.
+
+    Raising the cap in place would price every remaining draw at the size of
+    the single call that needed the room.
+    """
+    seen: list = []
+    monkeypatch.setattr(
+        urllib.request, "urlopen", answering(message([{"type": "text", "text": "ok"}]), seen)
+    )
+    engine = AnthropicProvider(api_key=KEY, max_output_tokens=1024)
+
+    engine.with_output_cap(4100).ask("the long one")
+    engine.ask("an ordinary draw")
+
+    caps = [json.loads(req.data.decode("utf-8"))["max_tokens"] for req in seen]
+    assert caps == [4100, 1024]
+    assert engine.max_output_tokens == 1024
+
+
 def test_a_shape_nobody_recognises_is_an_error_not_an_empty_answer(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", answering({"nothing": "familiar"}))
     got = AnthropicProvider(api_key=KEY).ask("q")

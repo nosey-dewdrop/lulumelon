@@ -29,7 +29,7 @@ from lulumelon.collect import (
     Usage,
     replay,
 )
-from lulumelon.collect.budget import UNMEASURED_INPUT_TOKENS, UNMEASURED_OUTPUT_TOKENS
+from lulumelon.collect.budget import UNMEASURED_INPUT_TOKENS
 from lulumelon.prices import price_for
 
 KEY = "sk-ant-" + "a1b2c3d4e5" * 4
@@ -157,9 +157,13 @@ def test_the_worst_case_is_printed_before_anything_is_spent(tmp_path):
     rec = Recorder()
     run(rec, tmp_path, k=4)
 
+    # The output half is the cap the stub carries, not a guess about it: the
+    # request states how much the model may write and the guard prices that
+    # number, so the two cannot disagree the way they did when one said 400 and
+    # the other allowed 1,024.
     ceiling = (
         UNMEASURED_INPUT_TOKENS * OPUS.input_per_mtok_usd
-        + UNMEASURED_OUTPUT_TOKENS * OPUS.output_per_mtok_usd
+        + stub().max_output_tokens * OPUS.output_per_mtok_usd
     ) / 1_000_000 + 3 * 0.01
     text = rec.text
     before, after = text.split("ASKING")

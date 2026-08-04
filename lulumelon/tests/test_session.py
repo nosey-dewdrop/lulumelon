@@ -25,6 +25,10 @@ P1 = Prompt("p1", "best trading agent platform?")
 P2 = Prompt("p2", "alternatives to Rival?")
 
 OPUS = price_for("anthropic", "claude-opus-5")
+
+#: The cap every call in these rounds carries. It is the number the request
+#: states, so the guard prices it rather than guessing at it.
+CAP = 1024
 #: A stub that reports its usage, so a round through it is priced from measured
 #: counts rather than from the guard's opening guess. 1000 in and 200 out on
 #: this price is $0.01 of tokens, and one search is another $0.01.
@@ -285,7 +289,7 @@ def test_a_budget_nobody_could_exhaust_leaves_the_round_alone(led):
     guarded = run_round(
         ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
         k=3, subject="marx", clock=ticking_clock(),
-        budget=Budget(price=OPUS, limit_usd=5.0, max_searches=1),
+        budget=Budget(price=OPUS, limit_usd=5.0, max_searches=1, max_output_tokens=CAP),
     )
 
     assert (guarded.asked, guarded.ok, guarded.errors) == (unguarded.asked, unguarded.ok, unguarded.errors)
@@ -296,44 +300,46 @@ def test_a_budget_nobody_could_exhaust_leaves_the_round_alone(led):
 
 
 def test_a_round_that_runs_out_stops_short_and_says_how_short(led):
-    # $0.25 at $0.02 a call is twelve asks, and the design asked for sixteen.
-    # The four that were never made are the reason every interval computed off
-    # this snapshot is wider than the plan that bought it.
-    budget = Budget(price=OPUS, limit_usd=0.25, max_searches=1)
+    # Each call costs $0.02 and each is checked against its own ceiling first:
+    # $0.005 of measured input, $0.0256 for the 1,024 tokens it may write, and
+    # a search. $0.25 stops after eleven, and the design asked for sixteen. The
+    # five that were never made are the reason every interval computed off this
+    # snapshot is wider than the plan that bought it.
+    budget = Budget(price=OPUS, limit_usd=0.25, max_searches=1, max_output_tokens=CAP)
     result = run_round(
         ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
         k=8, subject="marx", clock=ticking_clock(), budget=budget,
     )
 
     assert result.planned == 16
-    assert result.asked == 12
-    assert result.unasked == 4
+    assert result.asked == 11
+    assert result.unasked == 5
     assert result.stopped_for_budget
     assert result.errors == 0
-    assert "stopped for budget, 4 never asked" in result.as_text()
+    assert "stopped for budget, 5 never asked" in result.as_text()
 
-    assert led.calls(result.snapshot_id) == 12, "the ledger holds the asks that happened"
+    assert led.calls(result.snapshot_id) == 11, "the ledger holds the asks that happened"
     assert led.verify(result.snapshot_id) == [], "stopping leaves no half-written record"
-    assert budget.spent_usd == pytest.approx(0.24)
+    assert budget.spent_usd == pytest.approx(0.22)
 
-    # A round stopped by its budget closes like any other, and says twelve
+    # A round stopped by its budget closes like any other, and says eleven
     # rather than sixteen. That is what separates it from a round of sixteen
     # with four lines cut off the end: this one states a length and holds it,
     # and the cut one has nothing left that states anything.
     seal = led.seal_of(result.snapshot_id)
-    assert (seal.round_asked, seal.round_ok, seal.round_errors) == (12, 12, 0)
+    assert (seal.round_asked, seal.round_ok, seal.round_errors) == (11, 11, 0)
 
     path = led.path_of(result.snapshot_id)
     lines = path.read_text(encoding="utf-8").splitlines()
-    path.write_text("\n".join(lines[:12]) + "\n", encoding="utf-8")
+    path.write_text("\n".join(lines[:11]) + "\n", encoding="utf-8")
     assert any("not sealed" in p for p in led.verify(result.snapshot_id))
 
 
 def test_a_budget_for_three_unmetered_calls_makes_exactly_three(led):
-    # the stub reports no usage at all, so every call is charged at the opening
-    # ceiling of $0.08 and $0.28 buys three of them. A guard that read the
+    # the stub reports no usage at all, so every call is charged at its own
+    # ceiling of $0.0956 and $0.30 buys three of them. A guard that read the
     # silence as no spend would have asked all six.
-    budget = Budget(price=OPUS, limit_usd=0.28, max_searches=1)
+    budget = Budget(price=OPUS, limit_usd=0.30, max_searches=1, max_output_tokens=CAP)
     result = run_round(
         ledger=led, provider=FakeProvider(), prompts=[P1, P2, Prompt("p3", "who else?")],
         brands=BRANDS, k=2, subject="marx", clock=ticking_clock(), budget=budget,
@@ -344,13 +350,13 @@ def test_a_budget_for_three_unmetered_calls_makes_exactly_three(led):
     assert result.stopped_for_budget
     assert led.calls(result.snapshot_id) == 3
     assert budget.unmetered_calls == 3
-    assert budget.spent_usd == pytest.approx(0.24)
+    assert budget.spent_usd == pytest.approx(0.2868)
 
 
 def test_a_round_that_cannot_afford_its_first_ask_asks_nothing(led):
     # a snapshot with no asks in it is still a snapshot, and it is a better
     # outcome than one call made to discover the budget was never enough.
-    budget = Budget(price=OPUS, limit_usd=0.01, max_searches=1)
+    budget = Budget(price=OPUS, limit_usd=0.01, max_searches=1, max_output_tokens=CAP)
     result = run_round(
         ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1], brands=BRANDS,
         k=4, subject="marx", clock=ticking_clock(), budget=budget,

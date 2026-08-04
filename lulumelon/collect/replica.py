@@ -57,7 +57,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Sequence
 
 from .ask import Answer, Provider
@@ -223,6 +223,18 @@ class ReplicaProvider:
             self.sources, instruction_version=self.instruction_version
         )
         self.name = self.base.name
+
+    @property
+    def max_output_tokens(self) -> int:
+        """The cap the engine underneath carries, reported rather than held.
+
+        A wrapper that kept its own copy would be a second place the number
+        lives, which is the defect this attribute exists to close.
+        """
+        return self.base.max_output_tokens
+
+    def with_output_cap(self, max_output_tokens: int) -> "ReplicaProvider":
+        return replace(self, base=self.base.with_output_cap(max_output_tokens))
 
     def ask(self, question: str) -> Answer:
         """Ask through the source list, and label the answer as a replica.

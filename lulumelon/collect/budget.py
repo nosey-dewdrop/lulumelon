@@ -50,8 +50,31 @@ from .ask import Answer
 #: came back having consumed 10,046 input tokens, because the pages a search
 #: returns arrive as context and context is input. It is a starting guess and
 #: it is replaced by the round's own measured rate as soon as there is one.
+#:
+#: There is no matching guess for the output side, and the absence is the
+#: point. What a call may write back is not observed, it is sent: every
+#: request carries the cap and the provider stops there. A guard that guessed
+#: at a number it had already chosen priced 400 tokens against a call it had
+#: allowed 1,024, printed $0.0440 as the most one call could cost, and paid
+#: $0.0467 for the next one.
 UNMEASURED_INPUT_TOKENS = 12_000
-UNMEASURED_OUTPUT_TOKENS = 400
+
+#: Characters to the token when a prompt has to be priced before it is sent.
+#: Latin script runs three and a half to four, so three counts high on
+#: purpose. The two ways to be wrong here are not symmetric: counting high
+#: refuses a call that would have fit and costs nothing, counting low pays for
+#: one that did not and discovers the difference on the invoice.
+CHARS_PER_TOKEN = 3
+
+
+def tokens_for_chars(chars: int) -> int:
+    """The most tokens that many characters can be."""
+    return -(-chars // CHARS_PER_TOKEN)
+
+
+def token_ceiling(text: str) -> int:
+    """The most tokens a prompt this long can be, counted before it is sent."""
+    return tokens_for_chars(len(text))
 
 
 @dataclass
@@ -66,6 +89,12 @@ class Budget:
 
     price: Price
     limit_usd: float
+    #: The cap this round's calls carry, stated by whoever built the provider
+    #: that will send it. There is no default, because a default is what this
+    #: field replaced: one number written into the network layer and a second
+    #: one written into the guard, each correct about a call the other was not
+    #: describing. A call whose cap this does not know cannot be priced.
+    max_output_tokens: int
     max_searches: int = 1
     #: Whether the round this guards was given a search tool at all. False is
     #: the unsearched arm, where no call can run a search and therefore no call
@@ -88,6 +117,11 @@ class Budget:
             )
         if self.can_search and self.max_searches < 1:
             raise ValueError("a call runs at least one search, so its ceiling is at least one fee")
+        if self.max_output_tokens < 1:
+            raise ValueError(
+                f"a cap of {self.max_output_tokens} output tokens is a call that cannot answer; "
+                "this is the number the request carries, not a guess about it"
+            )
 
     @property
     def remaining_usd(self) -> float:
@@ -103,14 +137,25 @@ class Budget:
             self._output_tokens // self.metered_calls,
         )
 
-    def next_call_ceiling_usd(self) -> float:
+    def next_call_ceiling_usd(
+        self, *, input_tokens: int | None = None, output_tokens: int | None = None
+    ) -> float:
         """The most the next call could cost, priced from what is known so far.
 
-        Once a call has been metered the token term comes from this round's own
-        rate rather than the guess, so the ceiling gets sharper as the round
-        goes on. The fee term does not: a call may search up to its cap and the
-        cap is what is charged, because the alternative is discovering the
-        difference after paying it.
+        A caller that has already built the prompt states its size and gets an
+        exact ceiling rather than a guessed one. Nothing else in a round knows
+        that number: the guard is asked before the call exists, so the only
+        caller that can hand over the real shape is the one holding the text.
+
+        Once a call has been metered the input term comes from this round's own
+        rate rather than the opening guess, so the ceiling gets sharper as the
+        round goes on. The output term never does. A round that averaged three
+        hundred written tokens is not a round whose next call cannot write a
+        thousand; the cap is what stops it, and the cap is known exactly.
+
+        The fee term does not sharpen either: a call may search up to its cap
+        and the cap is what is charged, because the alternative is discovering
+        the difference after paying it.
 
         On the unsearched arm there is no fee term at all. That is not an
         optimistic reading of a silence, which is what every other zero in this
@@ -119,10 +164,7 @@ class Budget:
         would stop that arm at a fraction of the calls it can afford and report
         the difference as a budget it never spent.
         """
-        per_input, per_output = self.measured_rate or (
-            UNMEASURED_INPUT_TOKENS,
-            UNMEASURED_OUTPUT_TOKENS,
-        )
+        per_input, per_output = self._shape(input_tokens, output_tokens)
         tokens = (
             per_input * self.price.input_per_mtok_usd + per_output * self.price.output_per_mtok_usd
         ) / 1_000_000
@@ -132,12 +174,35 @@ class Budget:
             searches = self.max_searches if self.can_search else 0
         return tokens + searches * self.price.fee_per_k_high_usd / 1000
 
-    def can_afford_another(self) -> bool:
-        """Whether the next call still fits, at that call's own ceiling."""
-        return self.next_call_ceiling_usd() <= self.remaining_usd
+    def _shape(self, input_tokens: int | None, output_tokens: int | None) -> tuple[int, int]:
+        """The token counts to price an unmeasured call at, stated or inferred."""
+        if input_tokens is None:
+            measured = self.measured_rate
+            input_tokens = measured[0] if measured else UNMEASURED_INPUT_TOKENS
+        return input_tokens, self.max_output_tokens if output_tokens is None else output_tokens
 
-    def charge(self, answer: Answer) -> float:
+    def can_afford_another(
+        self, *, input_tokens: int | None = None, output_tokens: int | None = None
+    ) -> bool:
+        """Whether the next call still fits, at that call's own ceiling."""
+        ceiling = self.next_call_ceiling_usd(
+            input_tokens=input_tokens, output_tokens=output_tokens
+        )
+        return ceiling <= self.remaining_usd
+
+    def charge(
+        self,
+        answer: Answer,
+        *,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+    ) -> float:
         """Record what one answer cost, and return it.
+
+        The two token arguments are the shape the call was allowed, and they
+        are read only when the provider metered nothing. A call charged at a
+        ceiling has to be charged at its own, or the round that could not see
+        what it spent also under-reports it.
 
         A failed call is charged nothing. The provider states that a search
         which errors is not billed, and a call that never reached it cannot
@@ -164,10 +229,7 @@ class Budget:
             # is a provider this cannot see, and a budget that spends nothing
             # while blind spends everything.
             self.unmetered_calls += 1
-            per_input, per_output = self.measured_rate or (
-                UNMEASURED_INPUT_TOKENS,
-                UNMEASURED_OUTPUT_TOKENS,
-            )
+            per_input, per_output = self._shape(input_tokens, output_tokens)
             tokens = (
                 per_input * self.price.input_per_mtok_usd
                 + per_output * self.price.output_per_mtok_usd

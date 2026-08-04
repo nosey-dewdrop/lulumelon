@@ -30,6 +30,7 @@ from lulumelon.collect.propose import (
     Malformed,
     Proposal,
     as_candidate_rows,
+    output_cap_for,
     pages_for_screening,
     propose,
     read_reply,
@@ -38,6 +39,10 @@ from lulumelon.collect.propose import (
 from lulumelon.prices import price_for
 
 HAIKU = price_for("anthropic", "claude-haiku-4-5")
+
+#: The cap every call in these rounds carries. It is the number the request
+#: states, so the guard prices it rather than guessing at it.
+CAP = 1024
 
 TARIFELER = "https://ornek.com/tarifeler"
 HAKKIMIZDA = "https://ornek.com/hakkimizda"
@@ -78,6 +83,15 @@ class Stub:
     model: str = "stub-1"
     usage: Usage = field(default_factory=Usage)
     seen: list[str] = field(default_factory=list)
+    #: What a round's ordinary call may write back, and what a proposing call
+    #: raised it to. The second is recorded rather than replaced so a test can
+    #: read the number the paid call was actually allowed.
+    max_output_tokens: int = 1024
+    capped_to: int | None = None
+
+    def with_output_cap(self, max_output_tokens: int) -> "Stub":
+        self.capped_to = max_output_tokens
+        return self
 
     def ask(self, prompt: str) -> Answer:
         self.seen.append(prompt)
@@ -260,7 +274,7 @@ def test_a_reply_that_parsed_comes_back_with_its_answer_for_the_ledger():
 
 def test_a_budget_that_cannot_cover_the_call_stops_it_before_the_network():
     stub = Stub(reply=GOOD)
-    budget = Budget(price=HAIKU, limit_usd=0.000001, max_searches=1)
+    budget = Budget(price=HAIKU, limit_usd=0.000001, max_searches=1, max_output_tokens=CAP)
     result = propose(corpus(), provider=stub, budget=budget)
     assert stub.seen == []
     assert result.asked is False
@@ -269,7 +283,7 @@ def test_a_budget_that_cannot_cover_the_call_stops_it_before_the_network():
 
 
 def test_a_call_that_was_made_is_charged_to_the_budget():
-    budget = Budget(price=HAIKU, limit_usd=5.0, max_searches=1)
+    budget = Budget(price=HAIKU, limit_usd=5.0, max_searches=1, max_output_tokens=CAP)
     propose(corpus(), provider=Stub(reply=GOOD), budget=budget)
     assert budget.spent_usd > 0.0
 
@@ -281,14 +295,54 @@ def test_a_failed_call_is_handed_to_the_budget_and_the_budget_prices_it():
     a proposal round that skipped the charge entirely would look identical here
     while spending real money on the day that rule changes.
     """
-    budget = Budget(price=HAIKU, limit_usd=5.0, max_searches=1)
+    budget = Budget(price=HAIKU, limit_usd=5.0, max_searches=1, max_output_tokens=CAP)
     propose(corpus(), provider=Stub(status="error"), budget=budget)
     assert budget.spent_usd == 0.0
     assert budget.metered_calls == 0 and budget.unmetered_calls == 0
 
 
+def test_the_call_is_given_room_for_the_list_it_was_told_to_write():
+    """Forty answers under a cap sized for one is the whole of what went wrong.
+
+    The cap lived in the network layer as a private constant while this module
+    asked for forty candidates, each carrying a question, a URL and a quote. It
+    is derived here instead, so the number that decides whether the answer fits
+    is set by the layer that knows how long the answer has to be.
+    """
+    stub = Stub(reply=GOOD)
+    propose(corpus(), provider=stub, wanted=40)
+
+    assert stub.capped_to == output_cap_for(40)
+    assert stub.capped_to > 1024, "the cap that cut the first paid call short"
+    assert output_cap_for(40) > output_cap_for(10) > output_cap_for(1)
+
+
+def test_a_call_asking_for_nothing_has_no_room_to_size():
+    with pytest.raises(ValueError, match="not a call worth paying for"):
+        output_cap_for(0)
+
+
+def test_the_budget_is_told_the_shape_of_the_call_it_is_guarding():
+    """A ceiling for an ordinary draw is not a ceiling for this call.
+
+    The proposing call sends the whole site and asks for a list; a draw sends
+    one question. This budget can afford a draw many times over and cannot
+    afford the proposing call once, and a guard priced on the round's ordinary
+    shape would have let it through and read the difference off the invoice.
+    """
+    room = Budget(price=HAIKU, limit_usd=0.05, max_searches=1, max_output_tokens=CAP)
+    assert room.can_afford_another(), "an ordinary draw fits inside this ceiling"
+
+    stub = Stub(reply=GOOD)
+    result = propose(corpus(), provider=stub, wanted=400, budget=room)
+
+    assert stub.seen == [], "nothing reached the network"
+    assert result.asked is False
+    assert room.spent_usd == 0.0
+
+
 def test_the_summary_says_what_happened_including_the_refusal():
-    budget = Budget(price=HAIKU, limit_usd=0.000001, max_searches=1)
+    budget = Budget(price=HAIKU, limit_usd=0.000001, max_searches=1, max_output_tokens=CAP)
     refused = propose(corpus(), provider=Stub(), budget=budget)
     assert refused.as_text().startswith("no call was made")
 

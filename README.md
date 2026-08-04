@@ -130,7 +130,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 907 tests, offline
+    python3 -m pytest lulumelon/tests   # 918 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a

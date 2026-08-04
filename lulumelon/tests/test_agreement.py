@@ -467,7 +467,7 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
         }.get(url, (200, "<html><title>t</title><body>x</body></html>")),
     )
 
-    budget = Budget(price=price, limit_usd=5.0, max_searches=1)
+    budget = Budget(price=price, limit_usd=5.0, max_searches=1, max_output_tokens=1024)
     budget.charge(
         FakeProvider(usage=Usage(input_tokens=900, output_tokens=30, searches=1)).ask("q")
     )

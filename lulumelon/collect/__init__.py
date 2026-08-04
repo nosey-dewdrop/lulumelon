@@ -17,7 +17,7 @@ from .ask import (
     Usage,
     is_unsearched_surface,
 )
-from .budget import UNMEASURED_INPUT_TOKENS, UNMEASURED_OUTPUT_TOKENS, Budget
+from .budget import CHARS_PER_TOKEN, UNMEASURED_INPUT_TOKENS, Budget, token_ceiling, tokens_for_chars
 from .detect import Brand, detect, normalise, occurrences
 from .ledger import (
     DIAGNOSTIC_SUBJECT,
@@ -64,7 +64,7 @@ __all__ = [
     "UNKNOWN_MODEL",
     "UNSEARCHED_SURFACE",
     "UNMEASURED_INPUT_TOKENS",
-    "UNMEASURED_OUTPUT_TOKENS",
+    "CHARS_PER_TOKEN",
     "Answer",
     "Brand",
     "Budget",
@@ -97,6 +97,8 @@ __all__ = [
     "scrub",
     "source_fingerprint",
     "storable",
+    "token_ceiling",
+    "tokens_for_chars",
     "utc_now",
     "without",
 ]

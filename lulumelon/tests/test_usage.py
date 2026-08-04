@@ -437,7 +437,12 @@ def test_the_ledger_and_the_budget_guard_agree_about_one_round(tmp_path):
     from lulumelon.collect import Brand, Budget, FakeProvider, Ledger, Prompt, Usage, run_round
 
     led = Ledger(tmp_path)
-    budget = Budget(price=price_for("anthropic", "claude-haiku-4-5"), limit_usd=5.0, max_searches=3)
+    budget = Budget(
+        price=price_for("anthropic", "claude-haiku-4-5"),
+        limit_usd=5.0,
+        max_searches=3,
+        max_output_tokens=1024,
+    )
     result = run_round(
         ledger=led,
         provider=FakeProvider(

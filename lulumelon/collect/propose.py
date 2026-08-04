@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from .ask import Answer, Provider
-from .budget import Budget
+from .budget import Budget, token_ceiling, tokens_for_chars
 from .harvest import SiteCorpus
 
 #: Characters of each page shown to the model. A ceiling on the request, not a
@@ -56,6 +56,34 @@ DEFAULT_PAGE_CHARS = 4_000
 #: downstream decide how many survive, and a model that returns nine when it
 #: was asked for forty has produced a smaller pool, not a failure.
 DEFAULT_WANTED = 40
+
+#: Characters one candidate takes in the reply, measured off a real one rather
+#: than assumed: the first paid proposing call this repo made wrote entries of
+#: 219 characters, a question with the URL it cites, the words it quotes and
+#: the JSON framing all three. 300 is that with room for a longer quote and a
+#: deeper URL than the one that happened to come first.
+CHARS_PER_CANDIDATE = 300
+
+#: The array's own brackets, the code fence a model wraps them in, and the
+#: line it sometimes writes before starting.
+FRAME_CHARS = 300
+
+
+def output_cap_for(wanted: int) -> int:
+    """The room one call needs to write `wanted` candidates and stop on its own.
+
+    Derived from the size of a candidate, because the only thing this number
+    has to be true about is whether the answer fits. A round one was the reason
+    for the derivation: forty candidates were asked for under a cap of 1,024
+    tokens that lived in the network layer, the reply stopped inside a value,
+    and a call that cost real money came back as zero candidates and one entry
+    nobody could read. Nothing in the reply said it had been cut off; it simply
+    ended, and a JSON array that ends early is indistinguishable from a model
+    that writes bad JSON until you notice you set the ending yourself.
+    """
+    if wanted < 1:
+        raise ValueError(f"a call asking for {wanted} questions is not a call worth paying for")
+    return tokens_for_chars(wanted * CHARS_PER_CANDIDATE + FRAME_CHARS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,19 +284,26 @@ def propose(
     failure, because a call that failed is a fact about the round.
     """
     request = request_for(corpus, wanted=wanted, page_chars=page_chars)
+    cap = output_cap_for(wanted)
+    room = token_ceiling(request)
 
-    if budget is not None and not budget.can_afford_another():
+    if budget is not None and not budget.can_afford_another(input_tokens=room, output_tokens=cap):
+        ceiling = budget.next_call_ceiling_usd(input_tokens=room, output_tokens=cap)
         return ProposalResult(
             asked=False,
             refusal=(
-                f"the next call could cost {budget.next_call_ceiling_usd():.6f} usd and "
+                f"the next call could cost {ceiling:.6f} usd and "
                 f"{budget.remaining_usd:.6f} usd of the ceiling is left"
             ),
         )
 
-    answer = provider.ask(request)
+    # Capped for this call rather than for the round. The provider handed in
+    # is the one the measuring draws will use afterwards, and each of those is
+    # one answer to one question; raising its cap here would price every draw
+    # in the round at the size of this one call.
+    answer = provider.with_output_cap(cap).ask(request)
     if budget is not None:
-        budget.charge(answer)
+        budget.charge(answer, input_tokens=room, output_tokens=cap)
 
     if not answer.ok:
         return ProposalResult(answer=answer, asked=True)

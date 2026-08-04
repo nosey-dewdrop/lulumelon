@@ -39,7 +39,7 @@ import math
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Protocol
 
 from ..keys import redact
@@ -238,12 +238,26 @@ class Provider(Protocol):
     comparable or not, so both are attributes of the provider rather than
     arguments to `ask`: a single provider instance cannot silently drift
     between surfaces halfway through a round.
+
+    `max_output_tokens` is here for the opposite reason. It was a private
+    number inside one provider, and both the layer that asked for forty
+    answers in one call and the layer that priced that call were written as if
+    it did not exist. It is the ceiling on everything a call can write back, so
+    a guard that cannot read it is pricing a call it has not seen.
+
+    A call whose answer will be longer asks for a provider capped for it rather
+    than raising the cap on the one the round is using, because a round's
+    ceiling is the same number for every draw in it and a cap raised mid-round
+    would be a different experiment priced as the old one.
     """
 
     name: str
     surface: str
+    max_output_tokens: int
 
     def ask(self, prompt: str) -> Answer: ...
+
+    def with_output_cap(self, max_output_tokens: int) -> "Provider": ...
 
 
 # -- deterministic stub -----------------------------------------------------
@@ -271,7 +285,21 @@ class FakeProvider:
     citations: tuple[str, ...] = ()
     fail_on: tuple[int, ...] = ()
     usage: Usage = field(default_factory=Usage)
+    max_output_tokens: int = 1024
     _calls: int = 0
+
+    def with_output_cap(self, max_output_tokens: int) -> "FakeProvider":
+        """Cap in place, and hand back the same stub.
+
+        The live providers hand back a copy, because a round's ceiling is one
+        number and a cap raised inside it would be priced as the old one. This
+        one has no ceiling to protect and does have a script and a call
+        counter, and both live on the instance: a copy would make every capped
+        call the first call again, and a test that set up a third reply would
+        pass while reading the first.
+        """
+        self.max_output_tokens = max_output_tokens
+        return self
 
     def ask(self, prompt: str) -> Answer:
         i = self._calls
@@ -434,13 +462,21 @@ class PerplexityProvider:
     name: str = "perplexity"
     surface: str = "api"
     model: str = "sonar"
+    #: Sent rather than left to the model's own default, because the guard
+    #: prices this number and a cap that is only sent on one engine is a
+    #: ceiling that is only true on one engine.
+    max_output_tokens: int = 1024
     endpoint: str = "https://api.perplexity.ai/v1/sonar"
     timeout_s: float = 45.0
+
+    def with_output_cap(self, max_output_tokens: int) -> "PerplexityProvider":
+        return replace(self, max_output_tokens=max_output_tokens)
 
     def ask(self, prompt: str) -> Answer:
         body = json.dumps(
             {
                 "model": self.model,
+                "max_tokens": self.max_output_tokens,
                 "messages": [{"role": "user", "content": prompt}],
             }
         ).encode("utf-8")
@@ -631,7 +667,11 @@ class AnthropicProvider:
     model: str = "claude-opus-5"
     max_searches: int = DEFAULT_MAX_SEARCHES
     can_search: bool = True
-    max_tokens: int = 1024
+    #: Enough for one answer to one question, which is what this default is
+    #: for. A caller asking for a list of forty things sets its own, and the
+    #: guard prices whatever this says, because the same number cannot be a
+    #: private detail of the request and an input to the ceiling on it.
+    max_output_tokens: int = 1024
     endpoint: str = "https://api.anthropic.com/v1/messages"
     timeout_s: float = 90.0
 
@@ -649,10 +689,13 @@ class AnthropicProvider:
                 "is collected with can_search=False, which sends no search tool at all"
             )
 
+    def with_output_cap(self, max_output_tokens: int) -> "AnthropicProvider":
+        return replace(self, max_output_tokens=max_output_tokens)
+
     def ask(self, prompt: str) -> Answer:
         payload: dict = {
             "model": self.model,
-            "max_tokens": self.max_tokens,
+            "max_tokens": self.max_output_tokens,
             "messages": [{"role": "user", "content": prompt}],
         }
         if self.can_search:
@@ -700,6 +743,18 @@ class AnthropicProvider:
         if stop == "pause_turn":
             return self._failed(
                 started, "the turn paused mid-search, so this answer is a fragment rather than a reply"
+            )
+        if stop == "max_tokens":
+            # The same rule as the line above, applied to the fragment this
+            # class makes itself. An answer that stopped at the cap is one the
+            # model had not finished writing, and the first one to reach a
+            # reader arrived as a JSON array cut inside a value: nothing could
+            # read it, so it was reported as forty candidates that failed to
+            # parse rather than as a call that was not given room to answer.
+            return self._failed(
+                started,
+                f"the reply stopped at its cap of {self.max_output_tokens} output tokens, so it "
+                "is a fragment rather than a reply; the call needed more room than it was given",
             )
 
         urls, search_errors = _anthropic_sources(content)

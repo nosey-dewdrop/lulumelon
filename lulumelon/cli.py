@@ -54,7 +54,7 @@ from .collect.ask import (
     Provider,
     provider_for,
 )
-from .collect.budget import UNMEASURED_INPUT_TOKENS, UNMEASURED_OUTPUT_TOKENS, Budget
+from .collect.budget import UNMEASURED_INPUT_TOKENS, Budget, token_ceiling
 from .collect.ledger import (
     DIAGNOSTIC_SUBJECT,
     Ledger,
@@ -75,8 +75,10 @@ from .collect.harvest import DEFAULT_MAX_PAGES, harvest
 from .collect.propose import (
     DEFAULT_PAGE_CHARS,
     DEFAULT_WANTED,
+    output_cap_for,
     pages_for_screening,
     propose,
+    request_for,
 )
 from .collect.session import Prompt, run_round, utc_now
 from .collect.subject import Subject, load_subject
@@ -839,7 +841,11 @@ def collect(
     )
 
     budget = Budget(
-        price=price, limit_usd=budget_usd, max_searches=max_searches, can_search=can_search
+        price=price,
+        limit_usd=budget_usd,
+        max_searches=max_searches,
+        can_search=can_search,
+        max_output_tokens=engine.max_output_tokens,
     )
     planned = len(subject.prompts) * k
     ceiling = budget.next_call_ceiling_usd()
@@ -851,8 +857,8 @@ def collect(
     )
     console.say(f"  ${ceiling:.4f} is the most one of them can cost: an opening guess of")
     console.say(
-        f"    {UNMEASURED_INPUT_TOKENS} in and {UNMEASURED_OUTPUT_TOKENS} out tokens, "
-        f"{_fee_sentence(price, max_searches, can_search)}"
+        f"    {UNMEASURED_INPUT_TOKENS} in tokens against a cap of {engine.max_output_tokens} "
+        f"out, {_fee_sentence(price, max_searches, can_search)}"
     )
     console.say(f"  ${planned * ceiling:.4f} is the most the whole round can cost at that price")
     affordable = int(budget_usd // ceiling)
@@ -1042,8 +1048,25 @@ def draft(
         return 1
     console.say(f"  key       {found.source}, fingerprint {fingerprint(found.key)}")
 
-    budget = Budget(price=price, limit_usd=budget_usd, max_searches=max_searches)
-    ceiling = budget.next_call_ceiling_usd()
+    engine = build_provider() if build_provider else provider_for(
+        provider, found.key, model=model, max_searches=max_searches
+    )
+
+    budget = Budget(
+        price=price,
+        limit_usd=budget_usd,
+        max_searches=max_searches,
+        max_output_tokens=engine.max_output_tokens,
+    )
+    # Two shapes, and one number for both was the defect. The proposing call
+    # sends the site and asks for a list; a draw sends one question. Pricing
+    # the round at the average of those describes neither call.
+    proposing_cap = output_cap_for(wanted)
+    proposing_in = token_ceiling(request_for(corpus, wanted=wanted, page_chars=page_chars))
+    proposing = budget.next_call_ceiling_usd(
+        input_tokens=proposing_in, output_tokens=proposing_cap
+    )
+    per_draw = budget.next_call_ceiling_usd()
 
     console.say()
     console.say("BEFORE ANYTHING IS SPENT")
@@ -1052,19 +1075,22 @@ def draft(
         f"  {counted(k, 'draw')} each afterwards, derived from a floor of {floor:.2f}: "
         f"a clean sweep of {k}/{k} is the shortest one whose lower bound clears it"
     )
-    console.say(f"  ${ceiling:.4f} is the most one call can cost, priced from {price.provenance()}")
     console.say(
-        f"  ${(1 + wanted * k) * ceiling:.4f} is the most this can cost if every candidate "
+        f"  ${proposing:.4f} is the most the proposing call can cost: the site as it will be "
+        f"sent is {proposing_in} tokens, against a cap of {proposing_cap} out"
+    )
+    console.say(
+        f"  ${per_draw:.4f} is the most one draw can cost, against a cap of "
+        f"{engine.max_output_tokens} out"
+    )
+    console.say(
+        f"  ${proposing + wanted * k * per_draw:.4f} is the most this can cost if every candidate "
         "survives the free gates"
     )
-    console.say(f"  ${budget_usd:.2f} is your ceiling")
+    console.say(f"  ${budget_usd:.2f} is your ceiling, priced from {price.provenance()}")
     if not rivals:
         console.say()
         console.say("  note      " + _no_rivals_refusal(corpus.subject_name))
-
-    engine = build_provider() if build_provider else provider_for(
-        provider, found.key, model=model, max_searches=max_searches
-    )
 
     console.say()
     console.say("PROPOSING")

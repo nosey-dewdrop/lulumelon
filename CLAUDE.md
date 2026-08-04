@@ -23,7 +23,7 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 
 - `mirror/` — intervals, variance, ablation, lift, compare, report, sources, stability, types, screen, names
 - `collect/` — ask, ledger, session, budget, detect, subject, audit, harvest, propose, replica, replay
-- `cli.py` — setup, init, doctor, collect, draft, usage, ablate, lift, report, rivals, screened, verify, plan, size
+- `cli.py` — setup, init, doctor, collect, draft, usage, ablate, lift, report, rivals, screened, publish, verify, plan, size
 
 ## kalıcı kararlar
 

@@ -404,6 +404,19 @@ collected on the arm that searches, and the two arms reach for different
 companies. So both surfaces print the names the answers used that the declared
 list never mentioned, off the same draws, at no extra cost.
 
+A round whose questions name no company is a measurement of a market rather than
+of a brand, and that is worth reading by more people than the one who paid for
+it. `lulu publish` writes one out as a page per question, with every name it
+found and the interval the sample supports.
+
+    lulu publish --snapshot ROUND --questions data/subjects/ornek.json \
+                 --out data/published --least 2
+
+It refuses a round whose questions carry a tracked name, because that round is
+about a brand. Nothing it writes is served until somebody commits it: a ledger
+is the customer's own record and is not in this repository at all, so there is
+no path from a collected round to a public url that nobody chose.
+
 Every round closes with a record saying how many calls it made and how they
 came out, hashed into the same chain as the answers. That is what makes a short
 file readable as short: a round somebody has cut lines off the end of has lost

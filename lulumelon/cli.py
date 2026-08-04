@@ -95,6 +95,7 @@ from .mirror.compare import model_confounds
 from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
 from .mirror.lift import UNDECIDED as EFFECT_UNDECIDED
 from .mirror.lift import source_effect
+from .mirror.intervals import wilson_interval
 from .mirror.names import names_in
 from .mirror.report import NothingLeftToScore, brand_report
 from .mirror.types import Reply, Snapshot, group_runs
@@ -2583,6 +2584,146 @@ def _screen_panel(draft: dict, ledger_dir: Path) -> ScreenPanel:
     )
 
 
+#: A round asked to be published that carries a name it must not publish.
+NOT_PUBLISHABLE = 10
+
+
+def publish(
+    console: Console,
+    *,
+    ledger_dir: Path,
+    snapshot: str,
+    questions_path: Path,
+    out_dir: Path,
+    least: int = 2,
+) -> int:
+    """Write one recorded round out as a page the web can serve.
+
+    A measurement is worth reading by more people than the one who paid for it,
+    and the thing worth reading is not a score about a brand: it is which
+    companies a model reaches for when a question mentions none. That is a fact
+    about a market, it cost money to produce, and it is on disk in a file that
+    re-derives.
+
+    **A round is published by hand, never automatically.** This is the one
+    command that turns a customer's round into a public url, so it takes the
+    snapshot by name, refuses anything whose questions name a tracked brand,
+    and writes a file a person can read before it is committed.
+
+    The questions come from a file rather than from the ledger, because a
+    record carries a prompt's id and not its sentence, and a page that invented
+    the question it is reporting on would be inventing the whole page.
+    """
+    store = Ledger(ledger_dir)
+    console.say(f"lulu publish: {ledger_dir}")
+    console.say()
+    try:
+        played = _verified(store, console, "round", snapshot)
+    except BrokenChain:
+        return CHAIN_BROKEN
+
+    try:
+        asked = json.loads(questions_path.read_text(encoding="utf-8"))
+        wording = {str(one["id"]): str(one["text"]) for one in asked["prompts"]}
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        console.warn(f"{questions_path} does not state the questions of this round: {e}")
+        return NOT_A_DRAFT
+
+    records = [
+        rec for rec in store.read(snapshot) if rec.prompt_id and rec.status == "ok" and rec.answer_text
+    ]
+    missing = sorted({rec.prompt_id for rec in records} - set(wording))
+    if missing:
+        console.warn(f"{questions_path} states no wording for {', '.join(missing)}")
+        return NOT_A_DRAFT
+
+    # The one refusal that matters here. A published page is a market
+    # measurement, and a question carrying somebody's brand is that brand's
+    # round rather than the market's.
+    tracked = [str(b["name"]) for b in asked.get("competitors", [])]
+    subject = asked.get("subject", {})
+    if subject.get("name"):
+        tracked.append(str(subject["name"]))
+    named_in_question = sorted(
+        {
+            name
+            for name in tracked
+            for text in wording.values()
+            if name and name.casefold() in text.casefold()
+        }
+    )
+    if named_in_question:
+        console.warn(
+            f"the questions of {snapshot} name {', '.join(named_in_question)}, so this round is "
+            "about a brand rather than about a market and it is not published from here"
+        )
+        return NOT_PUBLISHABLE
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for prompt_id, text in sorted(wording.items()):
+        replies = tuple(
+            Reply(prompt_id=rec.prompt_id, draw=rec.repeat, text=rec.answer_text)
+            for rec in records
+            if rec.prompt_id == prompt_id
+        )
+        if not replies:
+            continue
+        draws = len({one.draw for one in replies})
+        counted_names = [
+            one
+            for one in names_in(replies)
+            if sum(q.draws for q in one.questions) >= least
+        ]
+        surfaces = sorted({rec.surface for rec in records if rec.prompt_id == prompt_id})
+        models = sorted({rec.model for rec in records if rec.prompt_id == prompt_id})
+        engines = sorted({rec.engine for rec in records if rec.prompt_id == prompt_id})
+        body = {
+            "slug": _slug(text)[:70].strip("-"),
+            "question": text,
+            "snapshot": snapshot,
+            "prompt_id": prompt_id,
+            "engine": engines[0] if engines else "",
+            "model": models[0] if models else "",
+            "arm": surfaces[0] if surfaces else "",
+            "asked_at": min(rec.asked_at for rec in records if rec.prompt_id == prompt_id)[:10],
+            "draws": draws,
+            "chain_head": played.chain_head if hasattr(played, "chain_head") else "",
+            "names": [
+                _published_name(one, draws)
+                for one in sorted(
+                    counted_names,
+                    key=lambda one: (-sum(q.draws for q in one.questions), one.name),
+                )
+            ],
+        }
+        path = out_dir / f"{body['slug']}.json"
+        path.write_text(json.dumps(body, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        written.append(path)
+        console.say(f"  {path}  {counted(len(body['names']), 'name')} over {draws} draws")
+
+    console.say()
+    console.say(
+        f"  {counted(len(written), 'page')} written. nothing is served until they are committed, "
+        "and every figure on them re-derives from this round"
+    )
+    return 0 if written else NOTHING_TO_SCORE
+
+
+def _published_name(one, draws: int) -> dict:
+    """One name as a page states it, with the interval the sample supports."""
+    seen = sum(q.draws for q in one.questions)
+    band = wilson_interval(seen, draws)
+    return {
+        "name": one.name,
+        "draws": seen,
+        "of": draws,
+        "rate": seen / draws if draws else 0.0,
+        "low": band.low,
+        "high": band.high,
+    }
+
+
 def rivals(console: Console, *, ledger_dir: Path, snapshot: str, least: int = 1) -> int:
     """Print every name a recorded round reached for, and where it reached for it.
 
@@ -2966,6 +3107,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--pdf", default=None, metavar="PATH", help="write the document and typeset it here"
     )
 
+    p_publish = sub.add_parser(
+        "publish", help="write a recorded round out as pages the web can serve"
+    )
+    p_publish.add_argument("--snapshot", required=True, help="the round to publish")
+    p_publish.add_argument(
+        "--questions",
+        required=True,
+        metavar="PATH",
+        help="the file stating what each prompt id asked, in subject file shape",
+    )
+    p_publish.add_argument(
+        "--out", default="data/published", metavar="DIR", help="where the pages are written"
+    )
+    p_publish.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the round lives in")
+    p_publish.add_argument(
+        "--least",
+        type=int,
+        default=2,
+        metavar="N",
+        help="only names seen in at least N draws of that question",
+    )
+
     p_rivals = sub.add_parser(
         "rivals", help="every name a recorded round reached for, and in which questions"
     )
@@ -3212,6 +3375,15 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 ledger_dir=Path(args.ledger),
                 tex_path=None if args.tex is None else Path(args.tex),
                 pdf_path=None if args.pdf is None else Path(args.pdf),
+            )
+        if args.command == "publish":
+            return publish(
+                console,
+                ledger_dir=Path(args.ledger),
+                snapshot=args.snapshot,
+                questions_path=Path(args.questions),
+                out_dir=Path(args.out),
+                least=args.least,
             )
         if args.command == "rivals":
             return rivals(

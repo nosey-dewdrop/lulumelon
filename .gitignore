@@ -70,3 +70,7 @@ ledger/
 /YOL-HARITASI.txt
 /HANDOFF.txt
 .rabadon/
+
+# next static export
+/out/
+/.next/

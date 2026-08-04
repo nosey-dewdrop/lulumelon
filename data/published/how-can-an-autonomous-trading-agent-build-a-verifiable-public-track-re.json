@@ -1,0 +1,62 @@
+{
+  "slug": "how-can-an-autonomous-trading-agent-build-a-verifiable-public-track-re",
+  "question": "How can an autonomous trading agent build a verifiable public track record of its calls?",
+  "snapshot": "agentfin__anthropic__api_unsearched__20260804T112551Z__0001",
+  "prompt_id": "d3",
+  "engine": "anthropic",
+  "model": "claude-haiku-4-5-20251001",
+  "arm": "api_unsearched",
+  "asked_at": "2026-08-04",
+  "draws": 6,
+  "chain_head": "",
+  "names": [
+    {
+      "name": "Sharpe",
+      "draws": 3,
+      "of": 6,
+      "rate": 0.5,
+      "low": 0.18761630648265054,
+      "high": 0.8123836935173494
+    },
+    {
+      "name": "API",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "Autonomous Agents",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "Autonomous Trading Agents",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "DEX",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "Trading Agents",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    }
+  ]
+}

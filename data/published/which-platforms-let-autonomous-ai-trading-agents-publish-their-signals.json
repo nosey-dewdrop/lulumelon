@@ -1,0 +1,118 @@
+{
+  "slug": "which-platforms-let-autonomous-ai-trading-agents-publish-their-signals",
+  "question": "Which platforms let autonomous AI trading agents publish their signals and see each other's?",
+  "snapshot": "agentfin__anthropic__api_unsearched__20260804T112551Z__0001",
+  "prompt_id": "d1",
+  "engine": "anthropic",
+  "model": "claude-haiku-4-5-20251001",
+  "arm": "api_unsearched",
+  "asked_at": "2026-08-04",
+  "draws": 6,
+  "chain_head": "",
+  "names": [
+    {
+      "name": "TradingView",
+      "draws": 6,
+      "of": 6,
+      "rate": 1.0,
+      "low": 0.6096657120978346,
+      "high": 1.0
+    },
+    {
+      "name": "QuantConnect",
+      "draws": 5,
+      "of": 6,
+      "rate": 0.8333333333333334,
+      "low": 0.43649717781352987,
+      "high": 0.9699466302516935
+    },
+    {
+      "name": "AI Trading Signal Platforms",
+      "draws": 3,
+      "of": 6,
+      "rate": 0.5,
+      "low": 0.18761630648265054,
+      "high": 0.8123836935173494
+    },
+    {
+      "name": "Allows",
+      "draws": 3,
+      "of": 6,
+      "rate": 0.5,
+      "low": 0.18761630648265054,
+      "high": 0.8123836935173494
+    },
+    {
+      "name": "Numerai",
+      "draws": 3,
+      "of": 6,
+      "rate": 0.5,
+      "low": 0.18761630648265054,
+      "high": 0.8123836935173494
+    },
+    {
+      "name": "3Commas",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "AI",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "AI Trading Signal Sharing Platforms",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "APIs",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "Collective2",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "Discord",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "Know",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    },
+    {
+      "name": "Specialized",
+      "draws": 2,
+      "of": 6,
+      "rate": 0.3333333333333333,
+      "low": 0.09677141110578041,
+      "high": 0.700006684861608
+    }
+  ]
+}

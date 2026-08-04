@@ -1,16 +1,29 @@
 @import "tailwindcss";
 
 /*
- * One colour world, sampled from the terminal this tool is about.
+ * One colour world, and it is the one already inside the product.
+ *
+ * The terminal this tool is about prints in lilac and pink, so the page is not
+ * given a palette from outside: the two accents below are the terminal's own
+ * `--term-lilac` and `--term-pink`, brought up to full strength for paper.
+ * Nothing else is coloured. Colour marks a category or a state here, never a
+ * word inside a sentence.
  *
  * No imported fonts: the system monospace stack is the point, not a decoration.
  * No gradients, no rounded corners past 3px, no shadows at rest.
  */
 :root {
-  --paper: #f7f7f5;
-  --ink: #14140f;
-  --ink-soft: #5c5c55;
-  --rule: #d9d9d2;
+  /* Paper with the same lilac in it, at two percent, so white and accent
+     belong to one another rather than sitting next to each other. */
+  --paper: #faf7fb;
+  --paper-deep: #f2ecf4;
+  --ink: #1a1420;
+  --ink-soft: #675c70;
+  --rule: #e3d9e8;
+
+  /* The two accents, from the terminal below. */
+  --lilac: #8f5fb5;
+  --pink: #c04d86;
 
   /* Terminal chrome, sampled from the reference screenshot. */
   --term-bar: #3a3a3a;
@@ -32,9 +45,12 @@
 
 @theme inline {
   --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-rule: var(--rule);
+  --color-lilac: var(--lilac);
+  --color-pink: var(--pink);
   --color-term-bar: var(--term-bar);
   --color-term-bg: var(--term-bg);
   --color-term-input: var(--term-input);
@@ -60,8 +76,12 @@ body {
 }
 
 ::selection {
-  background: var(--ink);
+  background: var(--pink);
   color: var(--paper);
+}
+
+a {
+  color: inherit;
 }
 
 /* The block cursor. Steps rather than fades, like a real terminal. */
@@ -92,4 +112,37 @@ body {
 
 .arrive {
   animation: arrive 90ms linear both;
+}
+
+/*
+ * An interval, drawn. The one ornament on the page that is not type, and it is
+ * the product's whole claim: a figure is a point inside a range. The bar is set
+ * from two custom properties so the width is the real interval and not a
+ * decorative fraction.
+ */
+.interval {
+  position: relative;
+  display: block;
+  height: 3px;
+  background: var(--paper-deep);
+}
+
+.interval::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--low);
+  right: calc(100% - var(--high));
+  background: var(--lilac);
+}
+
+.interval::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: var(--point);
+  width: 2px;
+  background: var(--pink);
 }

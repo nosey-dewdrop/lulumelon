@@ -173,7 +173,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
       </section>
 
       <section className="mt-16 border-t border-rule pt-7">
-        <h2 className="text-[1.2rem]">what this does not say</h2>
+        <h2 className="text-[1.2rem]">what does this not say?</h2>
         <div className="mt-5 grid max-w-[86ch] gap-6 text-[14px] leading-relaxed text-ink-soft sm:grid-cols-2">
           <p>
             a name at {round.draws} of {round.draws} is not a certainty. six draws put the honest

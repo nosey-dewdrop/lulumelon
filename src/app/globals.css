@@ -13,17 +13,17 @@
  * No gradients, no rounded corners past 3px, no shadows at rest.
  */
 :root {
-  /* Paper with the same lilac in it, at two percent, so white and accent
-     belong to one another rather than sitting next to each other. */
-  --paper: #faf7fb;
-  --paper-deep: #f2ecf4;
-  --ink: #1a1420;
-  --ink-soft: #675c70;
-  --rule: #e3d9e8;
+  /* Lilac paper, not white with a hint of it. The page is the colour and the
+     ink is a plum dark enough to read at 15px on top of it. */
+  --paper: #f0e6f5;
+  --paper-deep: #e4d5ec;
+  --ink: #241029;
+  --ink-soft: #6b4f78;
+  --rule: #cfb9dc;
 
   /* The two accents, from the terminal below. */
-  --lilac: #8f5fb5;
-  --pink: #c04d86;
+  --lilac: #7b3fa8;
+  --pink: #c8286f;
 
   /* Terminal chrome, sampled from the reference screenshot. */
   --term-bar: #3a3a3a;
@@ -145,4 +145,34 @@ a {
   left: var(--point);
   width: 2px;
   background: var(--pink);
+}
+
+/*
+ * A block arrives when it is scrolled to.
+ *
+ * Six pixels and 260ms, which is short enough that a reader scrolling quickly
+ * never waits for the page and long enough to read as arrival rather than as a
+ * repaint. The finished state is the default under `prefers-reduced-motion`,
+ * set here rather than in the component so it holds even before the script has
+ * run.
+ */
+.reveal {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 260ms ease-out,
+    transform 260ms ease-out;
+}
+
+.reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }

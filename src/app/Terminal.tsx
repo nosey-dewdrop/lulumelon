@@ -91,7 +91,7 @@ function transcriptLines(t: Transcript): Line[] {
 }
 
 const OPENING: Line[] = [
-  { kind: "said", text: "youkiddingme measures what language models say about you." },
+  { kind: "said", text: "lulumelon measures what language models say about you." },
   {
     kind: "said",
     text: "it asks the same question many times, because the answer keeps changing.",

@@ -58,6 +58,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="h-full antialiased">
+      <head>
+        {/*
+          A block that arrives on scroll starts at zero opacity, and a reader
+          whose scripts never ran would be looking at a page with the argument
+          missing. The markup carries every word either way; this is the one
+          line that makes sure they are painted.
+        */}
+        <noscript>
+          <style>{".reveal{opacity:1;transform:none}"}</style>
+        </noscript>
+      </head>
       <body className="min-h-full">{children}</body>
     </html>
   );

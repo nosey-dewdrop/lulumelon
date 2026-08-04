@@ -496,3 +496,28 @@ def test_every_question_on_the_page_ends_in_a_question_mark(hostile):
             head = line[len("\\section*{") : -1]
             asks = head.lower().startswith(("what", "why", "how", "who", "when", "where"))
             assert not asks or head.endswith("?"), head
+
+
+def test_a_line_that_opens_with_a_bracket_does_not_break_the_document():
+    """`\\\\` takes an optional length in brackets, and a verdict opens with one.
+
+    The screening panel prints `[carries] p12 ...` on every round it measures.
+    Set after a line break with nothing between them, TeX reads that bracket as
+    a request to skip `carries` points of vertical space and stops with
+    "Missing number, treated as zero". Found by producing the document rather
+    than by reading the code that produces it.
+    """
+    from lulumelon.latex import _paragraphs
+
+    out = "\n".join(_paragraphs(["  first line", "  [carries] p12   named in 4/4", "  after"]))
+
+    assert "\\\\\n{}[carries]" in out, "the bracket is protected where the break precedes it"
+    assert "[carries] p12" in out
+
+
+def test_a_bracket_that_opens_a_block_needs_no_protection():
+    """Nothing precedes it, so nothing can read it as an argument."""
+    from lulumelon.latex import _paragraphs
+
+    out = "\n".join(_paragraphs(["  [carries] p12   named in 4/4"]))
+    assert out.startswith("[carries]"), out

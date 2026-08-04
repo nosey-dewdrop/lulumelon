@@ -127,7 +127,15 @@ def _paragraphs(lines: tuple[str, ...] | list[str]) -> list[str]:
 
     def flush() -> None:
         if block:
-            out.append("\\\\\n".join(block) + "\\par")
+            # A line that opens with `[` is protected before it is joined. `\\`
+            # takes an optional length in brackets, so `\\` followed by a line
+            # beginning `[carries]` is read as a request to skip `carries`
+            # points of vertical space, and the document fails to compile on a
+            # verdict the panel prints on every screening round.
+            protected = [block[0]] + [
+                "{}" + one if one.startswith("[") else one for one in block[1:]
+            ]
+            out.append("\\\\\n".join(protected) + "\\par")
             block.clear()
 
     for line in lines:

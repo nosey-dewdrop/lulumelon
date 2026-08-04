@@ -533,26 +533,68 @@ def write_env_file(path: Path, name: str, key: str) -> Path:
         out.append(line)
     if not replaced:
         out.append(replacement)
-    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+    # Created at 0600 rather than corrected to it. `write_text` opens with the
+    # process umask, which on a default machine is 0644, so the key existed
+    # world readable for as long as the chmod took to run. That window is short
+    # and it is not zero, and the file it applies to is the one thing in this
+    # repository that must never be read by another account.
+    #
+    # `O_TRUNC` rather than `O_EXCL`, because rewriting a key file is the
+    # documented behaviour of this function and refusing an existing one would
+    # make the second run of the wizard fail. The mode argument only applies
+    # when the file is created, so the chmod stays for the file that was
+    # already there with the wrong one.
+    handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, stat.S_IRUSR | stat.S_IWUSR)
+    with os.fdopen(handle, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(out) + "\n")
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
     return path
 
 
-def ensure_gitignored(repo_root: Path, patterns: Sequence[str] = (".env",)) -> list[str]:
-    """Make sure a key file written into a repository cannot be committed.
+#: What must not reach a repository, in the form git reads as "anywhere".
+#:
+#: A round is the customer's own record and the default write path is
+#: `./ledger`, so a rule pinned to the root leaves every round collected from a
+#: subdirectory unprotected. `ledger/` without the leading slash matches at any
+#: depth, which is the difference between a rule and a rule that held on the
+#: one day somebody ran the command from somewhere else.
+KEPT_OUT = (".env", "ledger/")
+
+
+def _covered(pattern: str, have: set[str]) -> bool:
+    """Whether a rule already in the file makes this one redundant.
+
+    Read the way git reads a pattern rather than the way it looks. A rule with
+    no slash in it applies at every depth, so `.env*` covers `.env` wherever it
+    is written. A rule with one does not: `/ledger/` is the root and nothing
+    under it, and `ledger/*` is anchored to the file it is written in, so
+    neither of them covers a round collected two directories down.
+
+    An earlier version of this treated `/ledger/` as covering `ledger/`, which
+    is how a repository ended up protecting exactly one of the places its own
+    command writes to.
+    """
+    if pattern in have:
+        return True
+    return not pattern.endswith("/") and f"{pattern}*" in have
+
+
+def ensure_gitignored(repo_root: Path, patterns: Sequence[str] = KEPT_OUT) -> list[str]:
+    """Make sure a key file or a collected round cannot be committed.
 
     Returns what was added. Nothing is added when an existing rule already
     covers it; the check is textual and deliberately conservative, since the
     cost of a redundant line is a duplicate and the cost of a missed one is a
-    key on GitHub.
+    key on GitHub, or somebody else's measured round.
     """
     gitignore = repo_root / ".gitignore"
     existing = gitignore.read_text(encoding="utf-8") if gitignore.is_file() else ""
     have = {line.strip() for line in existing.splitlines()}
-    added = [p for p in patterns if p not in have and f"{p}*" not in have and f"/{p}" not in have]
+    added = [p for p in patterns if not _covered(p, have)]
     if not added:
         return []
     block = "" if existing.endswith("\n") or not existing else "\n"
-    block += "\n# api keys never enter the repo\n" + "\n".join(added) + "\n"
+    block += "\n# keys and collected rounds never enter the repo\n" + "\n".join(added) + "\n"
     gitignore.write_text(existing + block, encoding="utf-8")
     return added

@@ -10,7 +10,7 @@ ya da kişisel not yazılmaz. Oturum devri notları repo dışında,
 
 ## durum
 
-954 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
+957 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
 
     python3 -m pytest lulumelon/tests
     npm test

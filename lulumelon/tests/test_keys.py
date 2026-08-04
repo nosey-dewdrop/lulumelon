@@ -565,12 +565,55 @@ def test_a_key_with_a_newline_is_a_bad_argument_rather_than_a_refusal(monkeypatc
         keychain_write(PYTEST_SERVICE, "newline", KEY + "\ninjected")
 
 
+def test_the_key_file_is_created_at_0600_rather_than_corrected_to_it(tmp_path: Path):
+    """A window with a key in it is a window, however short.
+
+    `write_text` opens with the process umask, which on a default machine is
+    0644, so the file existed world readable until the chmod on the next line
+    ran. The mode travels with the creation now, and the chmod stays for a file
+    that was already there with the wrong one.
+    """
+    source = (Path(__file__).resolve().parents[1] / "keys.py").read_text(encoding="utf-8")
+    body = source.split("def write_env_file")[1].split("\ndef ")[0]
+    assert "os.open(" in body and "S_IRUSR | stat.S_IWUSR)" in body
+    assert "path.write_text(" not in body, "the umask decides the mode of anything written that way"
+
+    written = write_env_file(tmp_path / ".env", "ANTHROPIC_API_KEY", KEY)
+    assert stat.S_IMODE(written.stat().st_mode) == 0o600
+    assert written.read_text(encoding="utf-8") == f"ANTHROPIC_API_KEY={KEY}\n"
+
+
+def test_a_key_file_that_was_already_wide_open_is_closed(tmp_path: Path):
+    path = tmp_path / ".env"
+    path.write_text("OTHER=1\n", encoding="utf-8")
+    path.chmod(0o644)
+
+    write_env_file(path, "ANTHROPIC_API_KEY", KEY)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert "OTHER=1" in path.read_text(encoding="utf-8"), "the rest of the file is left alone"
+
+
 def test_a_key_file_in_a_repository_gets_ignored(tmp_path: Path):
-    assert ensure_gitignored(tmp_path) == [".env"]
-    assert ".env" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert ensure_gitignored(tmp_path) == [".env", "ledger/"]
+    written = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert ".env" in written
+
+
+def test_a_round_collected_anywhere_in_a_repository_gets_ignored(tmp_path: Path):
+    """A round is the customer's own record, and it is not always at the root.
+
+    The rule this repository carried was `/ledger/`, which is the root and
+    nothing else, so a round collected from a subdirectory was one `git add -A`
+    away from being published by whoever ran it.
+    """
+    (tmp_path / ".gitignore").write_text("node_modules\n.env*\n/ledger/\n", encoding="utf-8")
+
+    assert ensure_gitignored(tmp_path) == ["ledger/"]
+    written = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert "\nledger/\n" in written, "at any depth, beside the rule for the root"
 
 
 def test_an_existing_rule_is_not_duplicated(tmp_path: Path):
-    (tmp_path / ".gitignore").write_text("node_modules\n.env*\n", encoding="utf-8")
+    (tmp_path / ".gitignore").write_text("node_modules\n.env*\nledger/\n", encoding="utf-8")
     assert ensure_gitignored(tmp_path) == []
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8").count(".env") == 1

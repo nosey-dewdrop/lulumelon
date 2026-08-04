@@ -59,8 +59,10 @@ __pycache__/
 
 # a collected round is the customer's own data and the default write path is
 # ./ledger, so it stays out of the package repo rather than relying on nobody
-# running `git add -A` in a directory they just measured in
-/ledger/
+# running `git add -A` in a directory they just measured in. no leading slash,
+# because a round collected from a subdirectory is the same customer's data and
+# the rule that was pinned to the root did not cover it
+ledger/
 
 # internal strategy and session state. a public product repo is not where a
 # competitor teardown or a transcript of what was said in a session belongs,

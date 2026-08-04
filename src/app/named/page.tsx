@@ -31,7 +31,7 @@ export default function NamedIndex() {
 
   return (
     <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
-      <div className="flex items-baseline gap-2 text-[13px] text-ink-soft">
+      <div className="flex items-baseline gap-2 text-[12px] text-ink-soft">
         <Link
           href="/"
           className="text-ink underline decoration-rule underline-offset-4 hover:decoration-pink"
@@ -42,17 +42,17 @@ export default function NamedIndex() {
         <span>measured questions</span>
       </div>
 
-      <h1 className="mt-8 max-w-[30ch] text-[1.8rem] leading-[1.18] tracking-tight sm:text-[2.5rem]">
+      <h1 className="mt-8 max-w-[30ch] text-[1.35rem] leading-[1.18] tracking-tight sm:text-[1.85rem]">
         who does the model name when the question names nobody?
       </h1>
-      <p className="mt-6 max-w-[62ch] text-[15px] leading-relaxed text-ink-soft">
+      <p className="mt-6 max-w-[62ch] text-[13.5px] leading-relaxed text-ink-soft">
         each question below was asked of one model several times over, and every answer was written
         into a hash-chained file before anything was counted. the pages report what the sample
         supports and refuse what it does not.
       </p>
 
       {rounds.length === 0 ? (
-        <p className="mt-14 text-[15px] text-ink-soft">
+        <p className="mt-14 text-[13.5px] text-ink-soft">
           no round has been published yet. `lulu publish` writes them, and they are committed by
           hand.
         </p>
@@ -64,10 +64,10 @@ export default function NamedIndex() {
               <li key={round.slug} className="border-b border-rule py-6">
                 <Link href={`/named/${round.slug}`} className="group block">
                   <div className="grid gap-x-10 gap-y-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-                    <h2 className="text-[1.15rem] leading-snug group-hover:text-lilac">
+                    <h2 className="text-[1rem] leading-snug group-hover:text-lilac">
                       {round.question}
                     </h2>
-                    <div className="text-[13px] leading-relaxed text-ink-soft">
+                    <div className="text-[12px] leading-relaxed text-ink-soft">
                       {leader ? (
                         <span>
                           <span className="text-ink">{leader.name}</span> in {leader.draws} of{" "}

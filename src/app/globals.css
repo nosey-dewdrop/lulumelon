@@ -13,13 +13,14 @@
  * No gradients, no rounded corners past 3px, no shadows at rest.
  */
 :root {
-  /* Lilac paper, not white with a hint of it. The page is the colour and the
-     ink is a plum dark enough to read at 15px on top of it. */
-  --paper: #f0e6f5;
-  --paper-deep: #e4d5ec;
+  /* Lilac paper, light enough to read a screenful on without the colour
+     doing the reading for you. The ink is a plum dark enough to hold at
+     13.5px on top of it. */
+  --paper: #f7f0fa;
+  --paper-deep: #ece0f2;
   --ink: #241029;
   --ink-soft: #6b4f78;
-  --rule: #cfb9dc;
+  --rule: #dcc9e6;
 
   /* The two accents, from the terminal below. */
   --lilac: #7b3fa8;

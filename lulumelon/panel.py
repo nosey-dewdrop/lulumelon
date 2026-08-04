@@ -419,6 +419,11 @@ class ScreenPanel:
     noise_floor: float | None = None
     named: tuple = ()
     named_from: str = ""
+    #: The names every verdict above was measured against. Printed beside the
+    #: ones the answers reached for, because a question is barren about this
+    #: list and about nothing else, and a reader looking at a page of barren
+    #: verdicts is owed the difference between the two sets.
+    declared: tuple[str, ...] = ()
 
     def counts(self) -> dict[str, int]:
         return {v: sum(1 for one in self.screened if one.verdict == v) for v in VERDICT_ORDER}
@@ -471,9 +476,23 @@ class ScreenPanel:
             "  who the answers reached for, counted off the same draws",
             "",
         ]
+        declared = {name.casefold() for name in self.declared}
         for one in shown:
-            out.append(f"  {one.as_text()}")
+            mark = "  declared" if one.name.casefold() in declared else ""
+            out.append(f"  {one.as_text()}{mark}")
         out.append("")
+        if declared:
+            missed = [
+                one.name for one in self.named if one.name.casefold() not in declared
+            ][:3]
+            if missed:
+                out.append(
+                    "  Names the answers reached for and the list never mentioned: "
+                    + ", ".join(missed)
+                    + ("." if len(missed) < 3 else ", and others above.")
+                )
+                out.append("  A question is barren about the list it was given.")
+                out.append("")
         if len(self.named) > len(shown):
             out.append(
                 f"  {len(shown)} of {len(self.named)} names, the ones in the most questions."

@@ -131,7 +131,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 949 tests, offline
+    python3 -m pytest lulumelon/tests   # 952 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
@@ -368,6 +368,12 @@ the first paid screening round this library ran, eleven of twenty questions came
 back with none of the declared rivals named in any draw, which is a larger
 statement about a market than the one score that round produced, and it had
 nowhere to be read until this command existed.
+
+That round also showed why a barren verdict is a statement about a list. Its
+rivals were read off the arm that answers from its own weights and the round was
+collected on the arm that searches, and the two arms reach for different
+companies. So both surfaces print the names the answers used that the declared
+list never mentioned, off the same draws, at no extra cost.
 
 Every round closes with a record saying how many calls it made and how they
 came out, hashed into the same chain as the answers. That is what makes a short

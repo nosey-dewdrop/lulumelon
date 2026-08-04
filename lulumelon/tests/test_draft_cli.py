@@ -390,6 +390,40 @@ def test_a_question_that_was_measured_and_dropped_keeps_its_words(tmp_path):
         assert one["source"] and one["evidence"], "the claim behind the question survives too"
 
 
+def test_a_name_the_answers_reached_for_and_the_list_never_mentioned_is_printed(tmp_path):
+    """A barren verdict is a fact about the declared list, and the round can see that.
+
+    The list behind the first paid screening round was read off the arm that
+    answers from its own weights, the round was collected on the arm that
+    searches, and the two arms reach for different companies. Eleven of twenty
+    questions came back barren while the answers behind them were full of
+    names, and nothing on screen said so.
+
+    It costs nothing. The draws were already bought to produce the verdicts.
+    """
+    rec = Recorder()
+    engine = Engine(
+        proposals=reply(GROUNDED, SECOND),
+        answer="Most teams use Numerai, and Kalshi for the rest.",
+    )
+    run(rec, tmp_path, engine=engine, rivals=["Numerai"])
+
+    assert "NAMED AND NOT DECLARED" in rec.text
+    assert "Kalshi" in rec.text
+    assert "counted as nobody" in rec.text
+
+    _, ledger = written(tmp_path)
+    assert ledger["rivals"] == ["Numerai"], "the list every verdict is relative to"
+
+
+def test_a_list_that_already_covers_the_answers_prints_no_such_section(tmp_path):
+    rec = Recorder()
+    engine = Engine(proposals=reply(GROUNDED, SECOND), answer="Teams use Numerai.")
+    run(rec, tmp_path, engine=engine, rivals=["Numerai"])
+
+    assert "NAMED AND NOT DECLARED" not in rec.text
+
+
 def test_an_unreadable_entry_from_the_model_is_kept_in_the_record(tmp_path):
     rec = Recorder()
     engine = Engine(proposals=f'["not an object", {json.dumps(GROUNDED)}]')

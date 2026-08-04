@@ -1178,9 +1178,26 @@ def draft(
             "was read off"
         )
 
+        undeclared = _undeclared_names(ledger, snapshot_id, rivals)
+        if undeclared:
+            console.say()
+            console.say("NAMED AND NOT DECLARED")
+            for one in undeclared[:UNDECLARED_SHOWN]:
+                console.say(f"  {one.as_text()}")
+            if len(undeclared) > UNDECLARED_SHOWN:
+                console.say(
+                    f"  {UNDECLARED_SHOWN} of {len(undeclared)} such names, the ones in the most "
+                    f"questions; `lulu rivals --snapshot {snapshot_id}` prints the rest"
+                )
+            console.say()
+            console.say(
+                "  a question is barren about the list it was given, so a name the answers "
+                "reached for and the list never mentioned is counted as nobody"
+            )
+
     carried = tuple(one.candidate for one in screened if one.verdict == CARRIES) if screened else kept
     _write_subject_file(out, corpus, rivals, carried)
-    _write_draft_ledger(draft_path, corpus, proposed, result, screened, split, snapshot_id)
+    _write_draft_ledger(draft_path, corpus, proposed, result, screened, split, snapshot_id, rivals)
 
     console.say()
     console.say("WRITTEN")
@@ -1224,6 +1241,45 @@ def _existing_ids(out: Path) -> dict[str, str]:
         if isinstance(entry, dict) and entry.get("id") and entry.get("text"):
             previous[screen_normalise(str(entry["text"]))] = str(entry["id"])
     return previous
+
+
+#: Undeclared names the draft prints before it stops counting them out. The
+#: whole list is what `lulu rivals` is for; this is the part that fits under a
+#: verdict without pushing it off the screen.
+UNDECLARED_SHOWN = 12
+
+
+def _undeclared_names(store: Ledger, snapshot_id: str, rivals: Sequence[str]):
+    """Names the answers reached for that the declared list never mentioned.
+
+    Read off the draws that were already bought, so it costs nothing and is
+    available in the same round that produced the verdicts. It exists because
+    of what those verdicts do when the list is wrong: a question where none of
+    the declared names appears comes back barren, which reads as a question
+    nobody competes on, when it can equally be a question everybody competes on
+    under names nobody wrote down.
+
+    That is not a hypothetical. The list that produced the first paid screening
+    round was read off the arm that answers from its own weights, the round was
+    collected on the arm that searches, and the second arm reaches for a
+    different set of companies than the first. Eleven of twenty questions came
+    back barren, and the answers behind them were full of names.
+
+    Matched by the same fold `detect` matches on, and on the whole name, so a
+    list carrying `Bloomberg Terminal` against answers that write `Bloomberg`
+    is reported here rather than counted as agreement.
+    """
+    declared = {name.casefold() for name in rivals}
+    # Read off the records rather than off the replayed runs, because a run
+    # carries the names somebody declared and went looking for, and the list
+    # worth having here is the one nobody declared. The words are only on the
+    # record.
+    replies = tuple(
+        Reply(prompt_id=rec.prompt_id, draw=rec.repeat, text=rec.answer_text)
+        for rec in store.read(snapshot_id)
+        if rec.prompt_id and rec.status == "ok" and rec.answer_text
+    )
+    return tuple(one for one in names_in(replies) if one.name.casefold() not in declared)
 
 
 def _rival_draws(
@@ -1278,7 +1334,14 @@ def _write_subject_file(
 
 
 def _write_draft_ledger(
-    path: Path, corpus, proposed, result, screened: Sequence, split, snapshot_id: str
+    path: Path,
+    corpus,
+    proposed,
+    result,
+    screened: Sequence,
+    split,
+    snapshot_id: str,
+    rivals: Sequence[str] = (),
 ) -> None:
     """Every candidate that died, and what killed it.
 
@@ -1288,6 +1351,11 @@ def _write_draft_ledger(
     """
     body = {
         "site": corpus.base_url,
+        # The list every verdict below is relative to. A draft that recorded
+        # the verdicts and not the list they were measured against would leave
+        # `barren` reading as a fact about a market rather than about thirteen
+        # names somebody typed.
+        "rivals": list(rivals),
         "corpus_digest": corpus.digest,
         "pages_read": [page.url for page in corpus.pages],
         "unreachable": [
@@ -2444,6 +2512,7 @@ def _screen_panel(draft: dict, ledger_dir: Path) -> ScreenPanel:
         noise_floor=None if draft.get("noise_floor") is None else float(draft["noise_floor"]),
         named=named,
         named_from=named_from,
+        declared=tuple(str(r) for r in draft.get("rivals", ())),
     )
 
 

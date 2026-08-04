@@ -205,6 +205,43 @@ def test_the_names_are_read_off_the_round_the_draft_points_at(tmp_path):
     assert "is a name the model wrote" in rec.text
 
 
+def test_a_name_the_list_never_mentioned_is_marked_against_the_list(tmp_path):
+    """A page of barren verdicts is owed the difference between the two sets.
+
+    The verdicts on that page were measured against names somebody typed. The
+    names on the same page came out of the answers. When those two sets barely
+    overlap, that is the finding, and the first paid round of this library is
+    where it came from.
+    """
+    ledger_dir = tmp_path / "ledger"
+    led = Ledger(ledger_dir)
+    result = run_round(
+        ledger=led,
+        provider=FakeProvider(
+            script={"q": ("Most teams use Finnhub, and Alpaca for execution.",)},
+            usage=Usage(input_tokens=100, output_tokens=20),
+        ),
+        prompts=[Prompt(id="p1", text="q")],
+        brands=[Brand(name="ornek", aliases=())],
+        k=2,
+        subject="ornek",
+        clock=lambda: "2026-08-04T22:00:00Z",
+    )
+
+    rec = Recorder()
+    screened(
+        rec.console,
+        draft_path=draft_file(tmp_path, screening_snapshot=result.snapshot_id, rivals=["Finnhub"]),
+        ledger_dir=ledger_dir,
+    )
+
+    lines = {line.strip() for line in rec.text.splitlines()}
+    assert any(line.startswith("Finnhub") and line.endswith("declared") for line in lines)
+    assert any(line.startswith("Alpaca") and not line.endswith("declared") for line in lines)
+    assert "the list never mentioned: Alpaca" in rec.text
+    assert "barren about the list it was given" in rec.text
+
+
 def test_a_name_list_the_document_cut_says_it_was_cut(tmp_path):
     """A table that quietly stops is a table that reads as complete.
 

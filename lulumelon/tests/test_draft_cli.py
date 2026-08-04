@@ -363,6 +363,33 @@ def test_every_gate_that_dropped_something_says_so_in_the_draft_ledger(tmp_path)
     assert "measure its own echo" in reasons["name"]
 
 
+def test_a_question_that_was_measured_and_dropped_keeps_its_words(tmp_path):
+    """A verdict with no question beside it is a verdict nobody can check.
+
+    The subject file keeps what survived and a ledger line carries a prompt's
+    id rather than its sentence, so this file is the only place the wording of
+    a measured question exists. The first paid screening round found eleven of
+    its twenty questions naming nobody at all, and could not show a reader one
+    of the eleven.
+    """
+    rec = Recorder()
+    engine = Engine(proposals=reply(GROUNDED, SECOND), answer="Nobody in particular.")
+    run(rec, tmp_path, engine=engine)
+    subject, ledger = written(tmp_path)
+
+    measured = {one["id"]: one for one in ledger["measured"]}
+    assert measured, "the round measured something"
+    assert all(one["verdict"] == "barren" for one in measured.values()), "no rival was named"
+    assert subject["prompts"] == [], "so the subject file keeps none of them"
+
+    assert {one["text"] for one in measured.values()} == {
+        GROUNDED["question"],
+        SECOND["question"],
+    }
+    for one in measured.values():
+        assert one["source"] and one["evidence"], "the claim behind the question survives too"
+
+
 def test_an_unreadable_entry_from_the_model_is_kept_in_the_record(tmp_path):
     rec = Recorder()
     engine = Engine(proposals=f'["not an object", {json.dumps(GROUNDED)}]')

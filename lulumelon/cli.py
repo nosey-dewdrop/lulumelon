@@ -1315,6 +1315,15 @@ def _write_draft_ledger(
         "measured": [
             {
                 "id": one.candidate.id,
+                # The words, beside the verdict on them. Without these a draft
+                # reads `p7 barren` and nothing anywhere says what p7 asked: a
+                # ledger line carries a prompt's id and not its sentence, and
+                # the subject file keeps only the questions that survived. The
+                # first paid screening round found eleven of twenty questions
+                # naming nobody at all and could not show a reader one of them.
+                "text": one.candidate.text,
+                "source": one.candidate.source,
+                "evidence": one.candidate.evidence,
                 "verdict": one.verdict,
                 "rival_hits": one.rival_hits,
                 "draws": one.draws,

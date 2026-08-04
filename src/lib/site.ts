@@ -26,6 +26,10 @@ export const REPO_URL = "https://github.com/nosey-dewdrop/lulumelon";
  */
 export function url(path = "/"): string {
   const clean = path.startsWith("/") ? path : `/${path}`;
-  const withSlash = clean.endsWith("/") ? clean : `${clean}/`;
+  // A file keeps its name. `sitemap.xml/` is a directory that does not exist,
+  // and it was pointed at from robots.txt, which is the one line a crawler
+  // reads before it decides how much of the site to bother with.
+  const isFile = /\.[a-z0-9]+$/i.test(clean);
+  const withSlash = isFile || clean.endsWith("/") ? clean : `${clean}/`;
   return `${SITE_URL}${withSlash}`;
 }

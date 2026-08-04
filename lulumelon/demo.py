@@ -1,6 +1,6 @@
 """Side by side: what the category prints, and what the measurement says.
 
-Run with:  python3 mirror/demo.py
+Run with:  python3 lulumelon/demo.py
 
 The synthetic answer engine below is not tuned to flatter the argument. Its
 parameters are set from published measurements of real systems: repeated asks
@@ -14,12 +14,17 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# The repository root, so this file is importable as part of the package it
+# belongs to rather than as a sibling of it. Pointed at this file's own
+# directory, `mirror` imports as a top-level package, its own
+# `from ..plan import` reaches past what Python then thinks the top level is,
+# and the demo in a public repository fails on its first line.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 
-from mirror import brand_report, paired_difference, snapshot_from_runs
-from mirror.types import Run
+from lulumelon.mirror import brand_report, paired_difference, snapshot_from_runs
+from lulumelon.mirror.types import Run
 
 BRANDS = ["nike", "adidas", "puma", "asics", "reebok", "hoka", "brooks", "newbalance"]
 TARGET = "nike"

@@ -57,6 +57,22 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
   görünmeli, test sayıları güncel olmalı.
 - Em dash yasak, her yüzeyde. Testi var (`test_typography.py`).
 
+## site kanunu (src/, landing page)
+
+- **Soru soran her başlık "?" ile biter.** İsim öbeği başlık ("what it measures")
+  kaçamaktır; başlık soruyu ima ediyorsa açık soruya çevrilir ("what does it
+  measure?"). Damla'nın ana kuralı, her yüzeyde geçerli.
+- Renk dünyası pembe ve lila, ve ikisi de terminalin kendi paletinden gelir
+  (`--lilac`, `--pink`). Dışarıdan palet getirilmez, gradient yoktur, köşe
+  yarıçapı 3px'i geçmez, dinlenme halinde gölge yoktur.
+- Terminal sayfanın EN ÜSTÜNDE durur ve ziyaretçi tek kelime okumadan koşar.
+  Ürünün iddiası bir cümle değil, olan bir şey.
+- Sayfadaki her sayı ölçülmüş bir turdan gelir. Bir ölçüm ürününün vitrininde
+  uydurma rakam, ürünün var olma sebebinin ihlalidir.
+- Kaydırınca beliren bloklar ve sayan rakamlar Damla'nın istediği hareketlerdir,
+  ama içerik HTML'de hazır durur (`noscript` stili) ve
+  `prefers-reduced-motion` ilk karede bitmiş hali verir.
+
 ## açık borç
 
 - Bu build sadece iki motor çağırabiliyor, perplexity ve anthropic. ChatGPT ve

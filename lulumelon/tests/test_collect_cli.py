@@ -69,8 +69,11 @@ class Recorder:
         return self.out.getvalue() + self.err.getvalue()
 
 
-def subject_file(tmp_path: Path, doc: dict | None = None) -> Path:
-    path = tmp_path / "ornek.json"
+def subject_file(tmp_path: Path, doc: dict | None = None, name: str = "ornek.json") -> Path:
+    # `name` because `run` writes the default file at its own path on the way
+    # past, so a test handing in a different document has to hand in a
+    # different file as well or watch the harness overwrite it.
+    path = tmp_path / name
     path.write_text(json.dumps(doc or SUBJECT), encoding="utf-8")
     return path
 
@@ -174,6 +177,36 @@ def test_the_worst_case_is_printed_before_anything_is_spent(tmp_path):
     assert "plus up to 3 searches at $10 per thousand searches" in before
     assert "read 2026-08-01" in before, "a price with no date is a price nobody can check"
     assert "spent $" in after and "spent $" not in before
+
+
+def test_a_list_read_off_the_other_arm_is_said_before_the_money_moves(tmp_path):
+    """The mistake that produced eleven barren questions on the first paid round.
+
+    The names were read off the arm that answers from its own weights, and the
+    round was collected on the arm that searches. Those two arms reach for
+    different companies, so most questions came back with none of the declared
+    names in them, which reads as a market nobody competes in.
+    """
+    doc = json.loads(json.dumps(SUBJECT))
+    doc["rivalsFrom"] = {
+        "snapshot": "ornek__anthropic__api_unsearched__20260804T112551Z__0001",
+        "surface": UNSEARCHED_SURFACE,
+    }
+    rec = Recorder()
+    run(rec, tmp_path, subject_path=subject_file(tmp_path, doc, "other-arm.json"))
+
+    before = rec.text.split("ASKING")[0]
+    assert f"read off {UNSEARCHED_SURFACE}" in before
+    assert "reads here as an absence" in before
+
+
+def test_a_list_read_off_this_arm_says_nothing(tmp_path):
+    doc = json.loads(json.dumps(SUBJECT))
+    doc["rivalsFrom"] = {"snapshot": "ornek__anthropic__api__20260804T112551Z__0001", "surface": "api"}
+    rec = Recorder()
+    run(rec, tmp_path, subject_path=subject_file(tmp_path, doc, "same-arm.json"))
+
+    assert "reads here as an absence" not in rec.text
 
 
 def test_the_tracked_names_and_their_forms_are_on_screen_before_the_spend(tmp_path):

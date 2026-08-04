@@ -51,7 +51,15 @@ from .session import Prompt
 #: both lists of tracked names beside the subject itself: a name listed in
 #: either is a name the round reports on, and a name listed and not tracked
 #: would be one its author believes is being measured and is not.
-FILE_KEYS = frozenset({"subject", "projects", "competitors", "prompts"})
+FILE_KEYS = frozenset({"subject", "projects", "competitors", "prompts", "rivalsFrom"})
+
+#: What `rivalsFrom` may say. The round the tracked names were read off, and
+#: the arm that round was collected on. Both, because the arm is the part that
+#: decides whether those names can appear at all: a list read off the model's
+#: own weights and measured against a round that searched is a list of
+#: companies the second arm may never use, and every question it does not
+#: appear in comes back looking like a question nobody competes on.
+RIVALS_FROM_KEYS = frozenset({"snapshot", "surface"})
 
 #: Keys of one tracked name. The subject and a competitor are written the same
 #: way because they become the same thing, a `Brand` with its declared forms.
@@ -108,6 +116,10 @@ class Subject:
     prompts: tuple[Prompt, ...]
     ambiguous_name: bool
     path: Path
+    #: The round the competitors were read off and the arm it ran on, when the
+    #: file says. Empty when a person typed the names in, which is not a fault
+    #: and is worth knowing: nothing then says which arm those names came from.
+    rivals_from: tuple[str, str] = ("", "")
 
     @property
     def competitors(self) -> tuple[Brand, ...]:
@@ -197,7 +209,26 @@ def load_subject(path: Path) -> Subject:
         prompts=_prompts(path, raw["prompts"]),
         ambiguous_name=bool(raw["subject"].get("ambiguousName", False)),
         path=path,
+        rivals_from=_rivals_from(path, raw.get("rivalsFrom")),
     )
+
+
+def _rivals_from(path: Path, node) -> tuple[str, str]:
+    """The round and arm the competitors came off, checked rather than trusted.
+
+    Refused rather than ignored when it is there and wrong, on the same ground
+    as every other field here: a file that says where its names came from and
+    says it in a shape nothing reads is worse than a file that says nothing.
+    """
+    if node is None:
+        return ("", "")
+    if not isinstance(node, dict):
+        raise SubjectFileError(
+            f"{path}: rivalsFrom holds a {type(node).__name__} and it states the round the "
+            "tracked names were read off, as an object with a snapshot and a surface"
+        )
+    _check_keys(path, "rivalsFrom", node, RIVALS_FROM_KEYS)
+    return (str(node.get("snapshot", "")), str(node.get("surface", "")))
 
 
 def _check_keys(

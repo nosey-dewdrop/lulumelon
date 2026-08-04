@@ -10,7 +10,7 @@ ya da kişisel not yazılmaz. Oturum devri notları repo dışında,
 
 ## durum
 
-970 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
+978 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
 
     python3 -m pytest lulumelon/tests
     npm test
@@ -68,6 +68,6 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
   düşürür (4 Ağustos turunda `Twelve Data`).
 - Perplexity artık `max_tokens` gönderiyor. Canlı anahtar olmadığı için
   DOĞRULANMADI.
-- Rakip listesi hâlâ elle `--rivals`'a geçiriliyor. Tur artık listenin kaçırdığı
-  adları basıyor ama listeyi kendisi kurmuyor, ve konu dosyası rakiplerin hangi
-  koldan okunduğunu yazmıyor.
+- Rakip listesi hâlâ elle `--rivals`'a geçiriliyor. Tur listenin kaçırdığı
+  adları basıyor ve konu dosyası artık adların hangi turdan ve hangi koldan
+  geldiğini yazıyor, ama listeyi hâlâ kendisi kurmuyor.

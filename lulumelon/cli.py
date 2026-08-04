@@ -840,6 +840,22 @@ def collect(
         provider, found.key, model=model, max_searches=max_searches, can_search=can_search
     )
 
+    read_off = subject.rivals_from[1]
+    if read_off and read_off != engine.surface:
+        console.say()
+        console.say(
+            f"  note      the tracked names in this file were read off {read_off} and this "
+            f"round collects {engine.surface}."
+        )
+        console.say(
+            "            the two arms reach for different companies, so a name the second "
+            "one never uses"
+        )
+        console.say(
+            "            reads here as an absence rather than as the difference between "
+            "the arms."
+        )
+
     budget = Budget(
         price=price,
         limit_usd=budget_usd,
@@ -1202,7 +1218,13 @@ def draft(
             )
 
     carried = tuple(one.candidate for one in screened if one.verdict == CARRIES) if screened else kept
-    _write_subject_file(out, corpus, rivals, carried)
+    _write_subject_file(
+        out,
+        corpus,
+        rivals,
+        carried,
+        rivals_from=(snapshot_id, engine.surface) if snapshot_id else ("", ""),
+    )
     _write_draft_ledger(draft_path, corpus, proposed, result, screened, split, snapshot_id, rivals)
 
     console.say()
@@ -1312,7 +1334,11 @@ def _rival_draws(
 
 
 def _write_subject_file(
-    out: Path, corpus, rivals: Sequence[str], prompts: Sequence[Candidate]
+    out: Path,
+    corpus,
+    rivals: Sequence[str],
+    prompts: Sequence[Candidate],
+    rivals_from: tuple[str, str] = ("", ""),
 ) -> None:
     """The subject file, carrying every question's page and quote.
 
@@ -1336,6 +1362,13 @@ def _write_subject_file(
             for c in prompts
         ],
     }
+    if any(rivals_from):
+        # Which round these names were read off, and which arm it ran on. The
+        # arm is the part that matters later: a name read off the model's own
+        # weights and measured against a round that searched is a name the
+        # second arm may never use, and every question it does not appear in
+        # comes back looking like a question nobody competes on.
+        body["rivalsFrom"] = {"snapshot": rivals_from[0], "surface": rivals_from[1]}
     out.write_text(json.dumps(body, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 

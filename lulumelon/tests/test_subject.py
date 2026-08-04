@@ -198,6 +198,41 @@ def test_a_file_that_is_not_there_is_refused_with_the_path(tmp_path):
         load_subject(tmp_path / "nothing.json")
 
 
+def test_a_file_that_says_where_its_names_came_from_is_read(tmp_path):
+    doc = altered()
+    doc["rivalsFrom"] = {"snapshot": "ornek__anthropic__api__20260804T112551Z__0001", "surface": "api"}
+    subject = load_subject(written(tmp_path, doc))
+
+    assert subject.rivals_from == ("ornek__anthropic__api__20260804T112551Z__0001", "api")
+
+
+def test_a_file_that_says_nothing_about_where_its_names_came_from_is_still_read(tmp_path):
+    """Somebody typing names in is not a fault. Not knowing which arm they fit is."""
+    assert load_subject(written(tmp_path, altered())).rivals_from == ("", "")
+
+
+def test_a_misspelled_key_inside_rivals_from_is_refused_not_ignored(tmp_path):
+    """The same rule the rest of this file lives by, one level down.
+
+    A file that says where its names came from and says it under a key nothing
+    reads is worse than a file that says nothing, because the round that spends
+    against it prints no warning and the reader believes one would have shown.
+    """
+    doc = altered()
+    doc["rivalsFrom"] = {"snapshot": "round", "arm": "api"}
+
+    with pytest.raises(SubjectFileError, match="rivalsFrom"):
+        load_subject(written(tmp_path, doc))
+
+
+def test_a_rivals_from_that_is_not_an_object_is_refused(tmp_path):
+    doc = altered()
+    doc["rivalsFrom"] = "api"
+
+    with pytest.raises(SubjectFileError, match="states the round"):
+        load_subject(written(tmp_path, doc))
+
+
 # -- which questions name the brand they ask about ---------------------------
 
 

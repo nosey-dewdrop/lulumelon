@@ -424,6 +424,35 @@ def test_a_list_that_already_covers_the_answers_prints_no_such_section(tmp_path)
     assert "NAMED AND NOT DECLARED" not in rec.text
 
 
+def test_the_subject_file_records_the_arm_its_names_were_read_off(tmp_path):
+    """So the command that spends against this file can say when the arm changed.
+
+    The names in a file written here came out of one round on one arm, and the
+    round somebody collects against it later may be the other one. Those two
+    arms reach for different companies, and without this the second round has
+    no way to know it is measuring a list from the first.
+    """
+    rec = Recorder()
+    _, engine = run(rec, tmp_path)
+    subject, ledger = written(tmp_path)
+
+    assert subject["rivalsFrom"]["snapshot"] == ledger["screening_snapshot"]
+    assert subject["rivalsFrom"]["surface"] == engine.surface
+    assert load_subject(tmp_path / "subjects" / "ornek.json").rivals_from == (
+        ledger["screening_snapshot"],
+        engine.surface,
+    )
+
+
+def test_a_draft_that_bought_no_draws_claims_no_arm(tmp_path):
+    """Nothing was measured, so nothing says where the names would have come from."""
+    rec = Recorder()
+    run(rec, tmp_path, dry_run=True)
+    subject, _ = written(tmp_path)
+
+    assert "rivalsFrom" not in subject
+
+
 def test_an_unreadable_entry_from_the_model_is_kept_in_the_record(tmp_path):
     rec = Recorder()
     engine = Engine(proposals=f'["not an object", {json.dumps(GROUNDED)}]')

@@ -38,7 +38,7 @@ two arms, $3.695558 of a prepaid account, written to a sealed ledger that
 re-derives.
 
     APPEARANCE
-      Marx is named in 11.1% of answers
+      Ornek is named in 11.1% of answers
       honest range 0.0% to 33.3%  (95% confidence, prompt-clustered)
 
     WHAT IS CONTRIBUTING TO YOUR INTERVAL WIDTH?
@@ -209,8 +209,8 @@ its own bill.
 
 ## drafting a question set from a domain
 
-    lulu draft --site https://marx.finance --floor 0.5 --budget 5.00 \
-               --rivals Numerai --out data/subjects/marx.json
+    lulu draft --site https://ornek.com --floor 0.5 --budget 5.00 \
+               --rivals Numerai --out data/subjects/ornek.json
 
 reads the customer's own site, asks a model for candidate questions, and keeps
 only the ones that survive. Nothing else is typed: the pages that get read are
@@ -237,7 +237,7 @@ different object from one that started as nine.
 
 ## collecting a round
 
-    lulu collect --subject data/subjects/marx.json --k 5 --budget 5.00 \
+    lulu collect --subject data/subjects/ornek.json --k 5 --budget 5.00 \
                  --provider anthropic --model claude-opus-5 --max-searches 3
 
 asks every question in the subject file k times, writes each answer to the
@@ -260,7 +260,7 @@ how many questions were never asked, seals itself at the length it reached, and
 comes back with a non-zero code so nothing downstream reads it as the design
 that was bought.
 
-    lulu collect --subject data/subjects/marx.json --k 5 --budget 5.00 --no-search
+    lulu collect --subject data/subjects/ornek.json --k 5 --budget 5.00 --no-search
 
 collects the other arm: the same questions with no search tool attached at all,
 which is the difference between a brand the model knows from its weights and one
@@ -273,7 +273,7 @@ of charging the one-search floor for a search it was never able to run.
 ## reading a round
 
     lulu report --ledger ./ledger --snapshot ROUND \
-                --subject data/subjects/marx.json --brand Marx
+                --subject data/subjects/ornek.json --brand Ornek
 
 prints what that round measured: the design it was collected under, the rate
 with its interval, where the width of that interval came from, and every place
@@ -317,8 +317,8 @@ worth ten points of headline visibility on the arm collected with no search
 tool, which reads 0.0% over the nine questions that remain.
 
     lulu report --ledger ./ledger --snapshot ROUND \
-                --subject data/subjects/marx.json --brand Marx \
-                --pdf marx.pdf
+                --subject data/subjects/ornek.json --brand Ornek \
+                --pdf ornek.pdf
 
 writes the same report as a document, and adds to it the file the numbers came
 from: the snapshot id, how many records are on it, what the round's own seal
@@ -364,7 +364,7 @@ says which rounds the check does not reach, which is any collected before the
 seal existed, because a file that never stated its length cannot be shown to be
 missing anything.
 
-    lulu ablate --live ROUND --replica ROUND --brand marx --margin 5
+    lulu ablate --live ROUND --replica ROUND --brand ornek --margin 5
 
 asks the question the causal claim rests on. A live engine chooses its own
 sources, so what it retrieves and what it says cannot be held apart; a replica
@@ -377,7 +377,7 @@ rates measured with too few calls overlap with everything. So there are three
 outcomes, and `this design cannot tell` is one of them, printed with the number
 of calls that would settle it and a non-zero exit code.
 
-    lulu lift --live ROUND --held ROUND --dropped ROUND --brand marx \
+    lulu lift --live ROUND --held ROUND --dropped ROUND --brand ornek \
               --source https://b.example/list \
               --sources https://a.example/guide \
               --sources https://b.example/list \

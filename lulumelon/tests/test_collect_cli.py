@@ -42,15 +42,15 @@ METERED = Usage(input_tokens=10046, output_tokens=210, searches=1)
 
 SUBJECT = {
     "subject": {
-        "id": "marx",
-        "name": "Marx",
-        "domain": "marx.finance",
-        "aliases": ["Marx Finance", "marx.finance"],
+        "id": "ornek",
+        "name": "Ornek",
+        "domain": "ornek.com",
+        "aliases": ["Ornek Finance", "ornek.com"],
         "ambiguousName": True,
     },
     "competitors": [{"name": "Numerai", "aliases": ["numer.ai"]}],
     "prompts": [
-        {"id": "m1", "text": "What is marx.finance?"},
+        {"id": "m1", "text": "What is ornek.com?"},
         {"id": "m2", "text": "Agentic finance platforms in 2026"},
     ],
 }
@@ -70,7 +70,7 @@ class Recorder:
 
 
 def subject_file(tmp_path: Path, doc: dict | None = None) -> Path:
-    path = tmp_path / "marx.json"
+    path = tmp_path / "ornek.json"
     path.write_text(json.dumps(doc or SUBJECT), encoding="utf-8")
     return path
 
@@ -85,7 +85,7 @@ def stub(**over) -> FakeProvider:
     kw = dict(
         name="anthropic",
         model="claude-opus-5",
-        script={"What is marx.finance?": ("Marx Finance is an agent platform.",)},
+        script={"What is ornek.com?": ("Ornek Finance is an agent platform.",)},
         usage=METERED,
     )
     kw.update(over)
@@ -122,7 +122,7 @@ def test_a_round_is_collected_sealed_and_readable(tmp_path):
     ledger = Ledger(tmp_path / "ledger")
     (snapshot,) = ledger.snapshots()
 
-    assert snapshot.startswith("marx__anthropic__api__")
+    assert snapshot.startswith("ornek__anthropic__api__")
     assert ledger.calls(snapshot) == 6, "two prompts asked three times each"
     assert ledger.verify(snapshot) == [], "the round it wrote re-derives from its own contents"
     assert ledger.seal_of(snapshot).round_asked == 6
@@ -130,7 +130,7 @@ def test_a_round_is_collected_sealed_and_readable(tmp_path):
     played = replay(ledger, snapshot)
     assert played.surfaces == ("api",)
     assert {run.prompt_id for run in played.runs} == {"m1", "m2"}
-    assert any("Marx" in run.brands for run in played.runs), "the subject's brands were detected"
+    assert any("Ornek" in run.brands for run in played.runs), "the subject's brands were detected"
 
 
 def test_the_round_says_what_it_asked_and_what_it_spent(tmp_path):
@@ -181,7 +181,7 @@ def test_the_tracked_names_and_their_forms_are_on_screen_before_the_spend(tmp_pa
     run(rec, tmp_path)
     before = rec.text.split("ASKING")[0]
 
-    assert "Marx (also Marx Finance, marx.finance)" in before
+    assert "Ornek (also Ornek Finance, ornek.com)" in before
     assert "Numerai (also numer.ai)" in before
     assert "ambiguous name" in before, "the file says the name is ambiguous, so the screen does"
 
@@ -326,7 +326,7 @@ def test_the_command_line_carries_every_choice_the_round_needs():
     args = cli.build_parser().parse_args(
         [
             "collect",
-            "--subject", "data/subjects/marx.json",
+            "--subject", "data/subjects/ornek.json",
             "--k", "5",
             "--ledger", "./ledger",
             "--provider", "anthropic",
@@ -337,7 +337,7 @@ def test_the_command_line_carries_every_choice_the_round_needs():
         ]
     )
 
-    assert (args.subject, args.k, args.budget) == ("data/subjects/marx.json", 5, 12.5)
+    assert (args.subject, args.k, args.budget) == ("data/subjects/ornek.json", 5, 12.5)
     assert (args.model, args.max_searches, args.no_search) == ("claude-opus-5", 2, True)
 
 

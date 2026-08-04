@@ -48,9 +48,9 @@ HAIKU = "claude-haiku-4-5"
 #: the shape that produced this rule: the name is inside the question, so the
 #: answer below names the brand while saying it has never heard of it.
 SUBJECT = {
-    "subject": {"id": "marx", "name": "Marx", "aliases": ["Marx Finance", "marx.finance"]},
+    "subject": {"id": "ornek", "name": "Ornek", "aliases": ["Ornek Finance", "ornek.com"]},
     "prompts": [
-        {"id": "m1", "text": "What is marx.finance?", "intent": "entity"},
+        {"id": "m1", "text": "What is ornek.com?", "intent": "entity"},
         {"id": "m2", "text": "Agentic finance platforms in 2026", "intent": "category"},
         {"id": "m3", "text": "Reputation systems for AI trading agents", "intent": "solution"},
     ],
@@ -58,10 +58,10 @@ SUBJECT = {
 
 #: What the stub answers each question with, cycled over the repeats.
 SCRIPT = {
-    "What is marx.finance?": (
-        "I don't have specific information about marx.finance in my training data.",
+    "What is ornek.com?": (
+        "I don't have specific information about ornek.com in my training data.",
     ),
-    "Agentic finance platforms in 2026": ("Marx Finance is one.", "nobody."),
+    "Agentic finance platforms in 2026": ("Ornek Finance is one.", "nobody."),
     "Reputation systems for AI trading agents": ("nobody.",),
 }
 
@@ -80,7 +80,7 @@ class Recorder:
 
 def collected(tmp_path: Path, doc: dict | None = None) -> tuple[Ledger, str, Path]:
     """One sealed round over the questions in `doc`, each asked twice."""
-    path = tmp_path / "marx.json"
+    path = tmp_path / "ornek.json"
     path.write_text(json.dumps(doc or SUBJECT), encoding="utf-8")
     subject = load_subject(path)
     ledger = Ledger(tmp_path / "ledger")
@@ -96,7 +96,7 @@ def collected(tmp_path: Path, doc: dict | None = None) -> tuple[Ledger, str, Pat
     return ledger, result.snapshot_id, path
 
 
-def run(rec: Recorder, ledger: Ledger, snapshot: str, subject: Path, brand="Marx") -> int:
+def run(rec: Recorder, ledger: Ledger, snapshot: str, subject: Path, brand="Ornek") -> int:
     return report(
         rec.console,
         ledger_dir=ledger.root,
@@ -117,7 +117,7 @@ def test_the_round_is_reported_with_the_self_naming_question_named(tmp_path):
     text = rec.text
 
     assert snapshot in text
-    assert "excluded from the rate and its interval: 1 prompt whose own text names Marx (m1)" in text
+    assert "excluded from the rate and its interval: 1 prompt whose own text names Ornek (m1)" in text
     assert "2 prompts" in text, "the design is the scored prompts, not every prompt asked"
 
 
@@ -130,13 +130,13 @@ def test_the_rate_on_screen_is_the_one_mirror_computes(tmp_path):
     played = replay(ledger, snapshot)
     scored = brand_report(
         Snapshot(label=snapshot, samples=group_runs(played.runs)),
-        "Marx",
-        self_naming=load_subject(subject).self_naming("Marx"),
+        "Ornek",
+        self_naming=load_subject(subject).self_naming("Ornek"),
     )
     point = scored.detection_by_prompt.point
 
     assert point == pytest.approx(0.25), "m2 named it once in two asks, m3 never"
-    assert f"Marx is named in {point * 100:.1f}% of answers" in rec.text
+    assert f"Ornek is named in {point * 100:.1f}% of answers" in rec.text
 
 
 def test_the_question_that_names_the_brand_is_what_moves_the_rate(tmp_path):
@@ -145,8 +145,8 @@ def test_the_question_that_names_the_brand_is_what_moves_the_rate(tmp_path):
     played = replay(ledger, snapshot)
     snap = Snapshot(label=snapshot, samples=group_runs(played.runs))
 
-    kept = brand_report(snap, "Marx", self_naming=())
-    dropped = brand_report(snap, "Marx", self_naming=("m1",))
+    kept = brand_report(snap, "Ornek", self_naming=())
+    dropped = brand_report(snap, "Ornek", self_naming=("m1",))
 
     assert kept.detection_by_prompt.point == pytest.approx(0.5)
     assert dropped.detection_by_prompt.point == pytest.approx(0.25)
@@ -236,7 +236,7 @@ def test_the_questions_are_printed_with_what_each_one_produced(tmp_path):
 def test_a_question_whose_asks_failed_says_so_on_its_own_line(tmp_path):
     """The round is unbalanced, and the design line averages that away."""
     rec = Recorder()
-    path = tmp_path / "marx.json"
+    path = tmp_path / "ornek.json"
     path.write_text(json.dumps(SUBJECT), encoding="utf-8")
     subject_file = load_subject(path)
     ledger = Ledger(tmp_path / "ledger")
@@ -282,7 +282,7 @@ def test_the_command_line_carries_all_four_of_them(tmp_path):
             "--subject",
             str(subject),
             "--brand",
-            "Marx",
+            "Ornek",
         ],
         console=rec.console,
     )
@@ -334,7 +334,7 @@ def test_the_tex_is_written_on_a_machine_with_no_tex_on_it(tmp_path):
         ledger_dir=ledger.root,
         snapshot=snapshot,
         subject_path=subject,
-        brand="Marx",
+        brand="Ornek",
         tex_path=tex,
         which=NO_ENGINE,
         run=unusable,
@@ -356,7 +356,7 @@ def test_the_screen_is_the_same_screen_with_the_flag_and_without_it(tmp_path):
         ledger_dir=ledger.root,
         snapshot=snapshot,
         subject_path=subject,
-        brand="Marx",
+        brand="Ornek",
     )
     with_file = Recorder()
     report(
@@ -364,7 +364,7 @@ def test_the_screen_is_the_same_screen_with_the_flag_and_without_it(tmp_path):
         ledger_dir=ledger.root,
         snapshot=snapshot,
         subject_path=subject,
-        brand="Marx",
+        brand="Ornek",
         tex_path=tmp_path / "round.tex",
         which=NO_ENGINE,
         run=unusable,
@@ -385,7 +385,7 @@ def test_no_engine_still_writes_the_document_and_says_which_binary_was_looked_fo
         ledger_dir=ledger.root,
         snapshot=snapshot,
         subject_path=subject,
-        brand="Marx",
+        brand="Ornek",
         pdf_path=pdf,
         which=NO_ENGINE,
         run=unusable,
@@ -421,7 +421,7 @@ def test_the_pdf_lands_on_the_path_that_was_asked_for(tmp_path):
         ledger_dir=ledger.root,
         snapshot=snapshot,
         subject_path=subject,
-        brand="Marx",
+        brand="Ornek",
         pdf_path=pdf,
         which=lambda name: f"/usr/local/bin/{name}",
         run=stand_in(seen=seen),
@@ -444,7 +444,7 @@ def test_an_engine_that_fails_leaves_the_document_and_says_what_it_said(tmp_path
         ledger_dir=ledger.root,
         snapshot=snapshot,
         subject_path=subject,
-        brand="Marx",
+        brand="Ornek",
         pdf_path=pdf,
         which=lambda name: f"/usr/local/bin/{name}",
         run=stand_in(returncode=1, stderr="error: Undefined control sequence"),
@@ -467,7 +467,7 @@ def test_a_directory_that_does_not_exist_is_refused_rather_than_made(tmp_path):
             ledger_dir=ledger.root,
             snapshot=snapshot,
             subject_path=subject,
-            brand="Marx",
+            brand="Ornek",
             tex_path=tmp_path / "nowhere" / "round.tex",
             which=NO_ENGINE,
             run=unusable,
@@ -488,7 +488,7 @@ def test_both_flags_reach_the_command(tmp_path, monkeypatch):
             "--ledger", str(ledger.root),
             "--snapshot", snapshot,
             "--subject", str(subject),
-            "--brand", "Marx",
+            "--brand", "Ornek",
             "--tex", str(tex),
             "--pdf", str(pdf),
         ],

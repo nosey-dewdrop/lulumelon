@@ -210,14 +210,14 @@ def test_the_answer_is_every_text_block_joined(monkeypatch):
                     {"type": "text", "text": "I'll look. "},
                     {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search"},
                     searched("https://a.example/guide"),
-                    {"type": "text", "text": "marx is the usual pick."},
+                    {"type": "text", "text": "ornek is the usual pick."},
                 ]
             )
         ),
     )
     got = AnthropicProvider(api_key=KEY).ask("q")
     assert got.ok
-    assert got.text == "I'll look. marx is the usual pick."
+    assert got.text == "I'll look. ornek is the usual pick."
 
 
 def test_the_model_recorded_is_the_one_the_response_names(monkeypatch):
@@ -253,13 +253,13 @@ def test_the_pages_recorded_are_the_ones_retrieved_not_the_ones_quoted(monkeypat
                     searched("https://a.example/guide", "https://b.example/list"),
                     {
                         "type": "text",
-                        "text": "marx.",
+                        "text": "ornek.",
                         "citations": [
                             {
                                 "type": "web_search_result_location",
                                 "url": "https://a.example/guide",
                                 "title": "t",
-                                "cited_text": "marx is",
+                                "cited_text": "ornek is",
                             }
                         ],
                     },

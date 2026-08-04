@@ -426,23 +426,23 @@ SRC = (
     "https://c.example/review",
 )
 DROP = SRC[1]
-MARX = (Brand(name="marx", aliases=()),)
+ORNEK = (Brand(name="ornek", aliases=()),)
 
 #: Four prompt shapes, each asked four times. Rates vary from prompt to prompt
 #: on both sides, so the intervals the command prints come from a round with
 #: something in it to resample rather than from four identical questions.
 LIVE_ROWS = (
-    ("marx.", "marx.", "marx.", "nobody."),
-    ("marx.", "marx.", "nobody.", "nobody."),
-    ("marx.", "marx.", "marx.", "marx."),
-    ("marx.", "nobody.", "nobody.", "nobody."),
+    ("ornek.", "ornek.", "ornek.", "nobody."),
+    ("ornek.", "ornek.", "nobody.", "nobody."),
+    ("ornek.", "ornek.", "ornek.", "ornek."),
+    ("ornek.", "nobody.", "nobody.", "nobody."),
 )
 HELD_ROWS = LIVE_ROWS
 DROPPED_ROWS = (
-    ("marx.", "marx.", "nobody.", "nobody."),
-    ("marx.", "nobody.", "nobody.", "nobody."),
-    ("marx.", "marx.", "nobody.", "nobody."),
-    ("marx.", "nobody.", "nobody.", "nobody."),
+    ("ornek.", "ornek.", "nobody.", "nobody."),
+    ("ornek.", "nobody.", "nobody.", "nobody."),
+    ("ornek.", "ornek.", "nobody.", "nobody."),
+    ("ornek.", "nobody.", "nobody.", "nobody."),
 )
 SILENT_ROWS = (("nobody.",) * 4,)
 
@@ -477,20 +477,20 @@ def three_rounds(
     live = run_round(
         ledger=led,
         provider=FakeProvider(surface="api", script=script(live_rows)),
-        prompts=prompts, brands=MARX, k=k, subject="marx",
+        prompts=prompts, brands=ORNEK, k=k, subject="ornek",
     )
     base = FakeProvider(surface="api")
     full = ReplicaProvider(base=base, sources=SRC)
     base.script = script(held_rows, lambda text: replica_prompt(text, SRC))
     held = run_round(
-        ledger=led, provider=full, prompts=prompts, brands=MARX, k=k, subject="marx"
+        ledger=led, provider=full, prompts=prompts, brands=ORNEK, k=k, subject="ornek"
     )
 
     other = FakeProvider(surface="api", model=dropped_model or "fake-1")
     arm = ReplicaProvider(base=other, sources=without(SRC, DROP))
     other.script = script(dropped_rows, lambda text: replica_prompt(text, arm.sources))
     dropped = run_round(
-        ledger=led, provider=arm, prompts=prompts, brands=MARX, k=k, subject="marx"
+        ledger=led, provider=arm, prompts=prompts, brands=ORNEK, k=k, subject="ornek"
     )
     return led, live.snapshot_id, held.snapshot_id, dropped.snapshot_id
 
@@ -501,7 +501,7 @@ def run_lift(tmp_path, held_id, dropped_id, **kw):
         ledger_dir=Path(tmp_path),
         held=held_id,
         dropped=dropped_id,
-        brand="marx",
+        brand="ornek",
         source=DROP,
         sources=SRC,
         margin=0.05,
@@ -607,7 +607,7 @@ def test_a_round_written_before_digests_is_read_and_not_verified(tmp_path):
     legacy = run_round(
         ledger=led,
         provider=FakeProvider(surface="replica", script={p.text: LIVE_ROWS[0] for p in prompts}),
-        prompts=prompts, brands=MARX, k=4, subject="marx",
+        prompts=prompts, brands=ORNEK, k=4, subject="ornek",
     )
     _, _, _, dropped = three_rounds(tmp_path)
     with pytest.raises(ValueError, match="it cannot be verified"):
@@ -624,7 +624,7 @@ def test_a_broken_chain_produces_no_number_at_all(tmp_path):
     led, live, held, dropped = three_rounds(tmp_path)
     path = led.path_of(held)
     lines = path.read_text(encoding="utf-8").splitlines()
-    lines[0] = lines[0].replace("marx.", "marx!")
+    lines[0] = lines[0].replace("ornek.", "ornek!")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     code, text = run_lift(tmp_path, held, dropped, live=live)
@@ -665,8 +665,8 @@ def test_an_arm_carrying_two_engines_is_refused_by_name(tmp_path, two_engine_rou
     _, live, _, dropped = three_rounds(tmp_path)
     _, mixed = two_engine_round(
         tmp_path,
-        {"perplexity": ("marx.",), "anthropic": ("nobody.",)},
-        brands=MARX,
+        {"perplexity": ("ornek.",), "anthropic": ("nobody.",)},
+        brands=ORNEK,
         surface=replica_surface(SRC),
     )
     with pytest.raises(ValueError, match="more than one engine") as refused:

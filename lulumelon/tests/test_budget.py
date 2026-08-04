@@ -36,7 +36,7 @@ REQUEST_FEE = 0.012
 def answered(**usage) -> Answer:
     """A reply that came back, carrying only what the provider actually said."""
     return Answer(
-        text="Marx leads.",
+        text="Ornek leads.",
         model="claude-opus-5",
         surface="api",
         latency_ms=1100,

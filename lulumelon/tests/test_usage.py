@@ -20,7 +20,7 @@ from lulumelon.prices import price_for
 from lulumelon.usage import spend_of, token_rate
 
 SONAR = price_for("perplexity", "sonar")
-SID = "marx__perplexity__api__20260731T120000Z__0001"
+SID = "ornek__perplexity__api__20260731T120000Z__0001"
 
 
 def rec(**over) -> Record:
@@ -35,8 +35,8 @@ def rec(**over) -> Record:
         asked_at="2026-07-31T12:00:00Z",
         status="ok",
         latency_ms=1100,
-        answer_text="Marx does.",
-        brands=("marx",),
+        answer_text="Ornek does.",
+        brands=("ornek",),
         citations=(),
         provider="perplexity",
     )
@@ -448,13 +448,13 @@ def test_the_ledger_and_the_budget_guard_agree_about_one_round(tmp_path):
         provider=FakeProvider(
             name="anthropic",
             model="claude-haiku-4-5",
-            script={"q": ("Marx does.",)},
+            script={"q": ("Ornek does.",)},
             usage=Usage(input_tokens=1000, output_tokens=200, searches=3),
         ),
         prompts=[Prompt(id="p1", text="q")],
-        brands=[Brand(name="marx", aliases=())],
+        brands=[Brand(name="ornek", aliases=())],
         k=4,
-        subject="marx",
+        subject="ornek",
         clock=lambda: "2026-08-01T02:00:00Z",
         budget=budget,
     )

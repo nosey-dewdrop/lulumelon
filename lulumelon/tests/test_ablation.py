@@ -225,7 +225,7 @@ import io  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 SRC = ("https://a.example/guide", "https://b.example/list")
-MARX = (Brand(name="marx", aliases=()),)
+ORNEK = (Brand(name="ornek", aliases=()),)
 
 
 class Recorder:
@@ -246,13 +246,13 @@ def two_rounds(tmp_path, live_replies, replica_replies, *, n=30, k=4, replica_mo
     live = run_round(
         ledger=led,
         provider=FakeProvider(surface="api", script={p.text: live_replies for p in prompts}),
-        prompts=prompts, brands=MARX, k=k, subject="marx",
+        prompts=prompts, brands=ORNEK, k=k, subject="ornek",
     )
     base = FakeProvider(surface="api", model=replica_model or "fake-1")
     lab = ReplicaProvider(base=base, sources=SRC)
     base.script = {replica_prompt(p.text, SRC): replica_replies for p in prompts}
     replica = run_round(
-        ledger=led, provider=lab, prompts=prompts, brands=MARX, k=k, subject="marx"
+        ledger=led, provider=lab, prompts=prompts, brands=ORNEK, k=k, subject="ornek"
     )
     return led, live.snapshot_id, replica.snapshot_id
 
@@ -260,12 +260,12 @@ def two_rounds(tmp_path, live_replies, replica_replies, *, n=30, k=4, replica_mo
 def run_ablate(tmp_path, live_id, replica_id, **kw):
     rec = Recorder()
     args = dict(ledger_dir=Path(tmp_path), live=live_id, replica=replica_id,
-                brand="marx", margin=0.05)
+                brand="ornek", margin=0.05)
     args.update(kw)
     return ablate(rec.console, **args), rec.text
 
 
-SOME = ("marx is one pick.", "marx again.", "nobody.", "nobody.")
+SOME = ("ornek is one pick.", "ornek again.", "nobody.", "nobody.")
 NONE = ("nobody.", "nobody.", "nobody.", "nobody.")
 
 
@@ -294,8 +294,8 @@ def test_a_round_too_small_to_decide_does_not_exit_zero(tmp_path):
     """
     _, live, replica = two_rounds(
         tmp_path,
-        ("marx.", "marx.", "nobody.", "nobody."),
-        ("marx.", "nobody."),
+        ("ornek.", "ornek.", "nobody.", "nobody."),
+        ("ornek.", "nobody."),
         n=6, k=2,
     )
     code, text = run_ablate(tmp_path, live, replica)
@@ -308,7 +308,7 @@ def test_a_broken_chain_produces_no_verdict_at_all(tmp_path):
     led, live, replica = two_rounds(tmp_path, SOME, SOME)
     path = led.path_of(live)
     lines = path.read_text(encoding="utf-8").splitlines()
-    lines[0] = lines[0].replace("marx is one pick.", "marx is one pick!")
+    lines[0] = lines[0].replace("ornek is one pick.", "ornek is one pick!")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     code, text = run_ablate(tmp_path, live, replica)
@@ -354,7 +354,7 @@ from lulumelon.mirror.types import group_runs  # noqa: E402
 #: One engine names the brand every time, the other never does. Keyed by the
 #: prompt alone the two collapse onto one entry, so whichever engine was
 #: written second decides whether the round reads as 100% or as 0%.
-MIXED = {"perplexity": ("marx.",), "anthropic": ("nobody.",)}
+MIXED = {"perplexity": ("ornek.",), "anthropic": ("nobody.",)}
 
 
 def test_two_engines_answering_one_prompt_stay_two_samples(tmp_path, two_engine_round):
@@ -366,10 +366,10 @@ def test_two_engines_answering_one_prompt_stay_two_samples(tmp_path, two_engine_
     overwrites the first. Nothing raises, nothing is printed, and one engine's
     answers to every prompt leave the sample.
     """
-    ledger, snapshot = two_engine_round(tmp_path, MIXED, brands=MARX)
+    ledger, snapshot = two_engine_round(tmp_path, MIXED, brands=ORNEK)
     played = replay(ledger, snapshot)
 
-    kept = _detections(played, "marx")
+    kept = _detections(played, "ornek")
     assert set(kept) == {(s.prompt_id, s.engine) for s in group_runs(played.runs)}
     assert sum(len(runs) for runs in kept.values()) == len(played.runs)
 
@@ -377,7 +377,7 @@ def test_two_engines_answering_one_prompt_stay_two_samples(tmp_path, two_engine_
 def test_a_live_round_carrying_two_engines_is_refused_by_name(tmp_path, two_engine_round):
     """A round is one engine, so two of them is not a round to key around."""
     _, _, replica = two_rounds(tmp_path, SOME, SOME)
-    _, mixed = two_engine_round(tmp_path, MIXED, brands=MARX)
+    _, mixed = two_engine_round(tmp_path, MIXED, brands=ORNEK)
 
     rec = Recorder()
     with pytest.raises(ValueError, match="more than one engine") as refused:
@@ -386,7 +386,7 @@ def test_a_live_round_carrying_two_engines_is_refused_by_name(tmp_path, two_engi
             ledger_dir=Path(tmp_path),
             live=mixed,
             replica=replica,
-            brand="marx",
+            brand="ornek",
             margin=0.05,
         )
     assert "perplexity, anthropic" in str(refused.value)
@@ -397,7 +397,7 @@ def test_a_live_round_carrying_two_engines_is_refused_by_name(tmp_path, two_engi
 def test_the_replica_side_is_refused_for_the_same_reason(tmp_path, two_engine_round):
     _, live, _ = two_rounds(tmp_path, SOME, SOME)
     _, mixed = two_engine_round(
-        tmp_path, MIXED, brands=MARX, surface=replica_surface(SRC)
+        tmp_path, MIXED, brands=ORNEK, surface=replica_surface(SRC)
     )
     with pytest.raises(ValueError, match="more than one engine"):
         run_ablate(tmp_path, live, mixed)

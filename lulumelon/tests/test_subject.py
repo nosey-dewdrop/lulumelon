@@ -23,20 +23,20 @@ from lulumelon.collect import SubjectFileError, load_subject
 #: The file this repo actually ships, read rather than imitated. A loader
 #: tested only against fixtures it wrote itself is a loader that agrees with
 #: itself.
-SHIPPED = Path(__file__).resolve().parents[2] / "data" / "subjects" / "marx.json"
+SHIPPED = Path(__file__).resolve().parents[2] / "data" / "subjects" / "ornek.json"
 
 VALID = {
     "subject": {
-        "id": "marx",
-        "name": "Marx",
-        "domain": "marx.finance",
-        "aliases": ["Marx Finance", "marx.finance"],
+        "id": "ornek",
+        "name": "Ornek",
+        "domain": "ornek.com",
+        "aliases": ["Ornek Finance", "ornek.com"],
         "ambiguousName": True,
     },
     "projects": [],
     "competitors": [],
     "prompts": [
-        {"id": "m1", "text": "What is marx.finance?", "intent": "entity", "axis": "brand"},
+        {"id": "m1", "text": "What is ornek.com?", "intent": "entity", "axis": "brand"},
         {"id": "m2", "text": "Agentic finance platforms in 2026"},
     ],
 }
@@ -60,12 +60,12 @@ def altered(**over) -> dict:
 def test_the_subject_file_in_this_repo_loads_as_the_round_it_describes():
     subject = load_subject(SHIPPED)
 
-    assert subject.id == "marx"
-    assert subject.name == "Marx"
+    assert subject.id == "ornek"
+    assert subject.name == "Ornek"
     assert subject.ambiguous_name is True
     assert [p.id for p in subject.prompts] == [f"m{i}" for i in range(1, 11)]
-    assert subject.prompts[0].text == "What is marx.finance?"
-    assert subject.brands[0].forms == ("Marx Finance", "marx.finance", "Marx")
+    assert subject.prompts[0].text == "What is ornek.com?"
+    assert subject.brands[0].forms == ("Ornek Finance", "ornek.com", "Ornek")
     assert subject.competitors == (), "the file lists none, and none are invented"
 
 
@@ -77,11 +77,11 @@ def test_the_aliases_are_taken_exactly_as_written(tmp_path):
     to be reproducible from.
     """
     doc = altered()
-    doc["subject"]["aliases"] = ["Marx Finance"]
+    doc["subject"]["aliases"] = ["Ornek Finance"]
     subject = load_subject(written(tmp_path, doc))
 
-    assert subject.brands[0].aliases == ("Marx Finance",)
-    assert "marx.finance" not in subject.brands[0].forms
+    assert subject.brands[0].aliases == ("Ornek Finance",)
+    assert "ornek.com" not in subject.brands[0].forms
 
 
 # -- a round that could not mean anything ------------------------------------
@@ -138,7 +138,7 @@ def test_a_competitor_with_no_name_is_refused(tmp_path):
 
 def test_a_blank_alias_is_refused(tmp_path):
     doc = altered()
-    doc["subject"]["aliases"] = ["Marx Finance", " "]
+    doc["subject"]["aliases"] = ["Ornek Finance", " "]
 
     with pytest.raises(SubjectFileError, match=r"aliases\[1\]"):
         load_subject(written(tmp_path, doc))
@@ -146,7 +146,7 @@ def test_a_blank_alias_is_refused(tmp_path):
 
 def test_two_tracked_names_that_are_the_same_name_are_refused(tmp_path):
     """One line per name is reported, so the second would never appear."""
-    doc = altered(competitors=[{"name": "marx", "aliases": []}])
+    doc = altered(competitors=[{"name": "ornek", "aliases": []}])
 
     with pytest.raises(SubjectFileError, match="silently unmeasured"):
         load_subject(written(tmp_path, doc))
@@ -155,11 +155,11 @@ def test_two_tracked_names_that_are_the_same_name_are_refused(tmp_path):
 def test_a_competitor_is_tracked_beside_the_subject(tmp_path):
     doc = altered(
         competitors=[{"name": "Numerai", "aliases": ["numer.ai"]}],
-        projects=[{"name": "Marx Signals"}],
+        projects=[{"name": "Ornek Signals"}],
     )
     subject = load_subject(written(tmp_path, doc))
 
-    assert [b.name for b in subject.brands] == ["Marx", "Marx Signals", "Numerai"]
+    assert [b.name for b in subject.brands] == ["Ornek", "Ornek Signals", "Numerai"]
     assert subject.competitors[1].aliases == ("numer.ai",)
 
 
@@ -182,7 +182,7 @@ def test_a_file_with_no_subject_at_all_is_refused(tmp_path):
 
 def test_a_prompt_list_that_is_not_a_list_is_refused(tmp_path):
     with pytest.raises(SubjectFileError, match="is a list of questions"):
-        load_subject(written(tmp_path, altered(prompts={"m1": "What is marx.finance?"})))
+        load_subject(written(tmp_path, altered(prompts={"m1": "What is ornek.com?"})))
 
 
 def test_a_file_that_is_not_json_is_refused_with_the_path(tmp_path):
@@ -202,13 +202,13 @@ def test_a_file_that_is_not_there_is_refused_with_the_path(tmp_path):
 
 
 def test_the_shipped_file_names_the_brand_in_exactly_one_question():
-    """m1 asks what marx.finance is, so the name is inside the question.
+    """m1 asks what ornek.com is, so the name is inside the question.
 
     That one prompt was worth ten points of the headline on the round this repo
-    collected: every answer to it named Marx, and every one of those answers was
-    the model saying it had never heard of marx.finance.
+    collected: every answer to it named Ornek, and every one of those answers was
+    the model saying it had never heard of ornek.com.
     """
-    assert load_subject(SHIPPED).self_naming("Marx") == ("m1",)
+    assert load_subject(SHIPPED).self_naming("Ornek") == ("m1",)
 
 
 def test_a_question_carrying_only_an_alias_is_self_naming_too(tmp_path):
@@ -225,7 +225,7 @@ def test_a_question_carrying_only_an_alias_is_self_naming_too(tmp_path):
     ]
     subject = load_subject(written(tmp_path, doc))
 
-    assert subject.self_naming("Marx") == ("m1",)
+    assert subject.self_naming("Ornek") == ("m1",)
 
 
 def test_a_question_that_does_not_name_the_brand_is_left_in(tmp_path):
@@ -233,7 +233,7 @@ def test_a_question_that_does_not_name_the_brand_is_left_in(tmp_path):
     subject = load_subject(written(tmp_path, VALID))
 
     assert [p.id for p in subject.prompts] == ["m1", "m2"]
-    assert subject.self_naming("Marx") == ("m1",)
+    assert subject.self_naming("Ornek") == ("m1",)
 
 
 def test_the_match_is_the_one_detect_makes_and_not_a_second_rule(tmp_path):
@@ -241,13 +241,13 @@ def test_the_match_is_the_one_detect_makes_and_not_a_second_rule(tmp_path):
     doc = altered()
     doc["subject"]["aliases"] = []
     doc["prompts"] = [
-        {"id": "m1", "text": "Who competes with MARX in agentic finance?"},
-        {"id": "m2", "text": "Is Marxism a trading strategy?"},
+        {"id": "m1", "text": "Who competes with ORNEK in agentic finance?"},
+        {"id": "m2", "text": "Is Ornekism a trading strategy?"},
         {"id": "m3", "text": "Alternatives to Numerai for crowdsourced trading signals"},
     ]
     subject = load_subject(written(tmp_path, doc))
 
-    assert subject.self_naming("Marx") == ("m1",)
+    assert subject.self_naming("Ornek") == ("m1",)
 
 
 def test_the_intent_label_is_a_note_and_not_the_rule(tmp_path):
@@ -259,12 +259,12 @@ def test_the_intent_label_is_a_note_and_not_the_rule(tmp_path):
     """
     doc = altered()
     doc["prompts"] = [
-        {"id": "m1", "text": "What is marx.finance?", "intent": "category"},
+        {"id": "m1", "text": "What is ornek.com?", "intent": "category"},
         {"id": "m2", "text": "Agentic finance platforms in 2026", "intent": "entity"},
     ]
     subject = load_subject(written(tmp_path, doc))
 
-    assert subject.self_naming("Marx") == ("m1",)
+    assert subject.self_naming("Ornek") == ("m1",)
 
 
 def test_a_name_the_file_does_not_track_is_refused(tmp_path):
@@ -281,7 +281,7 @@ def test_a_competitor_is_scored_by_its_own_forms(tmp_path):
     doc["prompts"].append({"id": "m3", "text": "Alternatives to Numerai"})
     subject = load_subject(written(tmp_path, doc))
 
-    assert subject.self_naming("Marx") == ("m1",)
+    assert subject.self_naming("Ornek") == ("m1",)
     assert subject.self_naming("Numerai") == ("m3",)
 
 
@@ -291,7 +291,7 @@ def test_a_competitor_is_scored_by_its_own_forms(tmp_path):
 def test_an_id_that_would_split_a_snapshot_name_is_refused(tmp_path):
     """A snapshot is named subject__engine__surface, joined and read back."""
     doc = altered()
-    doc["subject"]["id"] = "marx__anthropic"
+    doc["subject"]["id"] = "ornek__anthropic"
 
     with pytest.raises(SubjectFileError, match="fields nobody wrote"):
         load_subject(written(tmp_path, doc))
@@ -299,7 +299,7 @@ def test_an_id_that_would_split_a_snapshot_name_is_refused(tmp_path):
 
 def test_an_id_that_is_a_path_is_refused(tmp_path):
     doc = altered()
-    doc["subject"]["id"] = "../marx"
+    doc["subject"]["id"] = "../ornek"
 
     with pytest.raises(SubjectFileError, match="a path rather than a name"):
         load_subject(written(tmp_path, doc))

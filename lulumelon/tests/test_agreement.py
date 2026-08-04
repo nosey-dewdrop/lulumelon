@@ -70,14 +70,14 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 #: A three-record round written before rounds sealed their own length. Its
 #: first line alone is the one-record version, which is the only way to reach
 #: the "length never sealed" line with a count of one.
-V2_SNAPSHOT = "marx__perplexity__api__20260801T020000Z__0002"
+V2_SNAPSHOT = "ornek__perplexity__api__20260801T020000Z__0002"
 
 KEY = "sk-ant-" + "a1b2c3d4e5" * 4
 HAIKU = "claude-haiku-4-5"
 
 SUBJECT = {
-    "subject": {"id": "marx", "name": "Marx", "aliases": ["marx.finance"]},
-    "prompts": [{"id": "m1", "text": "What is marx.finance?"}],
+    "subject": {"id": "ornek", "name": "Ornek", "aliases": ["ornek.com"]},
+    "prompts": [{"id": "m1", "text": "What is ornek.com?"}],
 }
 
 
@@ -179,7 +179,7 @@ def test_the_detector_does_not_flag_a_one_that_is_not_a_count():
 
 
 def subject_file(tmp_path: Path) -> Path:
-    path = tmp_path / "marx.json"
+    path = tmp_path / "ornek.json"
     path.write_text(json.dumps(SUBJECT), encoding="utf-8")
     return path
 
@@ -187,7 +187,7 @@ def subject_file(tmp_path: Path) -> Path:
 def one_call_ledger(tmp_path: Path) -> tuple[Ledger, str]:
     """A sealed round of exactly one call, which is what a check call is."""
     ledger = Ledger(tmp_path / "ledger")
-    snapshot = ledger.next_snapshot_id("marx", "anthropic", "api")
+    snapshot = ledger.next_snapshot_id("ornek", "anthropic", "api")
     ledger.append(
         snapshot,
         Record(
@@ -201,8 +201,8 @@ def one_call_ledger(tmp_path: Path) -> tuple[Ledger, str]:
             asked_at="2026-08-01T03:30:00Z",
             status="ok",
             latency_ms=1100,
-            answer_text="Marx does.",
-            brands=("Marx",),
+            answer_text="Ornek does.",
+            brands=("Ornek",),
             citations=("https://a.example/guide",),
             provider="anthropic",
             input_tokens=900,
@@ -244,29 +244,29 @@ def one_prompt_rounds(tmp_path: Path):
     """A live round and both replica arms over one shared prompt."""
     ledger = Ledger(tmp_path / "arms")
     prompts = [Prompt(id="p0", text="who should I use for job 0?")]
-    brands = (Brand(name="marx"),)
+    brands = (Brand(name="ornek"),)
     sources = ("https://a.example/guide", "https://b.example/list")
     drop = sources[1]
 
     live = run_round(
         ledger=ledger,
-        provider=FakeProvider(surface="api", script={prompts[0].text: ("marx.", "nobody.")}),
+        provider=FakeProvider(surface="api", script={prompts[0].text: ("ornek.", "nobody.")}),
         prompts=prompts,
         brands=brands,
         k=2,
-        subject="marx",
+        subject="ornek",
     )
     base = FakeProvider(surface="api")
     full = ReplicaProvider(base=base, sources=sources)
-    base.script = {replica_prompt(prompts[0].text, sources): ("marx.", "nobody.")}
+    base.script = {replica_prompt(prompts[0].text, sources): ("ornek.", "nobody.")}
     held = run_round(
-        ledger=ledger, provider=full, prompts=prompts, brands=brands, k=2, subject="marx"
+        ledger=ledger, provider=full, prompts=prompts, brands=brands, k=2, subject="ornek"
     )
     other = FakeProvider(surface="api")
     arm = ReplicaProvider(base=other, sources=without(sources, drop))
     other.script = {replica_prompt(prompts[0].text, arm.sources): ("nobody.", "nobody.")}
     dropped = run_round(
-        ledger=ledger, provider=arm, prompts=prompts, brands=brands, k=2, subject="marx"
+        ledger=ledger, provider=arm, prompts=prompts, brands=brands, k=2, subject="ornek"
     )
     return ledger, live.snapshot_id, held.snapshot_id, dropped.snapshot_id, sources, drop
 
@@ -386,7 +386,7 @@ def test_the_two_causal_commands_never_print_a_one_beside_a_plural_noun(tmp_path
         ledger_dir=ledger.root,
         live=live,
         replica=held,
-        brand="marx",
+        brand="ornek",
         margin=0.05,
     )
     surfaces["ablate, one paired prompt"] = gated.text
@@ -398,7 +398,7 @@ def test_the_two_causal_commands_never_print_a_one_beside_a_plural_noun(tmp_path
             ledger_dir=ledger.root,
             held=held,
             dropped=dropped,
-            brand="marx",
+            brand="ornek",
             source=drop,
             sources=sources,
             margin=0.05,
@@ -419,7 +419,7 @@ def one_prompt_snapshot():
             engine="anthropic",
             model=HAIKU,
             asked_at=f"2026-08-01T0{i}:00:00Z",
-            brands=("marx",) if i == 0 else ("numerai",),
+            brands=("ornek",) if i == 0 else ("numerai",),
             citations=("https://a.example/guide",) if i == 0 else (),
         )
         for i in range(2)
@@ -437,7 +437,7 @@ def two_prompt_snapshot():
                 engine="anthropic",
                 model=HAIKU,
                 asked_at=f"2026-08-01T0{i}:00:00Z",
-                brands=("marx",) if i == 0 else ("numerai",),
+                brands=("ornek",) if i == 0 else ("numerai",),
             )
             for p in range(2)
             for i in range(2)
@@ -452,9 +452,9 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
     report which no command currently renders at a count of one is still read.
     """
     snapshot = one_prompt_snapshot()
-    report = brand_report(snapshot, "marx", self_naming=(), resamples=200)
+    report = brand_report(snapshot, "ornek", self_naming=(), resamples=200)
     excluded = brand_report(
-        two_prompt_snapshot(), "marx", self_naming=("p0",), resamples=200
+        two_prompt_snapshot(), "ornek", self_naming=("p0",), resamples=200
     )
     price = price_for("anthropic", HAIKU)
     assert price is not None
@@ -473,7 +473,7 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
     )
 
     silent = Record(
-        snapshot_id="marx__anthropic__api__20260801T033000Z__0001",
+        snapshot_id="ornek__anthropic__api__20260801T033000Z__0001",
         seq=0,
         prompt_id="m1",
         repeat=0,
@@ -483,8 +483,8 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
         asked_at="2026-08-01T03:30:00Z",
         status="ok",
         latency_ms=1100,
-        answer_text="Marx does.",
-        brands=("Marx",),
+        answer_text="Ornek does.",
+        brands=("Ornek",),
         citations=(),
         provider="anthropic",
     )
@@ -503,7 +503,7 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
         "paired difference": paired_difference(
             {"p0": [1.0, 0.0]}, {"p0": [0.0, 0.0]}, resamples=200
         ).as_text(),
-        "source association": associate(snapshot, "marx", "https://a.example/guide").as_text(),
+        "source association": associate(snapshot, "ornek", "https://a.example/guide").as_text(),
         "source withheld": associate(
             snapshot_from_runs(
                 "two",
@@ -513,17 +513,17 @@ def test_the_reports_never_print_a_one_beside_a_plural_noun(tmp_path):
                         engine="anthropic",
                         model=HAIKU,
                         asked_at="2026-08-01T00:00:00Z",
-                        brands=("marx",) if i % 2 else (),
+                        brands=("ornek",) if i % 2 else (),
                         citations=("https://a.example/guide",) if i < 2 else (),
                     )
                     for p in range(1)
                     for i in range(4)
                 ],
             ),
-            "marx",
+            "ornek",
             "https://a.example/guide",
         ).as_text(),
-        "source no contrast": associate(snapshot, "marx", "https://z.example/never").as_text(),
+        "source no contrast": associate(snapshot, "ornek", "https://z.example/never").as_text(),
         "runs unreachable": runs_needed(variance, 0.0001, n_prompts=1).as_text(),
         "runs above max_k": runs_needed(variance, 0.2, n_prompts=1, max_k=0).as_text(),
         "prompts above max_n": prompts_needed(variance, 0.2, k_runs=1, max_n=0).as_text(),

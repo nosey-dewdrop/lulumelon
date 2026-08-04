@@ -36,19 +36,19 @@ HAIKU = "claude-haiku-4-5"
 #: The same three questions `test_report_cli` collects, so the document below is
 #: a document about a round this suite already reports on screen.
 SUBJECT = {
-    "subject": {"id": "marx", "name": "Marx", "aliases": ["Marx Finance", "marx.finance"]},
+    "subject": {"id": "ornek", "name": "Ornek", "aliases": ["Ornek Finance", "ornek.com"]},
     "prompts": [
-        {"id": "m1", "text": "What is marx.finance?", "intent": "entity"},
+        {"id": "m1", "text": "What is ornek.com?", "intent": "entity"},
         {"id": "m2", "text": "Agentic finance platforms in 2026", "intent": "category"},
         {"id": "m3", "text": "Reputation systems for AI trading agents", "intent": "solution"},
     ],
 }
 
 SCRIPT = {
-    "What is marx.finance?": (
-        "I don't have specific information about marx.finance in my training data.",
+    "What is ornek.com?": (
+        "I don't have specific information about ornek.com in my training data.",
     ),
-    "Agentic finance platforms in 2026": ("Marx Finance is one.", "nobody."),
+    "Agentic finance platforms in 2026": ("Ornek Finance is one.", "nobody."),
     "Reputation systems for AI trading agents": ("nobody.",),
 }
 
@@ -126,8 +126,8 @@ def _round(tmp_path: Path, doc: dict, script: dict, brand: str) -> tuple[Panel, 
 
 
 @pytest.fixture
-def marx(tmp_path):
-    return _round(tmp_path, SUBJECT, SCRIPT, "Marx")
+def ornek(tmp_path):
+    return _round(tmp_path, SUBJECT, SCRIPT, "Ornek")
 
 
 @pytest.fixture
@@ -188,7 +188,7 @@ def test_a_backslash_does_not_escape_the_character_after_it():
 
 
 def test_ordinary_text_is_left_alone():
-    assert escape("Marx Finance, 11.1% of answers") == r"Marx Finance, 11.1\% of answers"
+    assert escape("Ornek Finance, 11.1% of answers") == r"Ornek Finance, 11.1\% of answers"
 
 
 # -- the document ------------------------------------------------------------
@@ -208,16 +208,16 @@ GOLDEN = """\\documentclass[11pt,a4paper]{article}
 \\makeatother
 \\begin{document}
 {\\large\\bfseries lulu report\\par}
-brand: Marx\\quad{}snapshot: SNAPSHOT\\par
+brand: Ornek\\quad{}snapshot: SNAPSHOT\\par
 \\section*{DESIGN}
 2 prompts x 2 runs = 4 answers on anthropic\\\\
-excluded from the rate and its interval: 1 prompt whose own text names Marx (m1)\\\\
+excluded from the rate and its interval: 1 prompt whose own text names Ornek (m1)\\\\
 detection matches declared literals, so a question carrying the name is answered with it whatever the model knows\\par
 \\section*{PARAMETERS}
 location\\quad{}no location was requested, so the answers are whatever the engine serves a call that named none\\\\
 searches\\quad{}the cap on how many searches a call may run is not written to the ledger, so it is not recoverable from this round\\par
 \\section*{APPEARANCE}
-Marx is named in 25.0\\% of answers\\\\
+Ornek is named in 25.0\\% of answers\\\\
 honest range 0.0\\% to 50.0\\%\\quad{}(95\\% confidence, prompt-clustered)\\par
 the rate is the mean of the per-prompt means, and each prompt gets equal weight regardless of how many times it was asked\\\\
 the range is cluster\\_bootstrap(B=2000,seed=0), the percentile bootstrap where the prompt, not the run, is resampled\\par
@@ -231,7 +231,7 @@ rank\\quad{}WITHHELD, the leading brand does not repeat often\\\\
 \\hspace*{5em}enough for a position to describe anything but the sampling\\par
 \\section*{QUESTIONS}
 every question this round asked, in the order the subject file states them\\par
-m1\\quad{}What is marx.finance?\\\\
+m1\\quad{}What is ornek.com?\\\\
 \\hspace*{3em}2 usable of 2 asked, excluded from the rate and its interval\\\\
 m2\\quad{}Agentic finance platforms in 2026\\\\
 \\hspace*{3em}2 usable of 2 asked\\\\
@@ -254,36 +254,36 @@ Computed from the recorded answers of this round only, on the surfaces listed ab
 """
 
 
-def test_the_whole_document_is_the_one_pinned_here(marx):
+def test_the_whole_document_is_the_one_pinned_here(ornek):
     """Pinned entire, because a substring test cannot see a reworded sentence.
 
     The snapshot id and the chain hash are the two things in it that a
     collector decides rather than this renderer, so they are substituted in
     from the round rather than frozen; everything else is a byte.
     """
-    panel, evidence, snapshot = marx
+    panel, evidence, snapshot = ornek
     expected = GOLDEN.replace("SNAPSHOT", escape(snapshot)).replace(
         "HASH", evidence.final_hash
     )
     assert tex_document(panel, evidence) == expected
 
 
-def test_the_document_stands_on_its_own(marx):
-    panel, evidence, _ = marx
+def test_the_document_stands_on_its_own(ornek):
+    panel, evidence, _ = ornek
     tex = tex_document(panel, evidence)
     assert tex.startswith("\\documentclass")
     assert "\\begin{document}" in tex
     assert tex.rstrip().endswith("\\end{document}")
 
 
-def test_the_sentences_are_the_ones_the_screen_prints(marx):
+def test_the_sentences_are_the_ones_the_screen_prints(ornek):
     """Every line of panel output reaches the page, escaped and in order.
 
     Read off `Panel` rather than typed here. A test that quoted the sentences
     would be a second copy of them, and the point of rendering through the
     panel is that there is only ever one.
     """
-    panel, evidence, _ = marx
+    panel, evidence, _ = ornek
     spoken = _spoken(tex_document(panel, evidence))
     for block in (
         panel.design(),
@@ -316,8 +316,8 @@ def test_the_excluded_question_and_the_failed_asks_are_on_the_page(tmp_path):
     played = replay(ledger, result.snapshot_id)
     scored = brand_report(
         Snapshot(label=result.snapshot_id, samples=group_runs(played.runs)),
-        "Marx",
-        self_naming=subject.self_naming("Marx"),
+        "Ornek",
+        self_naming=subject.self_naming("Ornek"),
     )
     records = list(ledger.read(result.snapshot_id))
     evidence = Evidence(
@@ -334,14 +334,14 @@ def test_the_excluded_question_and_the_failed_asks_are_on_the_page(tmp_path):
     assert played.dropped == 2
     assert "2 asks failed and are excluded, recorded not dropped" in spoken
     assert (
-        "excluded from the rate and its interval: 1 prompt whose own text names Marx (m1)"
+        "excluded from the rate and its interval: 1 prompt whose own text names Ornek (m1)"
         in spoken
     )
 
 
-def test_the_evidence_names_the_file_the_numbers_came_from(marx):
+def test_the_evidence_names_the_file_the_numbers_came_from(ornek):
     """Snapshot, length, seal, chain, model, surface, dates and money."""
-    panel, evidence, snapshot = marx
+    panel, evidence, snapshot = ornek
     tex = tex_document(panel, evidence)
 
     assert escape(snapshot) in tex
@@ -354,9 +354,9 @@ def test_the_evidence_names_the_file_the_numbers_came_from(marx):
     assert "0 of 6 priced calls metered" in tex
 
 
-def test_the_cost_wording_is_the_one_lulu_usage_prints(marx):
+def test_the_cost_wording_is_the_one_lulu_usage_prints(ornek):
     """The total is quoted, not restated: one sentence, two surfaces."""
-    panel, evidence, _ = marx
+    panel, evidence, _ = ornek
     spoken = _spoken(tex_document(panel, evidence))
     for line in evidence.cost:
         assert escape(re.sub(r" +", " ", line)) in spoken
@@ -372,7 +372,7 @@ def test_the_document_prints_every_question_where_the_screen_stops(tmp_path):
     doc["prompts"] = [
         {"id": f"q{i}", "text": f"Question number {i}"} for i in range(TERMINAL_QUESTIONS + 3)
     ]
-    panel, evidence, _ = _round(tmp_path, doc, {}, "Marx")
+    panel, evidence, _ = _round(tmp_path, doc, {}, "Ornek")
     spoken = _spoken(tex_document(panel, evidence))
 
     assert len(panel.question_section()) < len(panel.question_section(limit=None))
@@ -419,7 +419,7 @@ def test_a_question_carrying_a_blank_line_does_not_put_one_on_the_page(tmp_path)
     """
     doc = json.loads(json.dumps(SUBJECT))
     doc["prompts"] = [{"id": "n1", "text": "Best ice cream\n\nin Vermont"}]
-    panel, evidence, _ = _round(tmp_path, doc, {}, "Marx")
+    panel, evidence, _ = _round(tmp_path, doc, {}, "Ornek")
     tex = tex_document(panel, evidence)
 
     assert "" not in tex.splitlines(), "a blank line reached the document"
@@ -445,8 +445,8 @@ def test_braces_are_balanced(hostile):
 # -- the typography this document is set under -------------------------------
 
 
-def test_the_document_is_set_in_times(marx):
-    panel, evidence, _ = marx
+def test_the_document_is_set_in_times(ornek):
+    panel, evidence, _ = ornek
     assert "newtxtext" in tex_document(panel, evidence)
 
 

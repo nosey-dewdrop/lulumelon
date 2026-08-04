@@ -18,6 +18,16 @@ whose archive is unprotected the moment the next one lands.
 These files are evidence, not test data. They are never regenerated to make a
 test pass. If one of them starts failing, the file is right and the code is
 wrong.
+
+**They were rewritten once, on 4 August 2026, and not to make a test pass.**
+They carried a customer's brand and domain inside their answers, in a public
+repository, so every string in them was replaced with an example brand and each
+chain was re-derived by this build under the schema version the file already
+declared. What that costs is stated plainly: these lines were written by an
+older build and are no longer byte for byte what it wrote, so what they still
+pin is the field set and the hashing rule of each version rather than the
+archive of a round. What it bought is a repository that does not publish who
+paid for one.
 """
 
 from __future__ import annotations
@@ -35,15 +45,15 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 #: Written 2026-07-31 by the build at commit 028d407, before usage fields
 #: existed. Four records: two ordinary answers, one recorded failure, and one
 #: answer whose contact detail was scrubbed on the way in.
-V1_SNAPSHOT = "marx__perplexity__api__20260731T120000Z__0001"
+V1_SNAPSHOT = "ornek__perplexity__api__20260731T120000Z__0001"
 
 #: The sha256 of each line, as v1 computed it. These are the numbers a customer
 #: would quote to say "this is the round I paid for".
 V1_HASHES = (
-    "271451e105a902158fc120b817b9af099d7e51dfd5eba23460c9a4e3f111b66e",
-    "d400f43edf06b472779c1034011f64d8a1bd710a2cfd1ee5f1d5b7935614e733",
-    "695360999d590e3d0563ba93305461cc2beaaf07d3e4ac832a4bf5ea375b6c41",
-    "9adb964d3ab468aac85cdcba1ee8ef341f48ad2bee31f26b12b401fec81c6342",
+    "0f82729a1448095230b3ea2958e3165d0bea1092b6c1e8192f6255e5580278e1",
+    "48cd65d702b673826013be400732e89c8ffe7610fce0e7d7d10309c66a5e8fcb",
+    "82ebbe36b328e0716495f4bb9521b0565315da30b8c099706edb7ec08b6c2b8e",
+    "297ce616885807d2f132e5cfb61d3476489e331d57b87d334775ca21a91b5de0",
 )
 
 #: Every key v1 wrote on a line, hash included. Spelled out rather than derived
@@ -77,12 +87,12 @@ V1_KEYS = frozenset(
 #: Written 2026-08-01 by the build at commit 4e3784f, the last one that wrote
 #: schema v2: usage fields, and no record closing the round. Three records: a
 #: metered answer, one that reported tokens and no amount, and a failure.
-V2_SNAPSHOT = "marx__perplexity__api__20260801T020000Z__0002"
+V2_SNAPSHOT = "ornek__perplexity__api__20260801T020000Z__0002"
 
 V2_HASHES = (
-    "baa15127b15af086f89c710b96734b2636de30ace47885ec3d01884447184d24",
-    "91788c09a3e887aa3bf88bf9c5864ef9f9c7033cbfe6764c52ad51373d59e514",
-    "e7a2b9e4869e95ee9508d1e8994b59b1ecd4cf3c1e14a10957c2ea64c4e87a77",
+    "d2b923e3538da5fe20ccd5cac1fb45f3b66bf6bf91c44c6a96a6a2cc72994501",
+    "295ee998a822d65ac51f776b2d154e207ee14eed0e31f934ba4aa6c6ef737d07",
+    "c449e15ab885b38a56b71d2594d3579704b31d590334ac3ef96cdfc24acd9538",
 )
 
 #: Every key v2 wrote, hash included. Four more than v1 and not one fewer.
@@ -153,7 +163,7 @@ def test_the_recorded_failure_survived_as_a_failure(archive):
 
 def test_the_contact_detail_scrubbed_in_2026_is_still_absent(archive):
     raw = (FIXTURES / f"{V1_SNAPSHOT}.jsonl").read_text(encoding="utf-8")
-    assert "hello@marx.finance" not in raw
+    assert "hello@ornek.com" not in raw
     assert "[email]" in raw
 
 

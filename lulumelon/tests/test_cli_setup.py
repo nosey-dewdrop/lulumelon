@@ -606,7 +606,7 @@ def test_the_diagnostic_round_cannot_be_read_as_a_measurement(tmp_path: Path, mo
     led, snapshot_id = only_round(tmp_path / "ledger")
     assert snapshot_id.startswith("diagnostic__anthropic__api__")
     assert is_diagnostic(snapshot_id)
-    assert not is_diagnostic("marx__anthropic__api__20260801T014500Z__0001")
+    assert not is_diagnostic("ornek__anthropic__api__20260801T014500Z__0001")
 
     with pytest.raises(ValueError, match="diagnostic round"):
         replay(led, snapshot_id)

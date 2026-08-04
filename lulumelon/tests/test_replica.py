@@ -35,7 +35,7 @@ SOURCES = ("https://a.example/guide", "https://b.example/list", "https://c.examp
 
 
 def brands() -> tuple[Brand, ...]:
-    return (Brand(name="marx", aliases=()),)
+    return (Brand(name="ornek", aliases=()),)
 
 
 # -- the prompt is the experiment -------------------------------------------
@@ -157,7 +157,7 @@ def test_a_replica_round_reaches_the_ledger_under_its_own_surface(tmp_path):
         prompts=[Prompt(id="p1", text="who should I use?")],
         brands=brands(),
         k=2,
-        subject="marx",
+        subject="ornek",
     )
     assert REPLICA_SURFACE in result.snapshot_id
     asks = [r for r in ledger.read(result.snapshot_id) if not r.is_seal]
@@ -172,12 +172,12 @@ def test_a_replica_round_is_never_a_single_condition_with_a_live_one(tmp_path):
 
     live = run_round(
         ledger=ledger, provider=FakeProvider(surface="api"), prompts=prompts,
-        brands=brands(), k=2, subject="marx",
+        brands=brands(), k=2, subject="ornek",
     )
     lab = run_round(
         ledger=ledger,
         provider=ReplicaProvider(base=FakeProvider(surface="api"), sources=SOURCES),
-        prompts=prompts, brands=brands(), k=2, subject="marx",
+        prompts=prompts, brands=brands(), k=2, subject="ornek",
     )
     mixed = replay(ledger, live.snapshot_id).runs + replay(ledger, lab.snapshot_id).runs
     assert len({r.surface for r in mixed}) == 2
@@ -248,7 +248,7 @@ def test_both_arms_can_be_collected_end_to_end_against_the_stub(tmp_path):
 
     # The stub is keyed on the exact prompt, which is how the two arms are made
     # to answer differently here: with the source present the brand is named.
-    full.base.script = {replica_prompt(question, full.sources): ("marx is the usual pick.",)}
+    full.base.script = {replica_prompt(question, full.sources): ("ornek is the usual pick.",)}
     dropped.base = FakeProvider(
         script={replica_prompt(question, dropped.sources): ("nobody in particular.",)}
     )
@@ -256,14 +256,14 @@ def test_both_arms_can_be_collected_end_to_end_against_the_stub(tmp_path):
     ledger = Ledger(tmp_path)
     prompts = [Prompt(id="p1", text=question)]
     with_source = run_round(
-        ledger=ledger, provider=full, prompts=prompts, brands=brands(), k=3, subject="marx"
+        ledger=ledger, provider=full, prompts=prompts, brands=brands(), k=3, subject="ornek"
     )
     without_source = run_round(
-        ledger=ledger, provider=dropped, prompts=prompts, brands=brands(), k=3, subject="marx"
+        ledger=ledger, provider=dropped, prompts=prompts, brands=brands(), k=3, subject="ornek"
     )
 
     assert with_source.errors == 0 and without_source.errors == 0
     named = [r.brands for r in ledger.read(with_source.snapshot_id) if not r.is_seal]
     unnamed = [r.brands for r in ledger.read(without_source.snapshot_id) if not r.is_seal]
-    assert named == [("marx",)] * 3
+    assert named == [("ornek",)] * 3
     assert unnamed == [()] * 3

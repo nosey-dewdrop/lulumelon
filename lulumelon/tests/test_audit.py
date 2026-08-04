@@ -5,10 +5,10 @@ from __future__ import annotations
 from lulumelon.collect.audit import audit, is_disallowed, parse_robots
 
 PAGE = """<html><head>
-<title>Marx</title>
+<title>Ornek</title>
 <meta name="description" content="trading agents">
-<link rel="canonical" href="https://marx.finance/">
-<script type="application/ld+json">{"@type":"Organization","name":"Marx"}</script>
+<link rel="canonical" href="https://ornek.com/">
+<script type="application/ld+json">{"@type":"Organization","name":"Ornek"}</script>
 </head><body>%s</body></html>""" % ("word " * 100)
 
 
@@ -21,14 +21,14 @@ def fetcher(pages):
     return fetch
 
 
-BASE = "https://marx.finance/"
+BASE = "https://ornek.com/"
 
 
 def base_pages(**over):
     pages = {
         BASE: (200, PAGE),
-        "https://marx.finance/robots.txt": (200, "User-agent: *\nDisallow:\n"),
-        "https://marx.finance/llms.txt": (200, "# Marx\nTrading agents.\n"),
+        "https://ornek.com/robots.txt": (200, "User-agent: *\nDisallow:\n"),
+        "https://ornek.com/llms.txt": (200, "# Ornek\nTrading agents.\n"),
     }
     pages.update(over)
     return pages
@@ -83,7 +83,7 @@ def test_a_clean_site_produces_no_blocking_finding():
 
 def test_a_blocked_crawler_is_named_with_the_line_that_blocks_it():
     robots = (200, "User-agent: GPTBot\nDisallow: /\n")
-    a = audit(BASE, fetch=fetcher(base_pages(**{"https://marx.finance/robots.txt": robots})))
+    a = audit(BASE, fetch=fetcher(base_pages(**{"https://ornek.com/robots.txt": robots})))
 
     blocking = a.by_severity("blocking")
     assert len(blocking) == 1
@@ -96,21 +96,21 @@ def test_a_blocked_crawler_is_named_with_the_line_that_blocks_it():
 def test_an_unreachable_file_is_not_reported_as_an_absent_one():
     # status 0 is a network failure. "we could not reach it" and "you do not
     # have one" are different statements.
-    pages = base_pages(**{"https://marx.finance/robots.txt": (0, "")})
+    pages = base_pages(**{"https://ornek.com/robots.txt": (0, "")})
     a = audit(BASE, fetch=fetcher(pages))
-    assert "https://marx.finance/robots.txt" in a.unreachable
+    assert "https://ornek.com/robots.txt" in a.unreachable
     assert not any(f.id.startswith("robots.") for f in a.findings)
 
 
 def test_missing_robots_is_stated_as_permitting_everything():
-    pages = base_pages(**{"https://marx.finance/robots.txt": (404, "")})
+    pages = base_pages(**{"https://ornek.com/robots.txt": (404, "")})
     a = audit(BASE, fetch=fetcher(pages))
     ids = {f.id: f for f in a.findings}
     assert ids["robots.absent"].severity == "ok"
 
 
 def test_an_offsite_canonical_is_blocking_not_cosmetic():
-    html = PAGE.replace('href="https://marx.finance/"', 'href="https://old.github.io/"')
+    html = PAGE.replace('href="https://ornek.com/"', 'href="https://old.github.io/"')
     a = audit(BASE, fetch=fetcher(base_pages(**{BASE: (200, html)})))
     ids = {f.id for f in a.by_severity("blocking")}
     assert "canonical.offsite" in ids
@@ -124,7 +124,7 @@ def test_a_page_that_needs_javascript_to_have_words_is_blocking():
 
 
 def test_broken_structured_data_is_called_out_separately_from_missing():
-    html = PAGE.replace('{"@type":"Organization","name":"Marx"}', '{"@type": broken,}')
+    html = PAGE.replace('{"@type":"Organization","name":"Ornek"}', '{"@type": broken,}')
     a = audit(BASE, fetch=fetcher(base_pages(**{BASE: (200, html)})))
     ids = {f.id for f in a.findings}
     assert "jsonld.invalid" in ids

@@ -10,7 +10,7 @@ from lulumelon.mirror.types import Run, snapshot_from_runs
 from lulumelon.panel import TERMINAL_QUESTIONS, Panel, Question
 
 BLOCKED = SiteAudit(
-    base_url="https://marx.finance/",
+    base_url="https://ornek.com/",
     findings=(
         Finding(
             id="robots.blocked.GPTBot",
@@ -22,7 +22,7 @@ BLOCKED = SiteAudit(
     ),
 )
 
-CLEAN = SiteAudit(base_url="https://marx.finance/", findings=())
+CLEAN = SiteAudit(base_url="https://ornek.com/", findings=())
 
 
 def snap(seen_rate=0.5, n_prompts=8, k=6, cite=False):
@@ -36,7 +36,7 @@ def snap(seen_rate=0.5, n_prompts=8, k=6, cite=False):
                     engine="perplexity",
                     model="sonar-2026-07",
                     asked_at=f"2026-07-31T12:{i:02d}:{j:02d}Z",
-                    brands=("Marx",) if named else ("Rival",),
+                    brands=("Ornek",) if named else ("Rival",),
                     citations=(("https://g2.com/x",) if (cite and named) else ()),
                     surface="api",
                 )
@@ -47,7 +47,7 @@ def snap(seen_rate=0.5, n_prompts=8, k=6, cite=False):
 def panel(**over):
     s = over.pop("snapshot", None) or snap()
     self_naming = over.pop("self_naming", ())
-    return Panel(report=brand_report(s, "Marx", self_naming=self_naming), **over)
+    return Panel(report=brand_report(s, "Ornek", self_naming=self_naming), **over)
 
 
 def test_access_comes_before_the_score():
@@ -85,7 +85,7 @@ def test_the_range_is_the_clustered_one_the_caption_names():
     reader.
     """
     s = snap(seen_rate=0.5, n_prompts=8, k=6)
-    report = brand_report(s, "Marx", self_naming=())
+    report = brand_report(s, "Ornek", self_naming=())
     text = Panel(report=report).as_text()
 
     assert report.detection_by_prompt.method.startswith("cluster_bootstrap")
@@ -100,7 +100,7 @@ def test_the_range_is_the_clustered_one_the_caption_names():
 
 def test_a_prompt_excluded_from_the_rate_is_named_on_the_panel_too():
     """Verbatim from the report, so the two surfaces cannot drift apart."""
-    report = brand_report(snap(), "Marx", self_naming=("p0",))
+    report = brand_report(snap(), "Ornek", self_naming=("p0",))
     text = Panel(report=report).as_text()
 
     for line in report.exclusion:
@@ -143,8 +143,8 @@ def test_failed_asks_are_shown_in_the_design_not_hidden():
 def test_sources_are_never_called_an_effect():
     s = snap(cite=True)
     text = Panel(
-        report=brand_report(s, "Marx", self_naming=()),
-        sources=source_graph(s, "Marx", top=3),
+        report=brand_report(s, "Ornek", self_naming=()),
+        sources=source_graph(s, "Ornek", top=3),
     ).as_text()
     assert "These are associations" in text
     assert "counterfactual" in text
@@ -168,7 +168,7 @@ def test_the_limitation_line_states_what_the_round_covers():
 #: An unbalanced round, which is the shape a real one takes: every question
 #: asked the same number of times and each keeping a different number of them.
 UNBALANCED = (
-    Question(id="m1", text="What is marx.finance?", asked=20, usable=20, excluded=True),
+    Question(id="m1", text="What is ornek.com?", asked=20, usable=20, excluded=True),
     Question(id="m6", text="How does an agent build a record?", asked=20, usable=7, excluded=False),
     Question(id="m8", text="Agentic finance platforms in 2026", asked=20, usable=20, excluded=False),
 )
@@ -264,7 +264,7 @@ def test_a_panel_that_was_handed_no_surface_describes_no_call():
 
 def test_the_scoring_lines_name_the_estimator_the_round_actually_used():
     """The method string carries the draws and the seed, so it is printed whole."""
-    report = brand_report(snap(), "Marx", self_naming=())
+    report = brand_report(snap(), "Ornek", self_naming=())
     text = Panel(report=report).as_text()
 
     assert "the rate is the mean of the per-prompt means" in text
@@ -274,7 +274,7 @@ def test_the_scoring_lines_name_the_estimator_the_round_actually_used():
 
 def test_severity_labels_do_not_run_into_the_title():
     audit = SiteAudit(
-        base_url="https://marx.finance/",
+        base_url="https://ornek.com/",
         findings=(
             Finding("canonical.absent", "degrading", "no canonical link", "", "x"),
             Finding("llms.absent", "missing", "no llms.txt", "", "y"),

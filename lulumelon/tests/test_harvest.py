@@ -277,11 +277,11 @@ def test_a_skipped_link_does_not_spend_the_page_budget():
 def test_the_subject_name_comes_from_the_site_s_own_declaration():
     ld = (
         '<script type="application/ld+json">'
-        '{"@type": "Organization", "name": "Marx Finance"}'
+        '{"@type": "Organization", "name": "Ornek Finance"}'
         "</script>"
     )
     corpus = harvest(BASE, fetch=fetcher({BASE: page("Home", extra=ld)}))
-    assert corpus.subject_name == "Marx Finance"
+    assert corpus.subject_name == "Ornek Finance"
     assert corpus.subject_name_source == "json-ld Organization.name"
 
 
@@ -296,21 +296,21 @@ def test_broken_json_ld_falls_back_instead_of_raising():
 
 def test_the_quotable_text_carries_title_description_and_body():
     extra = '<meta name="description" content="Loans for builders">'
-    corpus = harvest(BASE, fetch=fetcher({BASE: page("Marx", "We price risk daily.", extra=extra)}))
+    corpus = harvest(BASE, fetch=fetcher({BASE: page("Ornek", "We price risk daily.", extra=extra)}))
     quotable = corpus.quotable
-    assert "Marx" in quotable
+    assert "Ornek" in quotable
     assert "Loans for builders" in quotable
     assert "We price risk daily." in quotable
 
 
 def test_the_digest_changes_when_the_site_does():
-    first = harvest(BASE, fetch=fetcher({BASE: page("Marx", "We price risk daily.")}))
-    second = harvest(BASE, fetch=fetcher({BASE: page("Marx", "We price risk weekly.")}))
+    first = harvest(BASE, fetch=fetcher({BASE: page("Ornek", "We price risk daily.")}))
+    second = harvest(BASE, fetch=fetcher({BASE: page("Ornek", "We price risk weekly.")}))
     assert first.digest != second.digest
 
 
 def test_the_digest_is_stable_for_the_same_reading():
-    site = {BASE: page("Marx", "We price risk daily.")}
+    site = {BASE: page("Ornek", "We price risk daily.")}
     assert harvest(BASE, fetch=fetcher(site)).digest == harvest(BASE, fetch=fetcher(site)).digest
 
 
@@ -358,8 +358,8 @@ def test_a_sitemap_index_is_followed_one_level():
 
 
 def test_llms_txt_is_kept_when_the_site_publishes_one():
-    site = {BASE: page("Home"), f"{BASE}/llms.txt": "# Marx\nWe price risk."}
-    assert harvest(BASE, fetch=fetcher(site)).llms_txt == "# Marx\nWe price risk."
+    site = {BASE: page("Home"), f"{BASE}/llms.txt": "# Ornek\nWe price risk."}
+    assert harvest(BASE, fetch=fetcher(site)).llms_txt == "# Ornek\nWe price risk."
 
 
 def test_an_empty_llms_txt_is_not_mistaken_for_one():

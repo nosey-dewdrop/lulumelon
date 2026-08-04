@@ -37,12 +37,12 @@ from lulumelon.collect.detect import Brand
 from lulumelon.collect.session import Prompt, run_round
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-V1_SNAPSHOT = "marx__perplexity__api__20260731T120000Z__0001"
+V1_SNAPSHOT = "ornek__perplexity__api__20260731T120000Z__0001"
 
 #: The round the previous build wrote, kept as evidence in
 #: `test_ledger_golden.py`. Read here for the one question this file asks of
 #: it: what a checker that knows about seals says about a file that has none.
-V2_SNAPSHOT = "marx__perplexity__api__20260801T020000Z__0002"
+V2_SNAPSHOT = "ornek__perplexity__api__20260801T020000Z__0002"
 
 
 def _reforge(path: Path) -> None:
@@ -75,9 +75,9 @@ def rec(**over) -> Record:
         asked_at="2026-07-31T10:00:00Z",
         status="ok",
         latency_ms=1200,
-        answer_text="Marx is a platform for trading agents.",
-        brands=("marx",),
-        citations=("https://marx.finance",),
+        answer_text="Ornek is a platform for trading agents.",
+        brands=("ornek",),
+        citations=("https://ornek.com",),
         provider="perplexity",
     )
     base.update(over)
@@ -291,7 +291,7 @@ def test_a_duplicated_key_is_reported_rather_than_last_wins(archive):
         archive,
         V1_SNAPSHOT,
         0,
-        lambda line: line.replace('"brands":["marx"]', '"brands":["marx"],"brands":["marx","planted"]'),
+        lambda line: line.replace('"brands":["ornek"]', '"brands":["ornek"],"brands":["ornek","planted"]'),
     )
     assert any("twice" in p for p in archive.verify(V1_SNAPSHOT))
 
@@ -368,16 +368,16 @@ def test_usage_travels_from_the_answer_into_the_written_record(led):
     """
     provider = FakeProvider(
         name="perplexity",
-        script={"who trades agents?": ("Marx does.",)},
+        script={"who trades agents?": ("Ornek does.",)},
         usage=Usage(input_tokens=118, output_tokens=64, search_context="low", cost_usd=0.0061),
     )
     result = run_round(
         ledger=led,
         provider=provider,
         prompts=[Prompt(id="p1", text="who trades agents?")],
-        brands=[Brand(name="marx", aliases=())],
+        brands=[Brand(name="ornek", aliases=())],
         k=2,
-        subject="marx",
+        subject="ornek",
         clock=lambda: "2026-07-31T12:00:00Z",
     )
     written = [r for r in led.read(result.snapshot_id) if not r.is_seal]
@@ -391,11 +391,11 @@ def test_usage_travels_from_the_answer_into_the_written_record(led):
 def test_a_round_from_a_silent_provider_writes_unknown_not_zero(led):
     result = run_round(
         ledger=led,
-        provider=FakeProvider(name="perplexity", script={"q": ("Marx does.",)}),
+        provider=FakeProvider(name="perplexity", script={"q": ("Ornek does.",)}),
         prompts=[Prompt(id="p1", text="q")],
-        brands=[Brand(name="marx", aliases=())],
+        brands=[Brand(name="ornek", aliases=())],
         k=2,
-        subject="marx",
+        subject="ornek",
         clock=lambda: "2026-07-31T12:00:00Z",
     )
     raw = led.path_of(result.snapshot_id).read_text(encoding="utf-8")
@@ -411,14 +411,14 @@ def test_an_answer_with_a_broken_character_does_not_abort_the_round(led):
     indistinguishable from a complete one, which is the truncation hole with
     extra steps.
     """
-    broken = "Marx \ud83d is first."
+    broken = "Ornek \ud83d is first."
     result = run_round(
         ledger=led,
         provider=FakeProvider(name="perplexity", script={"q": (broken,)}),
         prompts=[Prompt(id="p1", text="q")],
-        brands=[Brand(name="marx", aliases=())],
+        brands=[Brand(name="ornek", aliases=())],
         k=3,
-        subject="marx",
+        subject="ornek",
         clock=lambda: "2026-07-31T12:00:00Z",
     )
     assert result.asked == 3 and led.calls(result.snapshot_id) == 3
@@ -442,11 +442,11 @@ def test_contact_details_are_stripped_from_the_error_field_too(led):
     """The provider's own words reach disk, and they have quoted an address."""
     written = led.append(
         "s__e__api__x__0001",
-        rec(status="error", answer_text="", brands=(), citations=(), error="http 400: contact ops@marx.finance"),
+        rec(status="error", answer_text="", brands=(), citations=(), error="http 400: contact ops@ornek.com"),
     )
-    assert "ops@marx.finance" not in written.error
+    assert "ops@ornek.com" not in written.error
     assert "[email]" in written.error
-    assert "ops@marx.finance" not in led.path_of("s__e__api__x__0001").read_text(encoding="utf-8")
+    assert "ops@ornek.com" not in led.path_of("s__e__api__x__0001").read_text(encoding="utf-8")
 
 
 # -- the check a customer can actually run ----------------------------------
@@ -472,7 +472,7 @@ def test_verify_command_passes_an_untouched_archive(archive, tmp_path):
 def test_verify_command_names_what_moved(archive, tmp_path):
     from lulumelon.cli import verify as run_verify
 
-    _tamper(archive, V1_SNAPSHOT, 0, lambda line: line.replace('"marx"', '"planted"'))
+    _tamper(archive, V1_SNAPSHOT, 0, lambda line: line.replace('"ornek"', '"planted"'))
     console, out = _console()
     assert run_verify(console, ledger_dir=tmp_path) == 1
     assert "BROKEN" in out.getvalue()
@@ -498,11 +498,11 @@ def a_round(led: Ledger, k: int = 2, **over) -> str:
     collected round is closed. The provider never leaves this process."""
     result = run_round(
         ledger=led,
-        provider=FakeProvider(name="perplexity", script={"q1": ("Marx does.",)}, **over),
+        provider=FakeProvider(name="perplexity", script={"q1": ("Ornek does.",)}, **over),
         prompts=[Prompt(id="p1", text="q1"), Prompt(id="p2", text="q2")],
-        brands=[Brand(name="marx", aliases=())],
+        brands=[Brand(name="ornek", aliases=())],
         k=k,
-        subject="marx",
+        subject="ornek",
         clock=lambda: "2026-08-01T02:00:00Z",
     )
     return result.snapshot_id
@@ -707,7 +707,7 @@ def test_a_seal_cannot_carry_an_answer():
         Record(
             snapshot_id="s__e__api__x__0001", seq=0, prompt_id="", repeat=0, engine="",
             surface="", model="", asked_at="", status=ROUND_END, latency_ms=0,
-            answer_text="", brands=("marx",), citations=(), provider="",
+            answer_text="", brands=("ornek",), citations=(), provider="",
             round_asked=1, round_ok=1, round_errors=0,
         )
 

@@ -32,11 +32,11 @@ from lulumelon.mirror.screen import (
     verdict_for,
 )
 
-ABOUT = "https://marx.example/about"
-PRICING = "https://marx.example/pricing"
+ABOUT = "https://ornek.example/about"
+PRICING = "https://ornek.example/pricing"
 
 PAGE = (
-    "Marx Finance prices construction risk daily. "
+    "Ornek Finance prices construction risk daily. "
     "Our underwriters review every draw schedule before funds release."
 )
 
@@ -108,8 +108,8 @@ def test_a_question_with_a_quote_but_no_source_is_refused():
 
 def test_a_question_containing_a_tracked_name_is_dropped():
     result = run(
-        [good("p1", "What is Marx Finance?")],
-        detect=brands_named("Marx Finance"),
+        [good("p1", "What is Ornek Finance?")],
+        detect=brands_named("Ornek Finance"),
     )
     assert result.rejected[0].gate == "name"
     assert "measure its own echo" in result.rejected[0].reason
@@ -118,7 +118,7 @@ def test_a_question_containing_a_tracked_name_is_dropped():
 def test_the_same_question_without_the_name_survives():
     result = run(
         [good("p1", "Which lenders price construction risk daily?")],
-        detect=brands_named("Marx Finance"),
+        detect=brands_named("Ornek Finance"),
     )
     assert len(result.kept) == 1
 
@@ -172,7 +172,7 @@ def test_the_same_quote_under_its_own_page_survives():
 
 def test_a_citation_to_a_page_that_was_never_read_is_refused():
     result = run(
-        [Candidate("p1", "Which lenders are fastest?", "https://marx.example/invented", "anything")]
+        [Candidate("p1", "Which lenders are fastest?", "https://ornek.example/invented", "anything")]
     )
     assert result.rejected[0].gate == "evidence"
     assert "never read" in result.rejected[0].reason
@@ -214,16 +214,16 @@ def test_the_threshold_is_refused_outside_its_range():
 def test_a_candidate_tripping_several_gates_reports_the_first():
     """Names a brand and invents a quote. The name gate runs first."""
     result = run(
-        [Candidate("p1", "What is Marx Finance?", "https://x", "we guarantee same day funding")],
-        detect=brands_named("Marx Finance"),
+        [Candidate("p1", "What is Ornek Finance?", "https://x", "we guarantee same day funding")],
+        detect=brands_named("Ornek Finance"),
     )
     assert result.rejected[0].gate == "name"
 
 
 def test_shape_runs_before_name():
     result = run(
-        [Candidate("p1", "What is Marx Finance?", "", "")],
-        detect=brands_named("Marx Finance"),
+        [Candidate("p1", "What is Ornek Finance?", "", "")],
+        detect=brands_named("Ornek Finance"),
     )
     assert result.rejected[0].gate == "shape"
 

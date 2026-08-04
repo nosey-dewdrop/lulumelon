@@ -33,8 +33,8 @@ def built(spec):
 def test_source_use_counts_prompts_and_runs_separately():
     snap = built(
         {
-            "p1": [(("Marx",), (A,)), ((), (A,)), (("Marx",), (A, B))],
-            "p2": [(("Marx",), (B,)), ((), (B,)), ((), (B,))],
+            "p1": [(("Ornek",), (A,)), ((), (A,)), (("Ornek",), (A, B))],
+            "p2": [(("Ornek",), (B,)), ((), (B,)), ((), (B,))],
         }
     )
     use = {s.url: s for s in source_use(snap)}
@@ -48,11 +48,11 @@ def test_a_source_cited_in_every_run_gets_no_contrast():
     # this is the case a competing panel prints as "0 difference, not important"
     snap = built(
         {
-            "p1": [(("Marx",), (A,)), (("Marx",), (A,)), ((), (A,)), ((), (A,))],
-            "p2": [(("Marx",), (A,)), ((), (A,)), ((), (A,)), ((), (A,))],
+            "p1": [(("Ornek",), (A,)), (("Ornek",), (A,)), ((), (A,)), ((), (A,))],
+            "p2": [(("Ornek",), (A,)), ((), (A,)), ((), (A,)), ((), (A,))],
         }
     )
-    got = associate(snap, "Marx", A)
+    got = associate(snap, "Ornek", A)
     assert got.interval is None
     assert not got.is_reportable
     assert "NO CONTRAST" in got.verdict
@@ -64,11 +64,11 @@ def test_too_few_prompts_with_a_split_is_withheld():
     # the prompt is the resampling unit, so one cluster is not a population.
     snap = built(
         {
-            "p1": [(("Marx",), (A,)), (("Marx",), (A,)), ((), ()), ((), ())],
-            "p2": [(("Marx",), (A,)), (("Marx",), (A,)), (("Marx",), (A,)), (("Marx",), (A,))],
+            "p1": [(("Ornek",), (A,)), (("Ornek",), (A,)), ((), ()), ((), ())],
+            "p2": [(("Ornek",), (A,)), (("Ornek",), (A,)), (("Ornek",), (A,)), (("Ornek",), (A,))],
         }
     )
-    got = associate(snap, "Marx", A)
+    got = associate(snap, "Ornek", A)
     assert got.interval is None
     assert "WITHHELD" in got.verdict
     assert got.prompts_used < MIN_PROMPTS
@@ -78,14 +78,14 @@ def test_a_real_contrast_is_reported_but_never_called_an_effect():
     spec = {}
     for i in range(6):
         spec[f"p{i}"] = [
-            (("Marx",), (A,)),
-            (("Marx",), (A,)),
-            (("Marx",), (A,)),
+            (("Ornek",), (A,)),
+            (("Ornek",), (A,)),
+            (("Ornek",), (A,)),
             ((), ()),
             ((), ()),
             ((), ()),
         ]
-    got = associate(built(spec), "Marx", A)
+    got = associate(built(spec), "Ornek", A)
 
     assert got.is_reportable
     assert got.rate_when_cited == 1.0
@@ -102,12 +102,12 @@ def test_a_source_that_carries_nothing_is_said_to_carry_nothing():
     spec = {}
     for i in range(6):
         spec[f"p{i}"] = [
-            (("Marx",), (A,)),
+            (("Ornek",), (A,)),
             ((), (A,)),
-            (("Marx",), ()),
+            (("Ornek",), ()),
             ((), ()),
         ]
-    got = associate(built(spec), "Marx", A)
+    got = associate(built(spec), "Ornek", A)
     assert got.is_reportable
     assert abs(got.difference) < 1e-9
     assert "NOT SEPARABLE FROM ZERO" in got.verdict
@@ -118,12 +118,12 @@ def test_the_graph_is_ordered_by_citation_count_not_by_effect_size():
     spec = {}
     for i in range(5):
         spec[f"p{i}"] = [
-            (("Marx",), (B,)),
+            (("Ornek",), (B,)),
             ((), (B,)),
-            (("Marx",), (B, A)),
+            (("Ornek",), (B, A)),
             ((), ()),
         ]
-    graph = source_graph(built(spec), "Marx", top=2)
+    graph = source_graph(built(spec), "Ornek", top=2)
     assert graph[0].url == B, "ranking by effect size headlines the least stable number"
 
 
@@ -131,12 +131,12 @@ def test_the_same_round_gives_the_same_interval_twice():
     spec = {}
     for i in range(6):
         spec[f"p{i}"] = [
-            (("Marx",), (A,)),
+            (("Ornek",), (A,)),
             ((), (A,)),
-            (("Marx",), ()),
+            (("Ornek",), ()),
             ((), ()),
         ]
     snap = built(spec)
-    first = associate(snap, "Marx", A, seed=11)
-    second = associate(snap, "Marx", A, seed=11)
+    first = associate(snap, "Ornek", A, seed=11)
+    second = associate(snap, "Ornek", A, seed=11)
     assert first.interval == second.interval

@@ -22,9 +22,9 @@ def rec(prompt_id: str = "m1", repeat: int = 0, **over) -> Record:
         asked_at="2026-07-30T10:00:00Z",
         status="ok",
         latency_ms=1200,
-        answer_text="Marx is a platform for trading agents.",
-        brands=("marx",),
-        citations=("https://marx.finance",),
+        answer_text="Ornek is a platform for trading agents.",
+        brands=("ornek",),
+        citations=("https://ornek.com",),
         provider="fake",
     )
     base.update(over)
@@ -56,10 +56,10 @@ def round_of(led: Ledger, snapshot_id: str, records: list[Record]) -> str:
 
 def test_second_round_is_a_new_snapshot_not_an_overwrite(led):
     now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
-    first = led.next_snapshot_id("marx", "chatgpt", "logged_out", now=now)
+    first = led.next_snapshot_id("ornek", "chatgpt", "logged_out", now=now)
     round_of(led, first, [rec()])
 
-    second = led.next_snapshot_id("marx", "chatgpt", "logged_out", now=now)
+    second = led.next_snapshot_id("ornek", "chatgpt", "logged_out", now=now)
 
     assert first != second
     assert led.calls(first) == 1
@@ -82,7 +82,7 @@ def test_a_name_is_taken_by_creating_the_file_not_by_returning_a_string(led):
     """
     now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
     handed_out = [
-        led.next_snapshot_id("marx", "chatgpt", "logged_out", now=now) for _ in range(5)
+        led.next_snapshot_id("ornek", "chatgpt", "logged_out", now=now) for _ in range(5)
     ]
     assert len(set(handed_out)) == 5
     for snapshot_id in handed_out:
@@ -93,7 +93,7 @@ def test_sequence_survives_two_rounds_inside_the_same_second(led):
     now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
     ids = []
     for _ in range(3):
-        sid = led.next_snapshot_id("marx", "chatgpt", "logged_out", now=now)
+        sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out", now=now)
         led.append(sid, rec())
         ids.append(sid)
 
@@ -102,7 +102,7 @@ def test_sequence_survives_two_rounds_inside_the_same_second(led):
 
 
 def test_appending_never_shortens_a_snapshot(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     for i in range(5):
         led.append(sid, rec(repeat=i))
     assert led.count(sid) == 5
@@ -113,27 +113,27 @@ def test_appending_never_shortens_a_snapshot(led):
 
 
 def test_intact_chain_verifies_clean(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     round_of(led, sid, [rec(repeat=i) for i in range(4)])
     assert led.verify(sid) == []
 
 
 def test_first_record_links_to_genesis(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     written = led.append(sid, rec())
     assert written.prev_hash == GENESIS
     assert written.hash != ""
 
 
 def test_editing_an_answer_after_the_fact_is_caught(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     for i in range(3):
         led.append(sid, rec(repeat=i))
 
     path = led.path_of(sid)
     lines = path.read_text(encoding="utf-8").splitlines()
     doctored = json.loads(lines[0])
-    doctored["brands"] = ["marx", "planted-competitor"]
+    doctored["brands"] = ["ornek", "planted-competitor"]
     lines[0] = json.dumps(doctored, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -178,7 +178,7 @@ def test_patching_the_break_only_moves_it_one_line_down(led):
     reforging the entire tail, which is what makes a measured history expensive
     to fabricate after the fact.
     """
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     for i in range(3):
         led.append(sid, rec(repeat=i))
 
@@ -186,7 +186,7 @@ def test_patching_the_break_only_moves_it_one_line_down(led):
     lines = _read(path)
 
     doctored = json.loads(lines[0])
-    doctored["brands"] = ["marx", "planted-competitor"]
+    doctored["brands"] = ["ornek", "planted-competitor"]
     lines[0] = json.dumps(doctored, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
     # the attacker's repair: repoint line 1 at the doctored line 0 and reseal it
@@ -207,7 +207,7 @@ def test_patching_the_break_only_moves_it_one_line_down(led):
 
 
 def test_deleting_a_record_is_caught(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     for i in range(4):
         led.append(sid, rec(repeat=i))
 
@@ -223,7 +223,7 @@ def test_deleting_a_record_is_caught(led):
 
 
 def test_a_failed_ask_is_written_not_dropped(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     round_of(
         led,
         sid,
@@ -256,21 +256,21 @@ def test_a_failed_ask_is_written_not_dropped(led):
 
 
 def test_contact_details_are_stripped_before_the_hash(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
-    written = led.append(sid, rec(answer_text="Reach them at hello@marx.finance or +90 532 111 22 33."))
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
+    written = led.append(sid, rec(answer_text="Reach them at hello@ornek.com or +90 532 111 22 33."))
     led.seal(sid, asked=1, ok=1, errors=0)
 
-    assert "hello@marx.finance" not in written.answer_text
+    assert "hello@ornek.com" not in written.answer_text
     assert "[email]" in written.answer_text
     assert "532 111 22 33" not in written.answer_text
 
     raw = led.path_of(sid).read_text(encoding="utf-8")
-    assert "hello@marx.finance" not in raw
+    assert "hello@ornek.com" not in raw
     assert led.verify(sid) == []
 
 
 def test_scrub_leaves_ordinary_text_alone():
-    text = "Marx ranked 2nd in 2026 with 41% share of voice."
+    text = "Ornek ranked 2nd in 2026 with 41% share of voice."
     assert scrub(text) == text
 
 
@@ -290,7 +290,7 @@ KEYLIKE_AND_LUHN = "sk-ant-4111111111111111"
 
 
 def test_a_key_quoted_in_an_answer_never_reaches_the_file(led):
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     written = led.append(
         sid, rec(answer_text=f"Their docs example uses {KEYLIKE_AND_LUHN} as the token.")
     )
@@ -311,7 +311,7 @@ def test_a_key_in_an_error_body_is_caught_by_the_ledger_too(led):
     the only guard. It is the one that still holds when a provider class is
     added and its author does not know that rule exists.
     """
-    sid = led.next_snapshot_id("marx", "chatgpt", "logged_out")
+    sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out")
     written = led.append(
         sid, rec(status="error", answer_text="", error=f"401 for {KEYLIKE_AND_LUHN}")
     )
@@ -336,7 +336,7 @@ def test_the_key_rule_runs_before_the_card_rule():
 def test_a_hyphenated_word_that_is_not_a_key_survives():
     for text in (
         "the sk-learn tutorial",
-        "Marx ranked 2nd with 41% share of voice.",
+        "Ornek ranked 2nd with 41% share of voice.",
     ):
         assert scrub(text) == text
 
@@ -363,7 +363,7 @@ FIGURES = [
     "per call $0.005182 across 4 records",
     "1.2 +/- 0.45 and 56.6% - 100.0%",
     "sonar is $1 in / $1 out per 1M tokens, plus $5 to $12 per 1000 requests",
-    "snapshot marx__fake__api__20260731T205245Z__0001",
+    "snapshot ornek__fake__api__20260731T205245Z__0001",
     "https://a.example/guide/1234567",
     "https://a.example/p?id=12345678901",
     "icc 0.0603, 1360/2720 calls",

@@ -19,7 +19,7 @@ from lulumelon.mirror.compare import surface_confounds
 from lulumelon.mirror.types import snapshot_from_runs
 from lulumelon.prices import price_for
 
-BRANDS = (Brand("Marx", aliases=("marx.finance",)), Brand("Rival"))
+BRANDS = (Brand("Ornek", aliases=("ornek.com",)), Brand("Rival"))
 
 P1 = Prompt("p1", "best trading agent platform?")
 P2 = Prompt("p2", "alternatives to Rival?")
@@ -62,20 +62,20 @@ def test_k_of_one_is_refused_not_quietly_accepted(led):
             prompts=[P1],
             brands=BRANDS,
             k=1,
-            subject="marx",
+            subject="ornek",
             clock=ticking_clock(),
         )
 
 
 def test_every_ask_is_written_once(led):
-    provider = FakeProvider(script={P1.text: ("Marx leads.", "Rival leads.")})
+    provider = FakeProvider(script={P1.text: ("Ornek leads.", "Rival leads.")})
     result = run_round(
         ledger=led,
         provider=provider,
         prompts=[P1, P2],
         brands=BRANDS,
         k=3,
-        subject="marx",
+        subject="ornek",
         clock=ticking_clock(),
     )
 
@@ -88,14 +88,14 @@ def test_every_ask_is_written_once(led):
 def test_a_failed_ask_is_recorded_not_retried(led):
     # the 2nd and 5th draws fail. A collector that retried would report six
     # answers; one that dropped them would report four and call it six.
-    provider = FakeProvider(script={P1.text: ("Marx leads.",)}, fail_on=(1, 4))
+    provider = FakeProvider(script={P1.text: ("Ornek leads.",)}, fail_on=(1, 4))
     result = run_round(
         ledger=led,
         provider=provider,
         prompts=[P1],
         brands=BRANDS,
         k=6,
-        subject="marx",
+        subject="ornek",
         clock=ticking_clock(),
     )
 
@@ -111,14 +111,14 @@ def test_a_failed_ask_is_recorded_not_retried(led):
 
 
 def test_replay_hands_back_the_failures_it_excluded(led):
-    provider = FakeProvider(script={P1.text: ("Marx leads.",)}, fail_on=(1,))
+    provider = FakeProvider(script={P1.text: ("Ornek leads.",)}, fail_on=(1,))
     result = run_round(
         ledger=led,
         provider=provider,
         prompts=[P1],
         brands=BRANDS,
         k=4,
-        subject="marx",
+        subject="ornek",
         clock=ticking_clock(),
     )
 
@@ -132,14 +132,14 @@ def test_replay_hands_back_the_failures_it_excluded(led):
 
 
 def test_a_round_carries_one_surface_and_one_model(led):
-    provider = FakeProvider(script={P1.text: ("Marx leads.",)}, surface="logged_out")
+    provider = FakeProvider(script={P1.text: ("Ornek leads.",)}, surface="logged_out")
     result = run_round(
         ledger=led,
         provider=provider,
         prompts=[P1],
         brands=BRANDS,
         k=2,
-        subject="marx",
+        subject="ornek",
         clock=ticking_clock(),
     )
 
@@ -156,27 +156,27 @@ def test_mixed_conditions_are_flagged_rather_than_averaged(led):
     # so this has to be visible before anyone reads a score off it.
     sid = None
     for surface in ("logged_out", "api"):
-        provider = FakeProvider(script={P1.text: ("Marx leads.",)}, surface=surface)
+        provider = FakeProvider(script={P1.text: ("Ornek leads.",)}, surface=surface)
         result = run_round(
             ledger=led,
             provider=provider,
             prompts=[P1],
             brands=BRANDS,
             k=2,
-            subject="marx",
+            subject="ornek",
             clock=ticking_clock(),
         )
         sid = sid or result.snapshot_id
 
     # force the mix into one snapshot the way a careless caller would
-    provider = FakeProvider(script={P1.text: ("Marx leads.",)}, surface="api")
+    provider = FakeProvider(script={P1.text: ("Ornek leads.",)}, surface="api")
     run_round(
         ledger=led,
         provider=provider,
         prompts=[P1],
         brands=BRANDS,
         k=2,
-        subject="marx",
+        subject="ornek",
         clock=ticking_clock(),
     )
 
@@ -185,14 +185,14 @@ def test_mixed_conditions_are_flagged_rather_than_averaged(led):
 
 
 def test_asking_twice_never_overwrites_the_first_round(led):
-    provider = FakeProvider(script={P1.text: ("Marx leads.",)})
+    provider = FakeProvider(script={P1.text: ("Ornek leads.",)})
     first = run_round(
         ledger=led, provider=provider, prompts=[P1], brands=BRANDS, k=2,
-        subject="marx", clock=ticking_clock(),
+        subject="ornek", clock=ticking_clock(),
     )
     second = run_round(
         ledger=led, provider=provider, prompts=[P1], brands=BRANDS, k=2,
-        subject="marx", clock=ticking_clock(),
+        subject="ornek", clock=ticking_clock(),
     )
 
     assert first.snapshot_id != second.snapshot_id
@@ -209,10 +209,10 @@ def test_a_completed_round_ends_with_one_seal_saying_what_it_did(led):
     round made and how many came back. Exactly one seal, and it is last: a file
     that says it is over and then goes on saying things is not a round.
     """
-    provider = FakeProvider(script={P1.text: ("Marx leads.",)}, fail_on=(1,))
+    provider = FakeProvider(script={P1.text: ("Ornek leads.",)}, fail_on=(1,))
     result = run_round(
         ledger=led, provider=provider, prompts=[P1, P2], brands=BRANDS, k=2,
-        subject="marx", clock=ticking_clock(),
+        subject="ornek", clock=ticking_clock(),
     )
 
     records = list(led.read(result.snapshot_id))
@@ -237,13 +237,13 @@ def test_the_two_arms_are_two_conditions_everywhere_they_are_read(led):
     otherwise put a number on the gap between them.
     """
     searched = run_round(
-        ledger=led, provider=FakeProvider(script={P1.text: ("Marx leads.",)}),
-        prompts=[P1], brands=BRANDS, k=2, subject="marx", clock=ticking_clock(),
+        ledger=led, provider=FakeProvider(script={P1.text: ("Ornek leads.",)}),
+        prompts=[P1], brands=BRANDS, k=2, subject="ornek", clock=ticking_clock(),
     )
     unsearched = run_round(
         ledger=led,
-        provider=FakeProvider(script={P1.text: ("Marx leads.",)}, surface=UNSEARCHED_SURFACE),
-        prompts=[P1], brands=BRANDS, k=2, subject="marx", clock=ticking_clock(),
+        provider=FakeProvider(script={P1.text: ("Ornek leads.",)}, surface=UNSEARCHED_SURFACE),
+        prompts=[P1], brands=BRANDS, k=2, subject="ornek", clock=ticking_clock(),
     )
 
     assert searched.snapshot_id != unsearched.snapshot_id
@@ -266,10 +266,10 @@ def test_the_two_arms_are_two_conditions_everywhere_they_are_read(led):
 
 def test_the_collector_computes_no_score(led):
     # the wall between the network and the arithmetic: a round returns counts.
-    provider = FakeProvider(script={P1.text: ("Marx leads.",)})
+    provider = FakeProvider(script={P1.text: ("Ornek leads.",)})
     result = run_round(
         ledger=led, provider=provider, prompts=[P1], brands=BRANDS, k=2,
-        subject="marx", clock=ticking_clock(),
+        subject="ornek", clock=ticking_clock(),
     )
     assert not hasattr(result, "visibility")
     assert not hasattr(result, "score")
@@ -284,11 +284,11 @@ def test_a_budget_nobody_could_exhaust_leaves_the_round_alone(led):
     # a round with one on.
     unguarded = run_round(
         ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
-        k=3, subject="marx", clock=ticking_clock(),
+        k=3, subject="ornek", clock=ticking_clock(),
     )
     guarded = run_round(
         ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
-        k=3, subject="marx", clock=ticking_clock(),
+        k=3, subject="ornek", clock=ticking_clock(),
         budget=Budget(price=OPUS, limit_usd=5.0, max_searches=1, max_output_tokens=CAP),
     )
 
@@ -308,7 +308,7 @@ def test_a_round_that_runs_out_stops_short_and_says_how_short(led):
     budget = Budget(price=OPUS, limit_usd=0.25, max_searches=1, max_output_tokens=CAP)
     result = run_round(
         ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1, P2], brands=BRANDS,
-        k=8, subject="marx", clock=ticking_clock(), budget=budget,
+        k=8, subject="ornek", clock=ticking_clock(), budget=budget,
     )
 
     assert result.planned == 16
@@ -342,7 +342,7 @@ def test_a_budget_for_three_unmetered_calls_makes_exactly_three(led):
     budget = Budget(price=OPUS, limit_usd=0.30, max_searches=1, max_output_tokens=CAP)
     result = run_round(
         ledger=led, provider=FakeProvider(), prompts=[P1, P2, Prompt("p3", "who else?")],
-        brands=BRANDS, k=2, subject="marx", clock=ticking_clock(), budget=budget,
+        brands=BRANDS, k=2, subject="ornek", clock=ticking_clock(), budget=budget,
     )
 
     assert result.asked == 3
@@ -359,7 +359,7 @@ def test_a_round_that_cannot_afford_its_first_ask_asks_nothing(led):
     budget = Budget(price=OPUS, limit_usd=0.01, max_searches=1, max_output_tokens=CAP)
     result = run_round(
         ledger=led, provider=FakeProvider(usage=METERED), prompts=[P1], brands=BRANDS,
-        k=4, subject="marx", clock=ticking_clock(), budget=budget,
+        k=4, subject="ornek", clock=ticking_clock(), budget=budget,
     )
 
     assert result.asked == 0
@@ -376,5 +376,5 @@ def test_a_round_that_cannot_afford_its_first_ask_asks_nothing(led):
     assert led.verify(result.snapshot_id) == []
     assert any(
         "has no records" in p
-        for p in led.verify(led.next_snapshot_id("marx", "fake", "api"))
+        for p in led.verify(led.next_snapshot_id("ornek", "fake", "api"))
     )

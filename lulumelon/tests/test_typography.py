@@ -149,7 +149,7 @@ def test_the_check_leaves_alone_the_marks_that_are_not_a_dash():
         "  noise floor  +/-1.4 points  (icc 0.10)",
         "  anthropic/claude-haiku-4-5: charged 2 search fees over 6 calls",
         "    16.0% when cited vs 4.0% when not   +12.0 pts (+1.1..+22.9)",
-        "  marx__anthropic__api__20260801T033000Z__0001",
+        "  ornek__anthropic__api__20260801T033000Z__0001",
     ):
         assert dashes(line) == [], line
 
@@ -157,17 +157,17 @@ def test_the_check_leaves_alone_the_marks_that_are_not_a_dash():
 # -- one round, collected and reported ---------------------------------------
 
 SUBJECT = {
-    "subject": {"id": "marx", "name": "Marx", "aliases": ["Marx Finance", "marx.finance"]},
+    "subject": {"id": "ornek", "name": "Ornek", "aliases": ["Ornek Finance", "ornek.com"]},
     "prompts": [
-        {"id": "m1", "text": "What is marx.finance?", "intent": "entity"},
+        {"id": "m1", "text": "What is ornek.com?", "intent": "entity"},
         {"id": "m2", "text": "Agentic finance platforms in 2026", "intent": "category"},
         {"id": "m3", "text": "Reputation systems for AI trading agents", "intent": "solution"},
     ],
 }
 
 SCRIPT = {
-    "What is marx.finance?": ("Marx Finance is the one asked about.",),
-    "Agentic finance platforms in 2026": ("Marx Finance is one.", "nobody."),
+    "What is ornek.com?": ("Ornek Finance is the one asked about.",),
+    "Agentic finance platforms in 2026": ("Ornek Finance is one.", "nobody."),
     "Reputation systems for AI trading agents": ("nobody.",),
 }
 
@@ -274,29 +274,29 @@ def arms(tmp_path: Path):
     """A live round and both replica arms, which is what the two gates read."""
     ledger = Ledger(tmp_path / "arms")
     prompts = [Prompt(id="p0", text="who should I use for job 0?")]
-    brands = (Brand(name="marx"),)
+    brands = (Brand(name="ornek"),)
     sources = (GUIDE, "https://b.example/list")
     drop = sources[1]
 
     live = run_round(
         ledger=ledger,
-        provider=FakeProvider(surface="api", script={prompts[0].text: ("marx.", "nobody.")}),
+        provider=FakeProvider(surface="api", script={prompts[0].text: ("ornek.", "nobody.")}),
         prompts=prompts,
         brands=brands,
         k=2,
-        subject="marx",
+        subject="ornek",
     )
     base = FakeProvider(surface="api")
     full = ReplicaProvider(base=base, sources=sources)
-    base.script = {replica_prompt(prompts[0].text, sources): ("marx.", "nobody.")}
+    base.script = {replica_prompt(prompts[0].text, sources): ("ornek.", "nobody.")}
     held = run_round(
-        ledger=ledger, provider=full, prompts=prompts, brands=brands, k=2, subject="marx"
+        ledger=ledger, provider=full, prompts=prompts, brands=brands, k=2, subject="ornek"
     )
     other = FakeProvider(surface="api")
     arm = ReplicaProvider(base=other, sources=without(sources, drop))
     other.script = {replica_prompt(prompts[0].text, arm.sources): ("nobody.", "nobody.")}
     dropped = run_round(
-        ledger=ledger, provider=arm, prompts=prompts, brands=brands, k=2, subject="marx"
+        ledger=ledger, provider=arm, prompts=prompts, brands=brands, k=2, subject="ornek"
     )
     return ledger, live.snapshot_id, held.snapshot_id, dropped.snapshot_id, sources, drop
 
@@ -323,7 +323,7 @@ def test_no_command_prints_a_dash(tmp_path, monkeypatch):
     looked at. The keychain call is replaced rather than made, for the same
     reason `init` stops at the menu.
     """
-    surfaces = reported(tmp_path, SUBJECT, SCRIPT, "Marx", folder="marx")
+    surfaces = reported(tmp_path, SUBJECT, SCRIPT, "Ornek", folder="ornek")
 
     monkeypatch.setattr(cli, "keychain_supported", lambda *a: True)
 
@@ -389,7 +389,7 @@ def test_no_command_prints_a_dash(tmp_path, monkeypatch):
 
     gated = Recorder()
     ablate(
-        gated.console, ledger_dir=ledger.root, live=live, replica=held, brand="marx", margin=0.05
+        gated.console, ledger_dir=ledger.root, live=live, replica=held, brand="ornek", margin=0.05
     )
     assert gated.text
     surfaces["ablate"] = gated.text
@@ -401,7 +401,7 @@ def test_no_command_prints_a_dash(tmp_path, monkeypatch):
             ledger_dir=ledger.root,
             held=held,
             dropped=dropped,
-            brand="marx",
+            brand="ornek",
             source=drop,
             sources=sources,
             margin=0.05,
@@ -443,7 +443,7 @@ def test_no_report_section_prints_a_dash(tmp_path):
     played = replay(store, snapshot)
     records = list(store.read(snapshot))
     grouped = Snapshot(label=snapshot, samples=group_runs(played.runs))
-    scored = brand_report(grouped, "Marx", self_naming=subject.self_naming("Marx"))
+    scored = brand_report(grouped, "Ornek", self_naming=subject.self_naming("Ornek"))
 
     blocked = audit(
         "https://one.example",
@@ -463,13 +463,13 @@ def test_no_report_section_prints_a_dash(tmp_path):
     whole = Panel(
         report=scored,
         sources=(
-            associate(grouped, "Marx", GUIDE),
-            associate(grouped, "Marx", "https://z.example/never"),
+            associate(grouped, "Ornek", GUIDE),
+            associate(grouped, "Ornek", "https://z.example/never"),
         ),
         audit=blocked,
         dropped_runs=1,
         surfaces=played.surfaces,
-        questions=questions_of(subject, played, records, subject.self_naming("Marx")),
+        questions=questions_of(subject, played, records, subject.self_naming("Ornek")),
     )
     variance = decompose([[1.0, 0.0], [0.0, 0.0]])
 
@@ -485,7 +485,7 @@ def test_no_report_section_prints_a_dash(tmp_path):
             "paired difference": paired_difference(
                 {"p0": [1.0, 0.0]}, {"p0": [0.0, 0.0]}, resamples=200
             ).as_text(),
-            "stability": stability_of([["marx"], ["marx", "numerai"]]).as_text(),
+            "stability": stability_of([["ornek"], ["ornek", "numerai"]]).as_text(),
             "variance split": variance.as_text(),
             "runs needed": runs_needed(variance, 0.05, n_prompts=2).as_text(),
             "prompts needed": prompts_needed(variance, 0.05, k_runs=2).as_text(),

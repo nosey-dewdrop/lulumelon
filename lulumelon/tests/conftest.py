@@ -61,7 +61,7 @@ def two_engine_round():
     visible in the arithmetic rather than only in a count.
     """
 
-    def build(directory, replies, *, brands, n=6, k=4, surface="api", subject="marx"):
+    def build(directory, replies, *, brands, n=6, k=4, surface="api", subject="ornek"):
         ledger = Ledger(directory)
         engines = list(replies)
         # Claimed under the first engine's name, which is how one of these

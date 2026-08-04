@@ -98,7 +98,7 @@ def test_a_boolean_cost_is_not_one_dollar():
 
 def test_usage_survives_the_round_trip_from_a_response(monkeypatch):
     payload = reply(
-        "Marx does.",
+        "Ornek does.",
         model="sonar",
         usage={
             "prompt_tokens": 118,

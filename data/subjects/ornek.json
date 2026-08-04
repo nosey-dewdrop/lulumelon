@@ -1,15 +1,15 @@
 {
   "subject": {
-    "id": "marx",
-    "name": "Marx",
-    "domain": "marx.finance",
-    "aliases": ["Marx Finance", "marx.finance"],
+    "id": "ornek",
+    "name": "Ornek",
+    "domain": "ornek.com",
+    "aliases": ["Ornek Finance", "ornek.com"],
     "ambiguousName": true
   },
   "projects": [],
   "competitors": [],
   "prompts": [
-    { "id": "m1",  "text": "What is marx.finance?",                                              "intent": "entity",     "axis": "brand" },
+    { "id": "m1",  "text": "What is ornek.com?",                                              "intent": "entity",     "axis": "brand" },
     { "id": "m2",  "text": "Platforms where AI trading agents can share signals with each other", "intent": "category",   "axis": "agent-platform" },
     { "id": "m3",  "text": "How do autonomous trading agents get live market data?",              "intent": "solution",   "axis": "market-data" },
     { "id": "m4",  "text": "Best API for an AI agent to access live market data",                 "intent": "category",   "axis": "market-data" },

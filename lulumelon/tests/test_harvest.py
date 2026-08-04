@@ -365,3 +365,97 @@ def test_llms_txt_is_kept_when_the_site_publishes_one():
 def test_an_empty_llms_txt_is_not_mistaken_for_one():
     site = {BASE: page("Home"), f"{BASE}/llms.txt": "   "}
     assert harvest(BASE, fetch=fetcher(site)).llms_txt is None
+
+
+# -- one page under two urls is one page ------------------------------------
+
+
+def test_a_page_the_site_declares_as_another_one_is_not_read_twice():
+    """The site is asked rather than a rule about query parameters applied.
+
+    `?view=grid` is a layout of one page on one site and a different page on
+    the next, so the only honest source for this is the tag the standard exists
+    for. The first customer corpus this ran against carried `/feed` and
+    `/feed?view=grid` and spent two of the thirteen slots the model sees on one
+    document.
+    """
+    canonical = '<link rel="canonical" href="https://example.com/feed"/>'
+    site = {
+        BASE: page("Ana", "Giris", links=["/feed", "/feed?view=grid"]),
+        f"{BASE}/feed": page("Akis", "Akis metni", extra=canonical),
+        f"{BASE}/feed?view=grid": page("Akis", "Izgara metni", extra=canonical),
+    }
+    corpus = harvest(BASE, fetch=fetcher(site))
+
+    urls = [p.url for p in corpus.pages]
+    assert f"{BASE}/feed" in urls
+    assert f"{BASE}/feed?view=grid" not in urls
+    assert [(d.url, d.same_as) for d in corpus.duplicates] == [
+        (f"{BASE}/feed?view=grid", f"{BASE}/feed")
+    ]
+    assert "declares this url as the other one" in corpus.duplicates[0].reason
+
+
+def test_a_page_whose_words_are_already_in_the_corpus_is_not_read_twice():
+    """A site that declares nothing still cannot spend the budget twice.
+
+    The evidence is the page itself. Identical to the character means the model
+    would be shown the same document under two headings, and the second one
+    costs a slot and buys nothing.
+    """
+    site = {
+        BASE: page("Ana", "Giris", links=["/tarifeler", "/fiyatlar"]),
+        f"{BASE}/tarifeler": page("Tarifeler", "Gunluk fiyatlandiriyoruz."),
+        f"{BASE}/fiyatlar": page("Tarifeler", "Gunluk fiyatlandiriyoruz."),
+    }
+    corpus = harvest(BASE, fetch=fetcher(site))
+
+    urls = [p.url for p in corpus.pages]
+    assert urls.count(f"{BASE}/tarifeler") + urls.count(f"{BASE}/fiyatlar") == 1
+    assert len(corpus.duplicates) == 1
+    assert "the same to the character" in corpus.duplicates[0].reason
+
+
+def test_two_pages_that_only_look_alike_are_both_kept():
+    """The rule is identity, not similarity. A near miss is a different page."""
+    site = {
+        BASE: page("Ana", "Giris", links=["/tarifeler", "/fiyatlar"]),
+        f"{BASE}/tarifeler": page("Tarifeler", "Gunluk fiyatlandiriyoruz."),
+        f"{BASE}/fiyatlar": page("Tarifeler", "Gunluk fiyatlandiriyoruz ve aylik da."),
+    }
+    corpus = harvest(BASE, fetch=fetcher(site))
+
+    assert len(corpus.pages) == 3
+    assert corpus.duplicates == ()
+
+
+def test_a_canonical_tag_pointing_at_a_page_nobody_read_leaves_the_page_alone():
+    """A declaration about a page this corpus does not hold decides nothing.
+
+    Dropping on the strength of it would lose a page whose only sin is naming a
+    url the crawl never reached, and the corpus would be short with no record
+    of why.
+    """
+    site = {
+        BASE: page("Ana", "Giris", links=["/feed"]),
+        f"{BASE}/feed": page(
+            "Akis", "Akis metni", extra='<link rel="canonical" href="https://example.com/other"/>'
+        ),
+    }
+    corpus = harvest(BASE, fetch=fetcher(site))
+
+    assert [p.url for p in corpus.pages] == [BASE, f"{BASE}/feed"]
+    assert corpus.duplicates == ()
+
+
+def test_a_page_that_declares_itself_is_not_a_duplicate_of_itself():
+    site = {
+        BASE: page("Ana", "Giris", links=["/feed"]),
+        f"{BASE}/feed": page(
+            "Akis", "Akis metni", extra='<link rel="canonical" href="https://example.com/feed"/>'
+        ),
+    }
+    corpus = harvest(BASE, fetch=fetcher(site))
+
+    assert [p.url for p in corpus.pages] == [BASE, f"{BASE}/feed"]
+    assert corpus.duplicates == ()

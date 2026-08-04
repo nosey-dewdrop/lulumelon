@@ -127,11 +127,19 @@ answers differently depending on which language you asked it in is not an
 instrument, so there is one implementation of it rather than two that agree
 until they do not.
 
+One page under two urls is read once. Which two urls those are is the site's
+own answer, from the tag the standard exists for, and where a site declares
+nothing the words decide: a page whose text is already in the corpus to the
+character is the same document under a second name, and it would otherwise
+spend a second slot of the handful the model is shown. Both are recorded, with
+the url that was kept, because a corpus of thirteen pages that started as
+fifteen is a different object from one that started as thirteen.
+
 `mirror/` and `stats.ts` are pure: given successes and n they return an interval,
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 962 tests, offline
+    python3 -m pytest lulumelon/tests   # 967 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a

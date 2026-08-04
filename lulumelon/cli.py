@@ -1012,6 +1012,12 @@ def draft(
         )
         for skipped in corpus.not_documents:
             console.say(f"              {skipped.url} ({skipped.reason})")
+    if corpus.duplicates:
+        console.say(
+            f"  same page {counted(len(corpus.duplicates), 'url')} the site serves one page under"
+        )
+        for same in corpus.duplicates:
+            console.say(f"              {same.url} is {same.same_as} ({same.reason})")
     console.say(f"  digest    {corpus.digest[:16]}")
 
     if corpus.is_empty:
@@ -1363,6 +1369,9 @@ def _write_draft_ledger(
         ],
         "not_documents": [
             {"url": n.url, "reason": n.reason} for n in corpus.not_documents
+        ],
+        "duplicates": [
+            {"url": d.url, "same_as": d.same_as, "reason": d.reason} for d in corpus.duplicates
         ],
         "proposed": len(proposed.proposals),
         "unreadable_entries": [

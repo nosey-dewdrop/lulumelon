@@ -75,6 +75,18 @@ NOT_DOCUMENT_SUFFIXES = frozenset(
     }
 )
 
+#: The tag a site uses to say which url a page really lives at. Read rather
+#: than guessed at, because the alternative is a list of query parameters
+#: somebody decided were decorative, and `?view=grid` is decorative on one site
+#: and the whole page on the next. This is the site answering the question
+#: itself, in the standard written for exactly this.
+_CANONICAL = re.compile(
+    r"""<link[^>]+rel=["']?canonical["']?[^>]*href=["']([^"']+)["']""", re.I
+)
+_CANONICAL_REVERSED = re.compile(
+    r"""<link[^>]+href=["']([^"']+)["'][^>]*rel=["']?canonical["']?""", re.I
+)
+
 _HEADING = re.compile(r"<h[1-3][^>]*>(.*?)</h[1-3]>", re.S | re.I)
 _SITEMAP_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
 _SITEMAP_DIRECTIVE = re.compile(r"^\s*sitemap:\s*(\S+)", re.I | re.M)
@@ -129,6 +141,21 @@ class NotADocument:
 
 
 @dataclass(frozen=True, slots=True)
+class Duplicate:
+    """A url that arrived and turned out to be a page already read.
+
+    Recorded rather than skipped, for the reason every other refusal in this
+    file is recorded: a corpus of thirteen pages that started as fifteen is a
+    different object from one that started as thirteen, and the two urls a site
+    serves the same page under is a fact about that site.
+    """
+
+    url: str
+    same_as: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class SiteCorpus:
     """What one site said about itself, and what it would not say."""
 
@@ -141,6 +168,7 @@ class SiteCorpus:
     not_documents: tuple[NotADocument, ...] = ()
     llms_txt: str | None = None
     sitemap_urls: tuple[str, ...] = ()
+    duplicates: tuple[Duplicate, ...] = ()
 
     @property
     def quotable(self) -> str:
@@ -189,6 +217,19 @@ def _normalise(href: str, base: str) -> str | None:
     if not _same_origin(absolute, base):
         return None
     return absolute.rstrip("/") or absolute
+
+
+def canonical_of(html: str, url: str, base: str) -> str | None:
+    """The url this page says it lives at, absolute, or None if it says nothing.
+
+    Both attribute orders are read. `rel` before `href` is what every example
+    of this tag shows and it is not a rule, so a page that writes them the
+    other way round is a page this would otherwise read as declaring nothing.
+    """
+    found = _CANONICAL.search(html) or _CANONICAL_REVERSED.search(html)
+    if not found:
+        return None
+    return _normalise(found.group(1), base)
 
 
 def declares_not_a_document(url: str) -> bool:
@@ -381,6 +422,18 @@ def harvest(
     # exception the caller has to special-case.
     subject_name, name_source = _subject_name(home_html, base)
 
+    # A page is the same page as one already read when the site says so, or
+    # when the words are the same to the character. Both are the site's own
+    # evidence rather than a rule about query parameters: `?view=grid` is a
+    # different layout of one page on one site and a different page on the
+    # next, and a corpus that read both spent two of the slots the model sees
+    # on one document. The first customer corpus this ran against carried
+    # `/feed` and `/feed?view=grid`, and the model was shown the same page
+    # twice out of thirteen.
+    duplicates: list[Duplicate] = []
+    read_at = {page.url: page for page in pages}
+    by_words = {page.quotable: page.url for page in pages if page.quotable}
+
     ranked = [u for u in rank_pages(home_links, sitemap_urls, base) if u != base]
     for url in ranked:
         if len(pages) > max_pages:
@@ -392,7 +445,27 @@ def harvest(
             continue
         status, html = fetch(url)
         if status == 200 and html and opens_as_document(html):
-            pages.append(_page_from(url, html))
+            declared = canonical_of(html, url, base)
+            # `declared != url` is not tested for, because `rank_pages` hands
+            # every url once and a page cannot be in `read_at` before it is
+            # read. A page that declares itself falls through here on the
+            # membership test alone, and a guard that only fires where nothing
+            # can reach it is a line a reader has to work out is dead.
+            if declared and declared in read_at:
+                duplicates.append(
+                    Duplicate(url, declared, "the page declares this url as the other one")
+                )
+                continue
+            page = _page_from(url, html)
+            if page.quotable and page.quotable in by_words:
+                duplicates.append(
+                    Duplicate(url, by_words[page.quotable], "the words are the same to the character")
+                )
+                continue
+            pages.append(page)
+            read_at[page.url] = page
+            if page.quotable:
+                by_words[page.quotable] = page.url
         elif status == 200 and html:
             not_documents.append(NotADocument(url, "body does not open as a document"))
         else:
@@ -408,4 +481,5 @@ def harvest(
         not_documents=tuple(not_documents),
         llms_txt=llms_txt,
         sitemap_urls=tuple(sitemap_urls),
+        duplicates=tuple(duplicates),
     )

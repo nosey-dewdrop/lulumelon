@@ -101,7 +101,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="flex items-baseline gap-2 text-[12px] text-ink-soft">
+      <div className="flex items-baseline gap-2 text-[13px] text-ink-soft">
         <Link href="/" className="text-ink underline decoration-rule underline-offset-4 hover:decoration-pink">
           {SITE_NAME}
         </Link>
@@ -113,16 +113,16 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
 
       <header className="mt-8 grid gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div>
-          <h1 className="max-w-[30ch] text-[1.35rem] leading-[1.18] tracking-tight sm:text-[1.85rem]">
+          <h1 className="max-w-[30ch] text-[1.5rem] leading-[1.18] tracking-tight sm:text-[2.1rem]">
             {round.question}
           </h1>
-          <p className="mt-6 max-w-[58ch] text-[13.5px] leading-relaxed text-ink-soft">
+          <p className="mt-6 max-w-[58ch] text-[14.5px] leading-relaxed text-ink-soft">
             asked {round.draws} times of {round.model}, {armInWords(round.arm)}. the question names
             no company. what follows is who the model reached for on its own, counted per draw,
             with the range the sample supports beside each one.
           </p>
         </div>
-        <dl className="self-end border-t border-rule pt-5 text-[12px] leading-relaxed text-ink-soft lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
+        <dl className="self-end border-t border-rule pt-5 text-[13px] leading-relaxed text-ink-soft lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
           <div className="flex gap-3">
             <dt className="min-w-[6rem] text-ink">asked</dt>
             <dd>{round.asked_at}</dd>
@@ -157,8 +157,8 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
           {round.names.map((one) => (
             <div key={one.name}>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[13.5px]">{one.name}</span>
-                <span className="text-[12px] text-ink-soft">
+                <span className="text-[14.5px]">{one.name}</span>
+                <span className="text-[13px] text-ink-soft">
                   {one.draws}/{one.of}
                 </span>
               </div>
@@ -173,8 +173,8 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
       </section>
 
       <section className="mt-16 border-t border-rule pt-7">
-        <h2 className="text-[1.05rem]">what does this not say?</h2>
-        <div className="mt-5 grid max-w-[86ch] gap-6 text-[12px] leading-relaxed text-ink-soft sm:grid-cols-2">
+        <h2 className="text-[1.15rem]">what does this not say?</h2>
+        <div className="mt-5 grid max-w-[86ch] gap-6 text-[13px] leading-relaxed text-ink-soft sm:grid-cols-2">
           <p>
             a name at {round.draws} of {round.draws} is not a certainty. six draws put the honest
             range at 61% to 100%, and a page that printed 100% would be quoting a sample it does

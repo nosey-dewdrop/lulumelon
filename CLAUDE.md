@@ -68,8 +68,12 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 - Terminal sayfanın EN ÜSTÜNDE durur, başlıktan da wordmark'tan da önce.
   Ziyaretçi tek kelime okumadan koşuyor olmalı; marka adını terminalin kendi
   ilk satırı söylüyor. Ürünün iddiası bir cümle değil, olan bir şey.
-- Tipografi küçük tutulur. Gövde 13.5px, ikincil 12px, kart başlığı 1.05rem,
-  h1 1.85rem. Damla büyük puntoyu "gözüm yoruldu" diye reddetti (5 Ağu).
+- Tipografi: gövde 14.5px, ikincil 13px, kart başlığı 1.15rem, h1 2.1rem.
+  5 Ağu'da iki uçtan da geçildi, Damla önce "eşek kadar" dedi sonra "çok küçük";
+  bu satır o iki reddin arasında kalan ölçü.
+- Emoji Damla'nın paletidir ve sabittir: 💞🎀✨💘🍉💫. Başlıkta 🍉 (ürünün kendi
+  adı). Kırmızı kalp ASLA. Emoji her satırın başına serpilmez, kendi satırında
+  imza olarak durur; her render'da değişen süs gürültüdür.
 - Sayfayı kapatan kanıt şeridi ORTALI, rakam üstte yazı altında. Rakamı geniş
   bir boşlukla yazısından ayıran satır düzeni reddedildi.
 - Sayfadaki her sayı ölçülmüş bir turdan gelir. Bir ölçüm ürününün vitrininde

@@ -26,10 +26,10 @@ function Pm() {
 function Figure({ value, of }: { value: string; of: string }) {
   return (
     <div className="flex items-baseline gap-3">
-      <span className="min-w-[3.6rem] text-[1.15rem] leading-none tracking-tight text-pink">
+      <span className="min-w-[3.6rem] text-[1.3rem] leading-none tracking-tight text-pink">
         <CountUp value={value} />
       </span>
-      <span className="text-[12px] leading-snug text-ink-soft">{of}</span>
+      <span className="text-[13px] leading-snug text-ink-soft">{of}</span>
     </div>
   );
 }
@@ -44,10 +44,10 @@ function Figure({ value, of }: { value: string; of: string }) {
 function Stacked({ value, of }: { value: string; of: string }) {
   return (
     <div className="max-w-[24ch]">
-      <div className="text-[1.5rem] leading-none tracking-tight text-pink">
+      <div className="text-[1.7rem] leading-none tracking-tight text-pink">
         <CountUp value={value} />
       </div>
-      <p className="mt-3 text-[12px] leading-snug text-ink-soft">{of}</p>
+      <p className="mt-3 text-[13px] leading-snug text-ink-soft">{of}</p>
     </div>
   );
 }
@@ -64,8 +64,8 @@ function Card({
 }) {
   return (
     <Reveal delay={delay} className="border-t border-rule pt-5">
-      <h2 className="text-[1.05rem] leading-tight">{heading}</h2>
-      <p className="mt-4 text-[12px] leading-relaxed text-ink-soft">{children}</p>
+      <h2 className="text-[1.15rem] leading-tight">{heading}</h2>
+      <p className="mt-4 text-[13px] leading-relaxed text-ink-soft">{children}</p>
     </Reveal>
   );
 }
@@ -89,28 +89,33 @@ export default function Page() {
             measure spends its right half on nothing, because the widest line
             in it is a sentence and the rest is a table. */}
         <Terminal />
-        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px] text-ink-soft">
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-ink-soft">
           <span>a recording. typing here calls nothing and costs nothing.</span>
           <Pm />
           <span>ask the same question ten times and count, or read a number somebody asked once.</span>
         </div>
       </section>
 
-      <header className="mt-12">
-        <div className="flex items-baseline gap-2 text-[12px] text-ink-soft">
-          <span className="text-ink">lulumelon</span>
-          <Pm />
-          <span>measurement, not vibes</span>
-        </div>
-
-        <h1 className="mt-4 max-w-[46ch] text-[1.35rem] leading-[1.16] tracking-tight sm:text-[1.85rem]">
-          every tool in this category reports one number.{" "}
-          <span className="text-ink-soft">it asked once.</span>
+      <header className="mt-14 text-center">
+        <h1 className="mx-auto max-w-[26ch] text-[1.5rem] leading-[1.18] tracking-tight sm:text-[2.1rem]">
+          lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
         </h1>
+
+        {/* The palette, as its own line. Six glyphs, always the same six, in
+            the order they were given. Decoration that is fixed is a signature;
+            decoration that is chosen fresh each render is noise. */}
+        <p className="mt-5 text-[1rem] tracking-[0.5em]" aria-hidden>
+          💞🎀✨💘🍉💫
+        </p>
+
+        <p className="mx-auto mt-5 max-w-[44ch] text-[14px] leading-relaxed text-ink-soft">
+          every tool in this category reports one number.{" "}
+          <span className="text-ink">it asked once.</span>
+        </p>
       </header>
 
       <section className="mt-10 grid gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <p className="max-w-[58ch] text-[13.5px] leading-relaxed text-ink-soft">
+        <p className="max-w-[58ch] text-[14.5px] leading-relaxed text-ink-soft">
           language models are not deterministic. ask the same question twice and you get different
           companies, in a different order. so &ldquo;your visibility is 18.5%&rdquo; is not a
           measurement, it is one draw from a distribution nobody characterised. this asks n times,
@@ -121,7 +126,7 @@ export default function Page() {
         {/* Four figures off one paid round, each with the sentence that makes
             it checkable. Proof, not decoration. */}
         <div className="border-t border-rule pt-6 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">
+          <p className="text-[13px] uppercase tracking-[0.14em] text-ink-soft">
             one round, 4 august 2026
           </p>
           <div className="mt-5 flex flex-col gap-4">
@@ -227,8 +232,8 @@ export default function Page() {
       {/* ------------------------------------------------------ what it does */}
       <section className="mt-20 grid gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Reveal>
-          <h2 className="text-[1.05rem]">what does it measure?</h2>
-          <dl className="mt-6 text-[12px] leading-relaxed">
+          <h2 className="text-[1.15rem]">what does it measure?</h2>
+          <dl className="mt-6 text-[13px] leading-relaxed">
             {[
               [
                 "appearance rate",
@@ -263,8 +268,8 @@ export default function Page() {
         </Reveal>
 
         <Reveal delay={80}>
-          <h2 className="text-[1.05rem]">what does it refuse?</h2>
-          <dl className="mt-6 text-[12px] leading-relaxed">
+          <h2 className="text-[1.15rem]">what does it refuse?</h2>
+          <dl className="mt-6 text-[13px] leading-relaxed">
             {[
               [
                 "a round it cannot re-derive",
@@ -301,8 +306,8 @@ export default function Page() {
 
       {/* ------------------------------------------------------------ proof */}
       <Reveal className="mt-20 border-t border-rule pt-10 text-center">
-        <h2 className="text-[1.05rem]">can you check any of it?</h2>
-        <p className="mx-auto mt-4 max-w-[64ch] text-[12px] leading-relaxed text-ink-soft">
+        <h2 className="text-[1.15rem]">can you check any of it?</h2>
+        <p className="mx-auto mt-4 max-w-[64ch] text-[13px] leading-relaxed text-ink-soft">
           yes, and that is the design. the measurement core is pure arithmetic and reaches no
           network, the collector reaches the network and computes nothing, and the wall between
           them is why a number here can be reproduced from the file it came from. the suite runs
@@ -316,7 +321,7 @@ export default function Page() {
       </Reveal>
 
       {/* ---------------------------------------------------------- footer */}
-      <footer className="mt-24 border-t border-rule pt-6 text-[11.5px] text-ink-soft">
+      <footer className="mt-24 border-t border-rule pt-6 text-[13px] text-ink-soft">
         <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2">
           <span className="text-ink">lulumelon</span>
           <Pm />

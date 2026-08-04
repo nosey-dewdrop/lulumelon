@@ -73,6 +73,11 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
   perplexity; collect ve draft anthropic. `docs/keys.md` baştan sona Perplexity
   anlatıyor.
 - Bu build sadece iki motor çağırabiliyor, perplexity ve anthropic.
+- Ölçülüp elenen sorunun METNİ kayboluyor. Taslak defteri `p7 barren` yazıyor,
+  kayıtlar promptun id'sini taşıyor ve sözlerini taşımıyor, konu dosyasına da
+  sadece geçen soru giriyor. 4 Ağustos'ta 20 sorudan 19'unun metni bu yüzden
+  hiçbir yerde kalmadı. "Ölen hiçbir şey kaybolmaz" kuralı bedava kapılarda
+  tutuyor, ücretli ölçümde tutmuyor.
 - `lulu rivals` bir turun adlarını sayar ama isimleri hâlâ elle `--rivals`'a
   geçiriliyor; iki ucu birleştiren adım yazılmadı. Sayım, bir turda hiç cümle
   içinde geçmeyen ve imlasında iz taşımayan adı düşürür (`Twelve Data`).

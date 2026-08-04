@@ -130,14 +130,16 @@ Looking for a perplexity key, in order:
   [found] /Users/you/work/.env (PERPLEXITY_API_KEY)
 
 Using the key from /Users/you/work/.env (PERPLEXITY_API_KEY).
-Fingerprint: sha256:738bf347 (44 characters)
+Fingerprint: sha256:00000000 (44 characters)
 ```
 
 Then it spends one call to prove the key works, and prints what that call cost.
 `lulu doctor --offline` does everything except the call, and spends nothing.
 
 The fingerprint is a hash. It is there so you can tell two keys apart without
-either of them ever being printed.
+either of them ever being printed. The one above is zeroed, because a real one
+printed in a document is eight characters of a hash of somebody's key and this
+page has no reason to carry any part of one.
 
 ---
 

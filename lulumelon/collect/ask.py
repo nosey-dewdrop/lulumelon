@@ -259,6 +259,8 @@ class Provider(Protocol):
 
     def with_output_cap(self, max_output_tokens: int) -> "Provider": ...
 
+    def without_search(self) -> "Provider": ...
+
 
 # -- deterministic stub -----------------------------------------------------
 
@@ -300,6 +302,10 @@ class FakeProvider:
         """
         self.max_output_tokens = max_output_tokens
         return self
+
+    def without_search(self) -> "FakeProvider":
+        """The stub under the surface a call with no search tool records itself on."""
+        return replace(self, surface=UNSEARCHED_SURFACE)
 
     def ask(self, prompt: str) -> Answer:
         i = self._calls
@@ -471,6 +477,16 @@ class PerplexityProvider:
 
     def with_output_cap(self, max_output_tokens: int) -> "PerplexityProvider":
         return replace(self, max_output_tokens=max_output_tokens)
+
+    def without_search(self) -> "PerplexityProvider":
+        """Itself, because this engine answers by searching and cannot be asked not to.
+
+        Returning the same object rather than raising, so a caller does not
+        have to know which engine it got. What it must not do is assume the
+        request it hands back runs no searches: the surface still says this one
+        can, and the fee is priced off that.
+        """
+        return self
 
     def ask(self, prompt: str) -> Answer:
         body = json.dumps(
@@ -691,6 +707,16 @@ class AnthropicProvider:
 
     def with_output_cap(self, max_output_tokens: int) -> "AnthropicProvider":
         return replace(self, max_output_tokens=max_output_tokens)
+
+    def without_search(self) -> "AnthropicProvider":
+        """The same engine with the tool left off, for a call that supplies its own pages.
+
+        The copy files itself under the unsearched surface, which is where the
+        rest of this library reads the condition off. That is what lets a
+        caller price the call at no search fee without asserting anything: the
+        arm says so itself.
+        """
+        return replace(self, can_search=False)
 
     def ask(self, prompt: str) -> Answer:
         payload: dict = {

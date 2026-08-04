@@ -54,7 +54,7 @@ from .collect.ask import (
     Provider,
     provider_for,
 )
-from .collect.budget import UNMEASURED_INPUT_TOKENS, Budget, token_ceiling
+from .collect.budget import UNMEASURED_INPUT_TOKENS, Budget
 from .collect.ledger import (
     DIAGNOSTIC_SUBJECT,
     Ledger,
@@ -75,10 +75,9 @@ from .collect.harvest import DEFAULT_MAX_PAGES, harvest
 from .collect.propose import (
     DEFAULT_PAGE_CHARS,
     DEFAULT_WANTED,
-    output_cap_for,
+    call_for,
     pages_for_screening,
     propose,
-    request_for,
 )
 from .collect.session import Prompt, run_round, utc_now
 from .collect.subject import Subject, load_subject
@@ -1061,10 +1060,11 @@ def draft(
     # Two shapes, and one number for both was the defect. The proposing call
     # sends the site and asks for a list; a draw sends one question. Pricing
     # the round at the average of those describes neither call.
-    proposing_cap = output_cap_for(wanted)
-    proposing_in = token_ceiling(request_for(corpus, wanted=wanted, page_chars=page_chars))
+    call = call_for(corpus, provider=engine, wanted=wanted, page_chars=page_chars)
     proposing = budget.next_call_ceiling_usd(
-        input_tokens=proposing_in, output_tokens=proposing_cap
+        input_tokens=call.input_tokens,
+        output_tokens=call.output_tokens,
+        searches=call.searches,
     )
     per_draw = budget.next_call_ceiling_usd()
 
@@ -1077,11 +1077,12 @@ def draft(
     )
     console.say(
         f"  ${proposing:.4f} is the most the proposing call can cost: the site as it will be "
-        f"sent is {proposing_in} tokens, against a cap of {proposing_cap} out"
+        f"sent is {call.input_tokens} tokens, against a cap of {call.output_tokens} out"
+        + (", and it is sent with no search tool" if call.searches == 0 else "")
     )
     console.say(
         f"  ${per_draw:.4f} is the most one draw can cost, against a cap of "
-        f"{engine.max_output_tokens} out"
+        f"{budget.max_output_tokens} out"
     )
     console.say(
         f"  ${proposing + wanted * k * per_draw:.4f} is the most this can cost if every candidate "

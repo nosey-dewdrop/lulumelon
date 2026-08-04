@@ -214,6 +214,26 @@ def test_the_arm_that_cannot_search_is_charged_no_search_fee():
     assert b.charge(answered(input_tokens=1000, output_tokens=200)) == pytest.approx(0.01)
 
 
+def test_one_call_sent_without_the_tool_pays_no_fee_inside_a_searching_round():
+    """The round searches; this one request does not carry the tool.
+
+    The fee is owed per search and a request sent without the tool runs none,
+    so a round that charged its cap here would reserve money it cannot spend on
+    a call it can see the shape of. It is stated by the caller for the same
+    reason the arm is: the guard is asked before the call exists.
+    """
+    b = Budget(price=OPUS, limit_usd=1.0, max_searches=3, max_output_tokens=CAP)
+    tokens_only = (
+        UNMEASURED_INPUT_TOKENS * OPUS.input_per_mtok_usd + CAP * OPUS.output_per_mtok_usd
+    ) / 1_000_000
+
+    assert b.next_call_ceiling_usd(searches=0) == pytest.approx(tokens_only)
+    assert b.next_call_ceiling_usd() == pytest.approx(tokens_only + 3 * SEARCH_FEE)
+    assert b.charge(answered(input_tokens=1000, output_tokens=200), searches=0) == pytest.approx(
+        0.01
+    )
+
+
 def test_a_search_the_provider_reports_anyway_is_charged_anyway():
     """What the provider says it did outranks what the request said it may do.
 

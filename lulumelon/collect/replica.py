@@ -236,6 +236,15 @@ class ReplicaProvider:
     def with_output_cap(self, max_output_tokens: int) -> "ReplicaProvider":
         return replace(self, base=self.base.with_output_cap(max_output_tokens))
 
+    def without_search(self) -> "ReplicaProvider":
+        """Itself. This instrument's whole treatment is the sources it holds constant.
+
+        The surface it reports names those sources, and a copy that turned the
+        base engine's tool off would carry the same name while being a
+        different treatment.
+        """
+        return self
+
     def ask(self, question: str) -> Answer:
         """Ask through the source list, and label the answer as a replica.
 

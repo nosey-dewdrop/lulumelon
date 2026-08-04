@@ -138,7 +138,11 @@ class Budget:
         )
 
     def next_call_ceiling_usd(
-        self, *, input_tokens: int | None = None, output_tokens: int | None = None
+        self,
+        *,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        searches: int | None = None,
     ) -> float:
         """The most the next call could cost, priced from what is known so far.
 
@@ -162,17 +166,15 @@ class Budget:
         file would be: the tool was never sent, so the next call cannot run a
         search whatever it does with the question. Charging the cap anyway
         would stop that arm at a fraction of the calls it can afford and report
-        the difference as a budget it never spent.
+        the difference as a budget it never spent. A single call sent without
+        the tool inside a round that has it says so the same way, by stating
+        its own count of zero.
         """
         per_input, per_output = self._shape(input_tokens, output_tokens)
         tokens = (
             per_input * self.price.input_per_mtok_usd + per_output * self.price.output_per_mtok_usd
         ) / 1_000_000
-        if self.price.fee_unit != FEE_PER_SEARCH:
-            searches = 1
-        else:
-            searches = self.max_searches if self.can_search else 0
-        return tokens + searches * self.price.fee_per_k_high_usd / 1000
+        return tokens + self._fees(searches) * self.price.fee_per_k_high_usd / 1000
 
     def _shape(self, input_tokens: int | None, output_tokens: int | None) -> tuple[int, int]:
         """The token counts to price an unmeasured call at, stated or inferred."""
@@ -181,12 +183,24 @@ class Budget:
             input_tokens = measured[0] if measured else UNMEASURED_INPUT_TOKENS
         return input_tokens, self.max_output_tokens if output_tokens is None else output_tokens
 
+    def _fees(self, searches: int | None) -> int:
+        """How many fee units the next call owes, stated or taken at the round's cap."""
+        if self.price.fee_unit != FEE_PER_SEARCH:
+            return 1
+        if searches is not None:
+            return searches
+        return self.max_searches if self.can_search else 0
+
     def can_afford_another(
-        self, *, input_tokens: int | None = None, output_tokens: int | None = None
+        self,
+        *,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        searches: int | None = None,
     ) -> bool:
         """Whether the next call still fits, at that call's own ceiling."""
         ceiling = self.next_call_ceiling_usd(
-            input_tokens=input_tokens, output_tokens=output_tokens
+            input_tokens=input_tokens, output_tokens=output_tokens, searches=searches
         )
         return ceiling <= self.remaining_usd
 
@@ -196,13 +210,19 @@ class Budget:
         *,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
+        searches: int | None = None,
     ) -> float:
         """Record what one answer cost, and return it.
 
-        The two token arguments are the shape the call was allowed, and they
-        are read only when the provider metered nothing. A call charged at a
+        The token arguments are the shape the call was allowed, and they are
+        read only when the provider metered nothing. A call charged at a
         ceiling has to be charged at its own, or the round that could not see
         what it spent also under-reports it.
+
+        `searches` is read whenever the provider did not report a count, and a
+        zero is the caller saying the tool was left off this one request. A
+        count that arrives anyway is charged, because what the provider says it
+        did outranks what we sent.
 
         A failed call is charged nothing. The provider states that a search
         which errors is not billed, and a call that never reached it cannot
@@ -235,20 +255,16 @@ class Budget:
                 + per_output * self.price.output_per_mtok_usd
             ) / 1_000_000
 
-        if self.price.fee_unit != FEE_PER_SEARCH:
-            searches = 1
-        elif usage.searches is not None:
-            searches = usage.searches
-        elif self.can_search:
-            searches = self.max_searches
+        if self.price.fee_unit == FEE_PER_SEARCH and usage.searches is not None:
+            # What the provider says it did outranks both the cap and anything
+            # the caller declared about the request it sent.
+            billed = usage.searches
         else:
-            # The second honest zero here, on the same ground as the first: a
-            # call that was never handed the tool cannot have searched, so this
-            # silence is a measurement rather than a provider that stopped
-            # reporting. A count that arrives anyway is still charged above,
-            # because what the provider says it did outranks what we sent.
-            searches = 0
-        cost = tokens + searches * self.price.fee_per_k_high_usd / 1000
+            # The other honest zero in this file: a call that was never handed
+            # the tool cannot have searched, so its silence is a measurement
+            # rather than a provider that stopped reporting.
+            billed = self._fees(searches)
+        cost = tokens + billed * self.price.fee_per_k_high_usd / 1000
 
         self.spent_usd += cost
         return cost

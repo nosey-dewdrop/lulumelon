@@ -23,13 +23,14 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from lulumelon.collect import Answer, Budget, Usage
+from lulumelon.collect import UNSEARCHED_SURFACE, Answer, Budget, Usage
 from lulumelon.collect.harvest import Page, SiteCorpus
 from lulumelon.collect.propose import (
     DEFAULT_WANTED,
     Malformed,
     Proposal,
     as_candidate_rows,
+    call_for,
     output_cap_for,
     pages_for_screening,
     propose,
@@ -91,6 +92,13 @@ class Stub:
 
     def with_output_cap(self, max_output_tokens: int) -> "Stub":
         self.capped_to = max_output_tokens
+        self.max_output_tokens = max_output_tokens
+        return self
+
+    def without_search(self) -> "Stub":
+        # The surface is how the rest of the library reads the condition, so
+        # the stub moves to it rather than keeping a flag of its own.
+        self.surface = UNSEARCHED_SURFACE
         return self
 
     def ask(self, prompt: str) -> Answer:
@@ -339,6 +347,37 @@ def test_the_budget_is_told_the_shape_of_the_call_it_is_guarding():
     assert stub.seen == [], "nothing reached the network"
     assert result.asked is False
     assert room.spent_usd == 0.0
+
+
+def test_an_engine_that_cannot_stop_searching_is_not_priced_as_if_it_had():
+    """Zero is a fact about a request, never an assumption about an engine.
+
+    One provider here answers by searching and cannot be asked not to. Written
+    as a flat zero, this would hand the guard a call with no fee term and read
+    the difference off the invoice, which is the same defect as the cap.
+    """
+    always = Stub(reply=GOOD)
+    always.without_search = lambda: always  # answers by searching, whatever it is asked
+
+    call = call_for(corpus(), provider=always, wanted=10)
+    assert call.searches is None, "unknown, so the guard charges the round's cap"
+
+    quiet = call_for(corpus(), provider=Stub(reply=GOOD), wanted=10)
+    assert quiet.searches == 0
+
+
+def test_the_cap_that_is_priced_is_the_one_that_was_asked_for():
+    """An engine that kept its own cap is charged for the one this call needs.
+
+    Reading the number back off the provider would make the price agree with
+    whatever the request layer happened to do, including ignoring us.
+    """
+    deaf = Stub(reply=GOOD)
+    deaf.with_output_cap = lambda n: deaf  # keeps its own 1024
+
+    call = call_for(corpus(), provider=deaf, wanted=40)
+    assert call.output_tokens == output_cap_for(40)
+    assert call.output_tokens != deaf.max_output_tokens
 
 
 def test_the_summary_says_what_happened_including_the_refusal():

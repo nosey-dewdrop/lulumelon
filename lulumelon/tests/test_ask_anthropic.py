@@ -412,6 +412,31 @@ def test_capping_one_call_leaves_the_round_s_own_provider_alone(monkeypatch):
     assert engine.max_output_tokens == 1024
 
 
+def test_a_call_that_supplies_its_own_pages_can_be_sent_without_the_tool(monkeypatch):
+    """One request inside a searching round, sent with no search tool.
+
+    The proposing call carries every page it is allowed to quote, so a search
+    can only add pages the evidence gate then rejects, and on a fee charged per
+    search it is the largest term in the price. The copy files itself under the
+    unsearched surface, which is where everything that prices a call reads the
+    condition off.
+    """
+    seen: list = []
+    monkeypatch.setattr(
+        urllib.request, "urlopen", answering(message([{"type": "text", "text": "ok"}]), seen)
+    )
+    engine = AnthropicProvider(api_key=KEY, max_searches=3)
+    quiet = engine.without_search()
+
+    quiet.ask("here are the pages")
+    engine.ask("an ordinary draw")
+
+    assert "tools" not in json.loads(seen[0].data.decode("utf-8"))
+    assert json.loads(seen[1].data.decode("utf-8"))["tools"], "the round still searches"
+    assert quiet.surface == UNSEARCHED_SURFACE
+    assert engine.surface == "api"
+
+
 def test_a_shape_nobody_recognises_is_an_error_not_an_empty_answer(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", answering({"nothing": "familiar"}))
     got = AnthropicProvider(api_key=KEY).ask("q")

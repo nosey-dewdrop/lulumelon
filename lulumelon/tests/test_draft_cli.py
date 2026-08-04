@@ -27,11 +27,11 @@ from __future__ import annotations
 
 import io
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from lulumelon.cli import DRAFT_UNMEASURED, Console, draft
-from lulumelon.collect import Answer, Ledger, Usage, replay
+from lulumelon.collect import UNSEARCHED_SURFACE, Answer, Ledger, Usage, replay
 from lulumelon.collect.subject import load_subject
 
 KEY = "sk-ant-" + "a1b2c3d4e5" * 4
@@ -93,7 +93,9 @@ class Engine:
 
     One object rather than two, because the command builds a single provider
     and uses it for both, and a test that injected two would not notice if that
-    ever stopped being true.
+    ever stopped being true. A call shaped for its purpose comes back as a copy
+    the way the live providers do, and the copy shares the list of prompts, so
+    what a test reads is every call the command made under either shape.
     """
 
     proposals: str = ""
@@ -103,14 +105,14 @@ class Engine:
     model: str = "claude-opus-5"
     asked: list[str] = field(default_factory=list)
     #: One answer to one question, which is every call in the round except the
-    #: first. `capped_to` is what the proposing call raised it to, kept so a
-    #: test can read the number that call was allowed rather than infer it.
+    #: first.
     max_output_tokens: int = 1024
-    capped_to: int | None = None
 
     def with_output_cap(self, max_output_tokens: int) -> "Engine":
-        self.capped_to = max_output_tokens
-        return self
+        return replace(self, max_output_tokens=max_output_tokens)
+
+    def without_search(self) -> "Engine":
+        return replace(self, surface=UNSEARCHED_SURFACE)
 
     def ask(self, prompt: str) -> Answer:
         self.asked.append(prompt)
@@ -226,18 +228,23 @@ def test_the_two_calls_this_command_makes_are_priced_separately(tmp_path):
     _, engine = run(rec, tmp_path, harvest_only=False, dry_run=True)
     before = rec.text.partition("PROPOSING")[0]
 
-    proposing = float(_dollars(before, "is the most the proposing call can cost"))
-    per_draw = float(_dollars(before, "is the most one draw can cost"))
+    proposing = _line(before, "is the most the proposing call can cost")
+    per_draw = _line(before, "is the most one draw can cost")
 
-    assert proposing > per_draw, "the call that sends the site is the expensive one"
-    assert f"against a cap of {engine.capped_to} out" in before
-    assert f"against a cap of {engine.max_output_tokens} out" in before
+    assert _dollars(proposing) != _dollars(per_draw), "two shapes, two prices"
+    assert "against a cap of 4100 out" in proposing, "room for the forty it asks for"
+    assert f"against a cap of {engine.max_output_tokens} out" in per_draw
+    assert "no search tool" in proposing, "the site arrives in the request"
+    assert "no search tool" not in per_draw
 
 
-def _dollars(text: str, phrase: str) -> str:
-    """The figure printed immediately before `phrase`, as it reached the screen."""
-    line = next(one for one in text.splitlines() if phrase in one)
-    return line.strip().split(" ", 1)[0].lstrip("$")
+def _line(text: str, phrase: str) -> str:
+    return next(one for one in text.splitlines() if phrase in one)
+
+
+def _dollars(line: str) -> float:
+    """The figure a line opens with, read back off the screen."""
+    return float(line.strip().split(" ", 1)[0].lstrip("$"))
 
 
 # -- the refusal that keeps a score honest ----------------------------------

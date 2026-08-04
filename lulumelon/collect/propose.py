@@ -42,7 +42,7 @@ import json
 from dataclasses import dataclass
 from typing import Sequence
 
-from .ask import Answer, Provider
+from .ask import Answer, Provider, is_unsearched_surface
 from .budget import Budget, token_ceiling, tokens_for_chars
 from .harvest import SiteCorpus
 
@@ -199,6 +199,60 @@ def request_for(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class ProposingCall:
+    """The one paid call this module makes, described before it is made.
+
+    Written down as an object because two layers have to agree about it and
+    neither can see the other's copy: the guard prices what this says, the
+    request layer sends what this holds, and a screen prints the price before
+    either happens. The version of this that lived as two constants in two
+    files printed $0.0440 as the most one call could cost and paid $0.0467.
+    """
+
+    engine: Provider
+    request: str
+    #: The prompt as it will be sent, counted high. Not the round's opening
+    #: guess: this call carries the customer's whole site and the guess
+    #: describes a one-line question.
+    input_tokens: int
+    #: The cap the request carries, derived from the list it asks for.
+    output_tokens: int
+    #: Searches this call can run, or None where the engine cannot be asked to
+    #: stop. Zero is not optimism: the tool is absent from the request.
+    searches: int | None
+
+
+def call_for(
+    corpus: SiteCorpus,
+    *,
+    provider: Provider,
+    wanted: int = DEFAULT_WANTED,
+    page_chars: int = DEFAULT_PAGE_CHARS,
+) -> ProposingCall:
+    """Describe the proposing call, without making it.
+
+    The search tool is left off where the engine allows it. This call arrives
+    with every page it is allowed to quote already in the request, so a search
+    can only add pages the evidence gate will then reject, and on a fee charged
+    per search it is the largest term in the price: the first one this repo
+    made was charged three searches at a cent each against $0.0167 of tokens.
+    """
+    cap = output_cap_for(wanted)
+    engine = provider.without_search().with_output_cap(cap)
+    request = request_for(corpus, wanted=wanted, page_chars=page_chars)
+    return ProposingCall(
+        engine=engine,
+        request=request,
+        input_tokens=token_ceiling(request),
+        # The number derived here, not the one read back off the engine. What
+        # is priced has to be what was asked for, or a provider that ignored
+        # the cap would be charged for the cap it kept.
+        output_tokens=cap,
+        searches=0 if is_unsearched_surface(engine.surface) else None,
+    )
+
+
 def _entries(text: str) -> tuple[list[object], str]:
     """The reply as a list of entries, or an empty list and the reason why.
 
@@ -283,12 +337,16 @@ def propose(
     on the answer, and the caller writes that to the ledger like any other
     failure, because a call that failed is a fact about the round.
     """
-    request = request_for(corpus, wanted=wanted, page_chars=page_chars)
-    cap = output_cap_for(wanted)
-    room = token_ceiling(request)
+    call = call_for(corpus, provider=provider, wanted=wanted, page_chars=page_chars)
 
-    if budget is not None and not budget.can_afford_another(input_tokens=room, output_tokens=cap):
-        ceiling = budget.next_call_ceiling_usd(input_tokens=room, output_tokens=cap)
+    if budget is not None and not budget.can_afford_another(
+        input_tokens=call.input_tokens, output_tokens=call.output_tokens, searches=call.searches
+    ):
+        ceiling = budget.next_call_ceiling_usd(
+            input_tokens=call.input_tokens,
+            output_tokens=call.output_tokens,
+            searches=call.searches,
+        )
         return ProposalResult(
             asked=False,
             refusal=(
@@ -297,13 +355,14 @@ def propose(
             ),
         )
 
-    # Capped for this call rather than for the round. The provider handed in
-    # is the one the measuring draws will use afterwards, and each of those is
-    # one answer to one question; raising its cap here would price every draw
-    # in the round at the size of this one call.
-    answer = provider.with_output_cap(cap).ask(request)
+    answer = call.engine.ask(call.request)
     if budget is not None:
-        budget.charge(answer, input_tokens=room, output_tokens=cap)
+        budget.charge(
+            answer,
+            input_tokens=call.input_tokens,
+            output_tokens=call.output_tokens,
+            searches=call.searches,
+        )
 
     if not answer.ok:
         return ProposalResult(answer=answer, asked=True)

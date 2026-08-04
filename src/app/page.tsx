@@ -15,6 +15,7 @@
  * three-column feature grid. The terminal is the only ornament and it is also
  * the demo.
  */
+import { Glyphs } from "./Glyphs";
 import { CountUp, Reveal } from "./Reveal";
 import { Terminal } from "./Terminal";
 
@@ -73,6 +74,7 @@ function Card({
 export default function Page() {
   return (
     <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
+      <Glyphs />
       {/* ------------------------------------------------------------- hero
           The terminal is the first thing on the page. Not the first thing
           under a headline, the first thing: it is already running when the
@@ -100,13 +102,6 @@ export default function Page() {
         <h1 className="mx-auto max-w-[26ch] text-[1.5rem] leading-[1.18] tracking-tight sm:text-[2.1rem]">
           lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
         </h1>
-
-        {/* The palette, as its own line. Six glyphs, always the same six, in
-            the order they were given. Decoration that is fixed is a signature;
-            decoration that is chosen fresh each render is noise. */}
-        <p className="mt-5 text-[1rem] tracking-[0.5em]" aria-hidden>
-          💞🎀✨💘🍉💫
-        </p>
 
         <p className="mx-auto mt-5 max-w-[44ch] text-[14px] leading-relaxed text-ink-soft">
           every tool in this category reports one number.{" "}

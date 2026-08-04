@@ -18,6 +18,15 @@ Failures land in `unreachable` with their status, and a robots-disallowed path
 lands in `disallowed` without being fetched at all. Both are reported, because
 a corpus that quietly shrank is a corpus that will quietly produce fewer
 candidates and never say why.
+
+**Only a document can be quoted from.** Links on a page point at stylesheets,
+icons and script bundles as readily as at pages, and the corpus is what an
+evidence check verifies quotes against. A stylesheet admitted to it is a stretch
+of text a candidate can be checked against and pass, which is the evidence gate
+agreeing with itself about bytes no reader ever saw. Two gates keep it out: a
+suffix the URL itself declares, which saves the request, and the opening of the
+body, which is what actually decides. Everything excluded is named in
+`not_documents` for the same reason failures are named.
 """
 
 from __future__ import annotations
@@ -50,6 +59,21 @@ USER_AGENT = "youkiddingme-audit"
 #: a budget, not a finding: each page is one request and the corpus stops being
 #: worth its latency long before a large site is exhausted.
 DEFAULT_MAX_PAGES = 12
+
+#: Suffixes by which a URL declares it is not a document. Checked before the
+#: request, so a stylesheet in the nav costs nothing at all. This list is not
+#: the decision and is not meant to be complete: anything that gets past it is
+#: still judged on its body, which is the gate that cannot be evaded by naming.
+NOT_DOCUMENT_SUFFIXES = frozenset(
+    {
+        "png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "ico", "bmp",
+        "css", "js", "mjs", "cjs", "map", "json",
+        "woff", "woff2", "ttf", "otf", "eot",
+        "pdf", "zip", "gz", "tar", "rar",
+        "mp3", "mp4", "webm", "mov", "wav", "ogg",
+        "xml", "rss", "atom", "csv",
+    }
+)
 
 _HEADING = re.compile(r"<h[1-3][^>]*>(.*?)</h[1-3]>", re.S | re.I)
 _SITEMAP_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
@@ -92,6 +116,19 @@ class Unreachable:
 
 
 @dataclass(frozen=True, slots=True)
+class NotADocument:
+    """Something that arrived, or was named, and is not prose.
+
+    Separate from `Unreachable` because the two are opposite failures. A page
+    that did not arrive might have said something; this one arrived and there
+    was never anything in it to quote.
+    """
+
+    url: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class SiteCorpus:
     """What one site said about itself, and what it would not say."""
 
@@ -101,6 +138,7 @@ class SiteCorpus:
     pages: tuple[Page, ...] = ()
     unreachable: tuple[Unreachable, ...] = ()
     disallowed: tuple[str, ...] = ()
+    not_documents: tuple[NotADocument, ...] = ()
     llms_txt: str | None = None
     sitemap_urls: tuple[str, ...] = ()
 
@@ -151,6 +189,31 @@ def _normalise(href: str, base: str) -> str | None:
     if not _same_origin(absolute, base):
         return None
     return absolute.rstrip("/") or absolute
+
+
+def declares_not_a_document(url: str) -> bool:
+    """Whether the URL's own suffix says there is nothing here to read.
+
+    Read off the path alone, so a cache-busting query cannot hide a suffix:
+    `/style.css?v=2b41` is the same file as `/style.css`. A dot inside a
+    directory name is safe without a separate guard, because what follows the
+    last dot then still contains a slash and no suffix here does.
+    """
+    _, dot, suffix = urllib.parse.urlsplit(url).path.rpartition(".")
+    return bool(dot) and suffix.lower() in NOT_DOCUMENT_SUFFIXES
+
+
+def opens_as_document(body: str) -> bool:
+    """Whether what arrived begins as markup, which is the real decision.
+
+    A suffix is a claim the site makes about a URL and a server is free to
+    contradict it, so the body is what settles it. Markup opens with a tag, a
+    doctype or an XML declaration, and everything the corpus must not admit,
+    image bytes, a stylesheet, a script bundle, a JSON payload, opens with
+    something else. The leading byte-order mark is skipped because it is an
+    encoding artefact and not the document.
+    """
+    return body.lstrip("﻿ \t\r\n").startswith("<")
 
 
 def _depth(url: str) -> int:
@@ -279,6 +342,7 @@ def harvest(
 
     unreachable: list[Unreachable] = []
     disallowed: list[str] = []
+    not_documents: list[NotADocument] = []
 
     robots_status, robots_text = fetch(f"{base}/robots.txt")
     groups: tuple[RobotsGroup, ...] = parse_robots(robots_text) if robots_status == 200 else ()
@@ -301,12 +365,14 @@ def harvest(
     home_html = ""
     if allowed(base):
         status, html = fetch(base)
-        if status == 200 and html:
+        if status == 200 and html and opens_as_document(html):
             home_html = html
             pages.append(_page_from(base, html))
             home_links = [
                 link for link in (_normalise(h, base) for h in _HREF.findall(html)) if link
             ]
+        elif status == 200 and html:
+            not_documents.append(NotADocument(base, "body does not open as a document"))
         else:
             unreachable.append(Unreachable(base, status, "homepage not read"))
 
@@ -321,9 +387,14 @@ def harvest(
             break
         if not allowed(url):
             continue
+        if declares_not_a_document(url):
+            not_documents.append(NotADocument(url, "url declares a non-document suffix"))
+            continue
         status, html = fetch(url)
-        if status == 200 and html:
+        if status == 200 and html and opens_as_document(html):
             pages.append(_page_from(url, html))
+        elif status == 200 and html:
+            not_documents.append(NotADocument(url, "body does not open as a document"))
         else:
             unreachable.append(Unreachable(url, status, "page not read"))
 
@@ -334,6 +405,7 @@ def harvest(
         pages=tuple(pages),
         unreachable=tuple(unreachable),
         disallowed=tuple(dict.fromkeys(disallowed)),
+        not_documents=tuple(not_documents),
         llms_txt=llms_txt,
         sitemap_urls=tuple(sitemap_urls),
     )

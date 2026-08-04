@@ -1000,6 +1000,12 @@ def draft(
             f"  refused   {counted(len(corpus.disallowed), 'path')} robots.txt keeps this "
             "collector out of"
         )
+    if corpus.not_documents:
+        console.say(
+            f"  skipped   {counted(len(corpus.not_documents), 'link')} with nothing to quote"
+        )
+        for skipped in corpus.not_documents:
+            console.say(f"              {skipped.url} ({skipped.reason})")
     console.say(f"  digest    {corpus.digest[:16]}")
 
     if corpus.is_empty:
@@ -1258,6 +1264,9 @@ def _write_draft_ledger(
         "pages_read": [page.url for page in corpus.pages],
         "unreachable": [
             {"url": m.url, "status": m.status, "reason": m.reason} for m in corpus.unreachable
+        ],
+        "not_documents": [
+            {"url": n.url, "reason": n.reason} for n in corpus.not_documents
         ],
         "proposed": len(proposed.proposals),
         "unreadable_entries": [

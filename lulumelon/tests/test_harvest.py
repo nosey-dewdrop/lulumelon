@@ -17,10 +17,13 @@ from __future__ import annotations
 import pytest
 
 from lulumelon.collect.harvest import (
+    NOT_DOCUMENT_SUFFIXES,
     USER_AGENT,
     Page,
     SiteCorpus,
+    declares_not_a_document,
     harvest,
+    opens_as_document,
     rank_pages,
 )
 
@@ -150,6 +153,122 @@ def test_a_dead_homepage_still_returns_a_named_corpus():
     assert corpus.subject_name == "example"
     assert corpus.subject_name_source == "domain label"
     assert any(u.url == BASE for u in corpus.unreachable)
+
+
+# -- only a document may enter the corpus -----------------------------------
+#
+# The gate this section defends is the evidence check downstream. It passes a
+# candidate whose quote appears literally in the corpus, so whatever is in the
+# corpus is what a quote may be proven against. Admit a stylesheet and a quote
+# can be proven against bytes no reader ever saw.
+
+PNG = "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00"
+CSS = ".hero{display:flex;gap:1rem}.nav a{color:#111}"
+BUNDLE = '(self.webpackChunk=self.webpackChunk||[]).push([[404],{}])'
+
+
+def test_a_stylesheet_the_nav_links_to_is_never_even_requested():
+    """The suffix gate exists to save the request, not to make the decision."""
+    asked: list[str] = []
+
+    def fetch(url: str) -> tuple[int, str]:
+        asked.append(url)
+        if url.rstrip("/") == BASE:
+            return 200, page("Home", links=["/static/app.css", "/logo.png"])
+        return 200, CSS
+
+    corpus = harvest(BASE, fetch=fetch)
+    assert not any(u.endswith((".css", ".png")) for u in asked)
+    assert {n.url for n in corpus.not_documents} == {
+        f"{BASE}/static/app.css",
+        f"{BASE}/logo.png",
+    }
+
+
+def test_a_query_string_does_not_hide_a_suffix_from_the_gate():
+    assert declares_not_a_document(f"{BASE}/static/app.css?v=2b41f")
+
+
+def test_a_dot_in_a_directory_name_is_not_read_as_a_suffix():
+    """Or a docs site under `/v1.2/` would lose every page below it."""
+    assert not declares_not_a_document(f"{BASE}/v1.2/pricing")
+
+
+def test_no_suffix_on_the_list_contains_a_slash():
+    """The invariant the test above rests on, asserted where it can be seen.
+
+    Nothing separates a suffix from a dotted directory name except this: what
+    follows the last dot in `/v1.2/pricing` still carries a slash, so it can
+    never match. Add a suffix with a slash in it and that stops being true.
+    """
+    assert not any("/" in s for s in NOT_DOCUMENT_SUFFIXES)
+
+
+def test_a_bundle_served_from_a_clean_url_is_still_kept_out():
+    """The body is the gate that a server cannot evade by naming.
+
+    A suffix is the site's claim about a URL. This is the one that holds when
+    the claim is absent or wrong, and it is why the suffix list does not have
+    to be complete to be safe.
+    """
+    site = {BASE: page("Home", links=["/_next/chunk"]), f"{BASE}/_next/chunk": BUNDLE}
+    corpus = harvest(BASE, fetch=fetcher(site))
+    assert [p.url for p in corpus.pages] == [BASE]
+    assert [(n.url, n.reason) for n in corpus.not_documents] == [
+        (f"{BASE}/_next/chunk", "body does not open as a document")
+    ]
+
+
+def test_image_bytes_are_not_a_document():
+    assert not opens_as_document(PNG)
+
+
+def test_a_byte_order_mark_does_not_make_a_page_stop_being_a_document():
+    assert opens_as_document("﻿<!doctype html><html></html>")
+
+
+def test_leading_whitespace_does_not_make_a_page_stop_being_a_document():
+    assert opens_as_document("\n\n  <html></html>")
+
+
+def test_bytes_that_were_kept_out_are_absent_from_what_a_quote_is_checked_against():
+    """The point of the whole gate, stated as one assertion."""
+    site = {
+        BASE: page("Home", "We price risk daily.", links=["/theme"]),
+        f"{BASE}/theme": CSS,
+    }
+    quotable = harvest(BASE, fetch=fetcher(site)).quotable
+    assert "We price risk daily." in quotable
+    assert "display:flex" not in quotable
+
+
+def test_something_kept_out_is_not_reported_as_something_that_failed():
+    """Two different facts about a site, and merging them loses one.
+
+    A page that did not arrive is a gap in the corpus worth chasing. A
+    stylesheet that was skipped is not, and filing it under failures would
+    hand the customer a list of problems they do not have.
+    """
+    site = {BASE: page("Home", links=["/logo.png"])}
+    corpus = harvest(BASE, fetch=fetcher(site))
+    assert corpus.unreachable == ()
+    assert len(corpus.not_documents) == 1
+
+
+def test_a_homepage_that_is_not_a_document_leaves_an_empty_corpus_not_a_page():
+    corpus = harvest(BASE, fetch=fetcher({BASE: PNG}))
+    assert corpus.is_empty
+    assert [(n.url, n.reason) for n in corpus.not_documents] == [
+        (BASE, "body does not open as a document")
+    ]
+
+
+def test_a_skipped_link_does_not_spend_the_page_budget():
+    """Otherwise a nav full of icons quietly shrinks the corpus."""
+    links = ["/i1.png", "/i2.png", "/i3.png", "/a", "/b"]
+    site = {BASE: page("Home", links=links), f"{BASE}/a": page("A"), f"{BASE}/b": page("B")}
+    corpus = harvest(BASE, fetch=fetcher(site), max_pages=2)
+    assert [p.url for p in corpus.pages] == [BASE, f"{BASE}/a", f"{BASE}/b"]
 
 
 # -- the name the round will track ------------------------------------------

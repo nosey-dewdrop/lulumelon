@@ -9,7 +9,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Glyphs } from "@/app/Glyphs";
 import { armInWords, percent, publishedRounds } from "@/lib/published";
 import { SITE_NAME, url } from "@/lib/site";
 
@@ -32,7 +31,6 @@ export default function NamedIndex() {
 
   return (
     <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
-      <Glyphs />
       <div className="flex items-baseline gap-2 text-[13px] text-ink-soft">
         <Link
           href="/"

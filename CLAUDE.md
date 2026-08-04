@@ -65,18 +65,19 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 - Renk dünyası pembe ve lila, ve ikisi de terminalin kendi paletinden gelir
   (`--lilac`, `--pink`). Dışarıdan palet getirilmez, gradient yoktur, köşe
   yarıçapı 3px'i geçmez, dinlenme halinde gölge yoktur.
-- Terminal sayfanın EN ÜSTÜNDE durur, başlıktan da wordmark'tan da önce.
-  Ziyaretçi tek kelime okumadan koşuyor olmalı; marka adını terminalin kendi
-  ilk satırı söylüyor. Ürünün iddiası bir cümle değil, olan bir şey.
+- Sayfanın tepesi TEK SATIR başlık, hemen altında terminal. Terminalin tek
+  başına en üstte durması "çok sıkıcı" diye reddedildi (5 Ağu); başlığın
+  altında bir blok halinde durması da reddedilmişti. Ölçü ikisinin arası:
+  bir satır, sonra çalışan şeyin kendisi.
 - Tipografi: gövde 14.5px, ikincil 13px, kart başlığı 1.15rem, h1 2.1rem.
   5 Ağu'da iki uçtan da geçildi, Damla önce "eşek kadar" dedi sonra "çok küçük";
   bu satır o iki reddin arasında kalan ölçü.
 - Emoji Damla'nın paletidir ve sabittir: 💞🎀✨💘🍉💫. Kırmızı kalp ASLA.
-  Palet SAYFAYA DAĞILIR, bir yere DÖKÜLMEZ: altısını yan yana tek satıra
-  koymak "lök" diye reddedildi (5 Ağu). Yeri kağıdın kendisi, yani sabit
-  tohumlu, seyrek, soluk, metnin arkasında duran bir alan (`Glyphs.tsx`).
-  Başlıkta sadece 🍉, çünkü ürünün kendi adı. Her render'da değişen süs
-  gürültüdür, tohum sabittir.
+  Altısı TEK TEK yerleştirilir, her biri anlamına yakın bir yere: 🍉 başlıkta
+  (ürünün adı), ✨ kaydın altındaki satırda, 💘 turun tarihinde, 💞 iki aralığı
+  karşılaştıran kartta, 💫 zar kartında, 🎀 neyi reddettiğini sayan bölümde.
+  İki yol denendi ve ikisi de reddedildi: altısını yan yana dizmek "lök",
+  arka plana serpmek "tek tek değil". Her satırın başına emoji konmaz.
 - Sayfayı kapatan kanıt şeridi ORTALI, rakam üstte yazı altında. Rakamı geniş
   bir boşlukla yazısından ayıran satır düzeni reddedildi.
 - Sayfadaki her sayı ölçülmüş bir turdan gelir. Bir ölçüm ürününün vitrininde

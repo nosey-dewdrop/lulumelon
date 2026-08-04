@@ -14,7 +14,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
-import { Glyphs } from "@/app/Glyphs";
 import { armInWords, percent, publishedRound, publishedRounds } from "@/lib/published";
 import { REPO_URL, SITE_NAME, url } from "@/lib/site";
 
@@ -97,7 +96,6 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
 
   return (
     <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
-      <Glyphs />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

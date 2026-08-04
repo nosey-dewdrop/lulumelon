@@ -15,7 +15,6 @@
  * three-column feature grid. The terminal is the only ornament and it is also
  * the demo.
  */
-import { Glyphs } from "./Glyphs";
 import { CountUp, Reveal } from "./Reveal";
 import { Terminal } from "./Terminal";
 
@@ -74,7 +73,6 @@ function Card({
 export default function Page() {
   return (
     <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
-      <Glyphs />
       {/* ------------------------------------------------------------- hero
           The terminal is the first thing on the page. Not the first thing
           under a headline, the first thing: it is already running when the
@@ -86,26 +84,34 @@ export default function Page() {
 
           The brand still arrives first, because the terminal's own opening
           line says it. */}
-      <section aria-label="recorded measurement" className="mx-auto max-w-[58rem]">
-        {/* Narrower than the page and centred. A terminal set to the full
-            measure spends its right half on nothing, because the widest line
-            in it is a sentence and the rest is a table. */}
-        <Terminal />
-        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-ink-soft">
-          <span>a recording. typing here calls nothing and costs nothing.</span>
-          <Pm />
-          <span>ask the same question ten times and count, or read a number somebody asked once.</span>
-        </div>
-      </section>
-
-      <header className="mt-14 text-center">
-        <h1 className="mx-auto max-w-[26ch] text-[1.5rem] leading-[1.18] tracking-tight sm:text-[2.1rem]">
+      {/* One line, then the thing itself. The line is what a stranger needs to
+          know before the terminal starts making sense, and it is one line
+          rather than a block so the demo is still the first thing that
+          happens on the page. */}
+      <div className="mx-auto max-w-[58rem]">
+        <h1 className="text-center text-[1.2rem] leading-tight tracking-tight sm:text-[1.55rem]">
           lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
         </h1>
 
-        <p className="mx-auto mt-5 max-w-[44ch] text-[14px] leading-relaxed text-ink-soft">
+        <section aria-label="recorded measurement" className="mt-6">
+          {/* Narrower than the page and centred. A terminal set to the full
+              measure spends its right half on nothing, because the widest line
+              in it is a sentence and the rest is a table. */}
+          <Terminal />
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-ink-soft">
+            <span>
+              <span aria-hidden>✨</span> a recording. typing here calls nothing and costs nothing.
+            </span>
+            <Pm />
+            <span>ask the same question ten times and count, or read a number somebody asked once.</span>
+          </div>
+        </section>
+      </div>
+
+      <header className="mt-14 text-center">
+        <p className="mx-auto max-w-[44ch] text-[1.15rem] leading-snug">
           every tool in this category reports one number.{" "}
-          <span className="text-ink">it asked once.</span>
+          <span className="text-ink-soft">it asked once.</span>
         </p>
       </header>
 
@@ -122,7 +128,7 @@ export default function Page() {
             it checkable. Proof, not decoration. */}
         <div className="border-t border-rule pt-6 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
           <p className="text-[13px] uppercase tracking-[0.14em] text-ink-soft">
-            one round, 4 august 2026
+            <span aria-hidden>💘</span> one round, 4 august 2026
           </p>
           <div className="mt-5 flex flex-col gap-4">
             <Figure value="20" of="questions written from one customer site, then measured four times each" />
@@ -156,7 +162,8 @@ export default function Page() {
           delay={60}
           heading={
             <>
-              when is a competitor <span className="text-lilac">ahead</span>?
+              when is a competitor <span className="text-lilac">ahead</span>?{" "}
+              <span aria-hidden>💞</span>
             </>
           }
         >
@@ -184,7 +191,8 @@ export default function Page() {
           delay={0}
           heading={
             <>
-              did the content work, or did the <span className="text-lilac">dice</span> move?
+              did the content work, or did the <span className="text-lilac">dice</span> move?{" "}
+              <span aria-hidden>💫</span>
             </>
           }
         >
@@ -263,7 +271,9 @@ export default function Page() {
         </Reveal>
 
         <Reveal delay={80}>
-          <h2 className="text-[1.15rem]">what does it refuse?</h2>
+          <h2 className="text-[1.15rem]">
+            what does it refuse? <span aria-hidden>🎀</span>
+          </h2>
           <dl className="mt-6 text-[13px] leading-relaxed">
             {[
               [

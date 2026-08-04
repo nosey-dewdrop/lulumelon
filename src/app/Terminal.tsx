@@ -266,7 +266,7 @@ export function Terminal() {
   }, [typed]);
 
   return (
-    <div className="w-full border border-term-rule bg-term-bg text-[12.5px] leading-[1.55] sm:text-[13px]">
+    <div className="w-full border border-term-rule bg-term-bg text-[11px] leading-[1.5] sm:text-[11.5px]">
       {/* title bar */}
       <div className="flex items-center gap-2 border-b border-term-rule bg-term-bar px-3 py-[6px]">
         <span className="flex gap-[6px]" aria-hidden>
@@ -282,7 +282,7 @@ export function Terminal() {
       {/* body */}
       <div
         ref={bodyRef}
-        className="h-[26rem] overflow-y-auto px-3 py-3 sm:h-[30rem]"
+        className="h-[23rem] overflow-y-auto px-3 py-3 sm:h-[26rem]"
         onClick={() => inputRef.current?.focus()}
       >
         {printed.map((line, i) => (
@@ -335,7 +335,7 @@ export function Terminal() {
       </div>
 
       {/* status bar */}
-      <div className="border-t border-term-rule px-3 py-[6px] text-[11.5px]">
+      <div className="border-t border-term-rule px-3 py-[5px] text-[10.5px]">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-term-muted">lulumelon</span>
           <span className="text-term-rule">·</span>

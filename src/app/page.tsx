@@ -76,7 +76,7 @@ function Card({
 
 export default function Page() {
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
+    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-5 sm:px-10 sm:pt-6">
       {/* ------------------------------------------------------------- hero
           The terminal is the first thing on the page. Not the first thing
           under a headline, the first thing: it is already running when the
@@ -112,12 +112,12 @@ export default function Page() {
           know before the terminal starts making sense, and it is one line
           rather than a block so the demo is still the first thing that
           happens on the page. */}
-      <div className="mx-auto mt-10 max-w-[58rem]">
-        <h1 className="text-center text-[1.2rem] leading-tight tracking-tight sm:text-[1.55rem]">
+      <div className="mx-auto mt-7 max-w-[58rem]">
+        <h1 className="text-center text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
           lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
         </h1>
 
-        <section aria-label="recorded measurement" className="mt-6">
+        <section aria-label="recorded measurement" className="mt-4">
           {/* Narrower than the page and centred. A terminal set to the full
               measure spends its right half on nothing, because the widest line
               in it is a sentence and the rest is a table. */}

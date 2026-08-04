@@ -95,8 +95,9 @@ from .mirror.compare import model_confounds
 from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
 from .mirror.lift import UNDECIDED as EFFECT_UNDECIDED
 from .mirror.lift import source_effect
+from .mirror.names import names_in
 from .mirror.report import NothingLeftToScore, brand_report
-from .mirror.types import Snapshot, group_runs
+from .mirror.types import Reply, Snapshot, group_runs
 from .mirror.variance import decompose
 from .latex import Evidence, tex_document
 from .keys import (
@@ -2320,6 +2321,56 @@ def report(
     return typeset(console, tex=written, pdf=pdf_path, which=which, run=run)
 
 
+def rivals(console: Console, *, ledger_dir: Path, snapshot: str, least: int = 1) -> int:
+    """Print every name a recorded round reached for, and where it reached for it.
+
+    The questions in a screening round carry no company in them, so the names
+    in the answers are the model's own. Reading them back is how a customer
+    finds out who it is up against inside an answer, and until this command
+    existed that reading was done once, by hand, in a script that was thrown
+    away afterwards. A finding nobody can re-derive is an anecdote.
+
+    Nothing is spent here and nothing is asked. The round has already been
+    paid for, the answers are already on disk, and this is arithmetic over
+    them: the same file gives the same table forever, including to whoever is
+    checking whether the table was true.
+
+    `least` is a floor on how many questions a name has to turn up in, and it
+    defaults to letting everything through. A name in one question is a real
+    observation about that question, and this command does not get to decide
+    which observations a reader is allowed to see.
+    """
+    store = Ledger(ledger_dir)
+    console.say(f"lulu rivals: {ledger_dir}")
+    console.say()
+    try:
+        _verified(store, console, "round", snapshot)
+    except BrokenChain:
+        return CHAIN_BROKEN
+
+    replies = tuple(
+        Reply(prompt_id=rec.prompt_id, draw=rec.repeat, text=rec.answer_text)
+        for rec in store.read(snapshot)
+        if rec.prompt_id and rec.status == "ok" and rec.answer_text
+    )
+    found = [one for one in names_in(replies) if one.in_questions >= least]
+
+    console.say()
+    console.say("NAMED")
+    for one in found:
+        console.say(f"  {one.as_text()}")
+    console.say()
+    console.say(
+        f"  {counted(len(found), 'name')} across {counted(len(replies), 'answer')}, and every one "
+        "of them appears in a recorded answer character for character"
+    )
+    console.say(
+        "  a name here is a name the model wrote, not a rival. which of them compete with the "
+        "customer is the one judgement this cannot make from the answers"
+    )
+    return 0 if found else NOTHING_TO_SCORE
+
+
 def questions_of(
     subject: Subject,
     played: Replay,
@@ -2639,6 +2690,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_lift.add_argument("--per-brand", action="store_true")
     p_lift.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the rounds live in")
 
+    p_rivals = sub.add_parser(
+        "rivals", help="every name a recorded round reached for, and in which questions"
+    )
+    p_rivals.add_argument("--snapshot", required=True, help="the round to read")
+    p_rivals.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the round lives in")
+    p_rivals.add_argument(
+        "--least",
+        type=int,
+        default=1,
+        metavar="N",
+        help="only names that turned up in at least N of the questions",
+    )
+
     p_report = sub.add_parser("report", help="what one recorded round measured about one brand")
     p_report.add_argument("--snapshot", required=True, help="the round to read")
     # Required, and not a list of prompt ids. The file that stated the questions
@@ -2864,6 +2928,13 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 wanted=args.candidates,
                 harvest_only=args.harvest_only,
                 dry_run=args.dry_run,
+            )
+        if args.command == "rivals":
+            return rivals(
+                console,
+                ledger_dir=Path(args.ledger),
+                snapshot=args.snapshot,
+                least=args.least,
             )
         if args.command == "report":
             return report(

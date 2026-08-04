@@ -74,6 +74,25 @@ class Run:
 
 
 @dataclass(frozen=True, slots=True)
+class Reply:
+    """One recorded answer, whole, as the engine wrote it.
+
+    A `Run` is an answer already read: it carries the brands somebody declared
+    and went looking for. This carries the words, and it exists for the one
+    question that cannot be answered from a list of names decided in advance,
+    which is who else the model names when nobody suggested anybody.
+
+    Built by the caller from the ledger and handed in. Nothing in this package
+    opens a file, so a count that could not be reproduced from records on disk
+    cannot be produced here at all.
+    """
+
+    prompt_id: str
+    draw: int
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
 class PromptSample:
     """Every run of one prompt on one engine: the k repeats.
 

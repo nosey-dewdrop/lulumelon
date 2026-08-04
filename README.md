@@ -82,7 +82,7 @@ reader check any report against the ledger it came from.
 
 ```
 lulumelon/
-  cli.py          `lulu init` / `doctor` / `plan` / `collect` / `report` / `usage` / `verify` / `ablate` / `lift`
+  cli.py          `lulu init` / `doctor` / `plan` / `collect` / `report` / `rivals` / `usage` / `verify` / `ablate` / `lift`
   keys.py         where a key is looked for, in order, and how it is kept quiet
   prices.py       what a call costs, from the provider's page, with the date read
   mirror/         the measurement core, calls no model
@@ -96,6 +96,7 @@ lulumelon/
     lift.py       what one source was worth, and the name that has to be earned
     report.py     one brand, with the refusals kept
     screen.py     the gates a question passes, and the draws that decide it
+    names.py      who the model named when nobody suggested anybody
   collect/        the part that asks, and the part that writes it down
     ask.py        provider boundary; Perplexity Sonar and a deterministic stub
     subject.py    the tracked names and the questions, refused rather than repaired
@@ -130,7 +131,7 @@ until they do not.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 922 tests, offline
+    python3 -m pytest lulumelon/tests   # 934 tests, offline
     npm test                            # 45 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
@@ -339,6 +340,21 @@ could not be scored, and no script should read it as one.
 
     lulu usage     # what the rounds on disk cost, from the provider's figures
     lulu verify    # re-derive every chain, and say what that check does not cover
+
+The questions in a screening round carry no company in them, so the names in
+the answers are the model's own. `lulu rivals` reads them back off a round that
+has already been paid for, and reports each name with the questions it turned up
+in and how many draws of each named it. A name in every draw of one question and
+a name in one draw of every question are opposite findings, and a single total
+would print them the same.
+
+    lulu rivals --ledger ./ledger --snapshot ROUND --least 2
+
+Which of those names is a competitor is the one judgement it does not make. A
+name is printed when the round wrote it inside a sentence at least once, or when
+it is spelled the way no ordinary word is, and never when the same round also
+wrote it in lower case. Every name printed appears in a recorded answer character
+for character, which is the rule a quote is held to everywhere else here.
 
 Every round closes with a record saying how many calls it made and how they
 came out, hashed into the same chain as the answers. That is what makes a short

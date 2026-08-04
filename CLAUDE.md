@@ -10,7 +10,7 @@ ya da kişisel not yazılmaz. Oturum devri notları repo dışında,
 
 ## durum
 
-922 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
+934 pytest yeşil, 45 node testi yeşil. Süit ağ kapalı çalışır, anahtar harcamaz.
 
     python3 -m pytest lulumelon/tests
     npm test
@@ -21,9 +21,9 @@ Duvar ürünün kendisi. `mirror/` saf aritmetiktir, ağa hiç dokunmaz ve
 `collect/`'ten import etmez. `collect/` ağa dokunan tek yerdir ve hiçbir şey
 hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 
-- `mirror/` — intervals, variance, ablation, lift, compare, report, sources, stability, types, screen
+- `mirror/` — intervals, variance, ablation, lift, compare, report, sources, stability, types, screen, names
 - `collect/` — ask, ledger, session, budget, detect, subject, audit, harvest, propose, replica, replay
-- `cli.py` — setup, init, doctor, collect, draft, usage, ablate, lift, report, verify, plan, size
+- `cli.py` — setup, init, doctor, collect, draft, usage, ablate, lift, report, rivals, verify, plan, size
 
 ## kalıcı kararlar
 
@@ -73,5 +73,6 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
   perplexity; collect ve draft anthropic. `docs/keys.md` baştan sona Perplexity
   anlatıyor.
 - Bu build sadece iki motor çağırabiliyor, perplexity ve anthropic.
-- Rakipler `--rivals` ile elle veriliyor. Sitenin kendi karşılaştırma
-  sayfalarından kanıt kuralıyla çıkarılması yazılmadı.
+- `lulu rivals` bir turun adlarını sayar ama isimleri hâlâ elle `--rivals`'a
+  geçiriliyor; iki ucu birleştiren adım yazılmadı. Sayım, bir turda hiç cümle
+  içinde geçmeyen ve imlasında iz taşımayan adı düşürür (`Twelve Data`).

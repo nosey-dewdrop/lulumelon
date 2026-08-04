@@ -15,8 +15,12 @@
  * three-column feature grid. The terminal is the only ornament and it is also
  * the demo.
  */
+import Link from "next/link";
+
 import { CountUp, Reveal } from "./Reveal";
 import { Terminal } from "./Terminal";
+
+const REPO = "https://github.com/nosey-dewdrop/lulumelon";
 
 function Pm() {
   return <span className="text-lilac">±</span>;
@@ -84,11 +88,31 @@ export default function Page() {
 
           The brand still arrives first, because the terminal's own opening
           line says it. */}
+      {/* --------------------------------------------------------------- nav
+          A page with no doors reads as an essay about a product rather than a
+          product. These four are the whole surface: the thing, what it has
+          already measured, how to get a key into it, and the code. */}
+      <nav className="flex flex-wrap items-baseline justify-center gap-x-5 gap-y-2 text-[13px] text-ink-soft">
+        <span className="text-ink">lulumelon</span>
+        <Pm />
+        <Link className="hover:text-lilac" href="/named">
+          measured questions
+        </Link>
+        <Pm />
+        <a className="hover:text-lilac" href={`${REPO}/blob/main/docs/keys.md`}>
+          docs
+        </a>
+        <Pm />
+        <a className="hover:text-lilac" href={REPO}>
+          source
+        </a>
+      </nav>
+
       {/* One line, then the thing itself. The line is what a stranger needs to
           know before the terminal starts making sense, and it is one line
           rather than a block so the demo is still the first thing that
           happens on the page. */}
-      <div className="mx-auto max-w-[58rem]">
+      <div className="mx-auto mt-10 max-w-[58rem]">
         <h1 className="text-center text-[1.2rem] leading-tight tracking-tight sm:text-[1.55rem]">
           lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
         </h1>
@@ -308,6 +332,85 @@ export default function Page() {
           </dl>
         </Reveal>
       </section>
+
+      {/* --------------------------------------------------------- the thing
+          What a stranger can install, and the commands that exist. Without
+          this the page is an argument about measurement rather than a library
+          somebody can run tonight, and every figure above came out of these
+          fifteen commands. */}
+      <Reveal className="mt-20 border-t border-rule pt-8">
+        <h2 className="text-[1.15rem]">how do you run it?</h2>
+        <p className="mt-4 max-w-[72ch] text-[13px] leading-relaxed text-ink-soft">
+          python 3.11 and two dependencies, both of them arithmetic. everything on the network path
+          is standard library, because an http client is not worth a supply chain for one post.
+          the suite runs offline and spends no key.
+        </p>
+
+        <div className="mt-7 grid gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div>
+            {/* No border and no fill. This page has one box in it and that box
+                is the terminal at the top; a second one made of a lighter
+                colour would be a card by another name. The type is already
+                monospace, so a command reads as a command on its own. */}
+            <pre className="overflow-x-auto text-[13px] leading-relaxed">
+{[
+                ["pip install -e .", ""],
+                ["lulu setup", "your key, into the OS keychain"],
+                ["lulu draft --site example.com", "writes the question set from a site"],
+                ["lulu collect --subject FILE", "asks each question k times"],
+                ["lulu report --snapshot ROUND", "the number, with what it withholds"],
+                ["lulu verify", "re-derive every chain on disk"],
+              ].map(([command, said]) => (
+                <div key={command}>
+                  <span className="text-ink">{command}</span>
+                  {said ? (
+                    <span className="text-ink-soft">
+                      {"  ".repeat(1)}
+                      <span className="text-lilac">±</span> {said}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </pre>
+            <p className="mt-3 text-[12px] text-ink-soft">
+              fifteen commands in all. `lulu screened` turns a round into a pdf, `lulu rivals`
+              reads the names off it, `lulu publish` writes the pages under{" "}
+              <Link className="underline decoration-rule underline-offset-4 hover:decoration-pink" href="/named">
+                measured questions
+              </Link>
+              , and `lulu usage` prices what was spent from the provider&rsquo;s own figures.
+            </p>
+          </div>
+
+          <div className="text-[13px] leading-relaxed text-ink-soft">
+            <p>
+              <span className="text-ink">the library is the product.</span> `mirror` is pure
+              arithmetic and reaches no network, so an interval can be recomputed from a file
+              without a key. `collect` is the only part allowed to reach a provider and it computes
+              nothing. that wall is why a number here is checkable rather than quotable.
+            </p>
+            <p className="mt-4">
+              a round lands in an append-only file, hash-chained, each line carrying the hash of
+              the one before it, and the round states its own length so a file somebody cut lines
+              off the end of stops verifying.
+            </p>
+            <p className="mt-4">
+              mit licensed, on{" "}
+              <a className="underline decoration-rule underline-offset-4 hover:decoration-pink" href={REPO}>
+                github
+              </a>
+              , with the key setup written out in{" "}
+              <a
+                className="underline decoration-rule underline-offset-4 hover:decoration-pink"
+                href={`${REPO}/blob/main/docs/keys.md`}
+              >
+                docs/keys.md
+              </a>
+              .
+            </p>
+          </div>
+        </div>
+      </Reveal>
 
       {/* ------------------------------------------------------------ proof */}
       <Reveal className="mt-20 border-t border-rule pt-10 text-center">

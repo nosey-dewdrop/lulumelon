@@ -2596,6 +2596,7 @@ def publish(
     questions_path: Path,
     out_dir: Path,
     least: int = 2,
+    drop: Sequence[str] = (),
 ) -> int:
     """Write one recorded round out as a page the web can serve.
 
@@ -2613,6 +2614,13 @@ def publish(
     The questions come from a file rather than from the ledger, because a
     record carries a prompt's id and not its sentence, and a page that invented
     the question it is reporting on would be inventing the whole page.
+
+    `drop` is the one place a person's judgement enters the numbers. The name
+    counter is positional and it cannot tell a company from a genre word a
+    model writes in title case, so `API`, `LLMs` and `AI Agents` come through
+    it. What is dropped is written into the file and printed on the page beside
+    the table, because a table that quietly lost rows is a table nobody can
+    check against the round it claims to come from.
     """
     store = Ledger(ledger_dir)
     console.say(f"lulu publish: {ledger_dir}")
@@ -2670,11 +2678,14 @@ def publish(
         if not replies:
             continue
         draws = len({one.draw for one in replies})
-        counted_names = [
+        unwanted = {name.casefold() for name in drop}
+        found = [
             one
             for one in names_in(replies)
             if sum(q.draws for q in one.questions) >= least
         ]
+        counted_names = [one for one in found if one.name.casefold() not in unwanted]
+        removed = sorted(one.name for one in found if one.name.casefold() in unwanted)
         surfaces = sorted({rec.surface for rec in records if rec.prompt_id == prompt_id})
         models = sorted({rec.model for rec in records if rec.prompt_id == prompt_id})
         engines = sorted({rec.engine for rec in records if rec.prompt_id == prompt_id})
@@ -2696,11 +2707,15 @@ def publish(
                     key=lambda one: (-sum(q.draws for q in one.questions), one.name),
                 )
             ],
+            "dropped": removed,
         }
         path = out_dir / f"{body['slug']}.json"
         path.write_text(json.dumps(body, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         written.append(path)
-        console.say(f"  {path}  {counted(len(body['names']), 'name')} over {draws} draws")
+        line = f"  {path}  {counted(len(body['names']), 'name')} over {draws} draws"
+        if removed:
+            line += f", {len(removed)} dropped by hand"
+        console.say(line)
 
     console.say()
     console.say(
@@ -3122,6 +3137,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_publish.add_argument("--ledger", default=DEFAULT_LEDGER, help="directory the round lives in")
     p_publish.add_argument(
+        "--drop",
+        default="",
+        metavar="NAMES",
+        help="comma separated names to leave out as genre words, listed on the page itself",
+    )
+    p_publish.add_argument(
         "--least",
         type=int,
         default=2,
@@ -3384,6 +3405,7 @@ def main(argv: Sequence[str] | None = None, *, console: Console | None = None) -
                 questions_path=Path(args.questions),
                 out_dir=Path(args.out),
                 least=args.least,
+                drop=[one.strip() for one in args.drop.split(",") if one.strip()],
             )
         if args.command == "rivals":
             return rivals(

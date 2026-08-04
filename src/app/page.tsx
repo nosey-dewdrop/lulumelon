@@ -172,7 +172,7 @@ export default function Page() {
           delay={0}
           heading={
             <>
-              is 0 of 10 <span className="text-lilac">zero</span>?
+              is 0 of 10 <span className="underline decoration-rule underline-offset-[6px]">zero</span>?
             </>
           }
         >
@@ -186,7 +186,7 @@ export default function Page() {
           delay={60}
           heading={
             <>
-              when is a competitor <span className="text-lilac">ahead</span>?{" "}
+              when is a competitor <span className="underline decoration-rule underline-offset-[6px]">ahead</span>?{" "}
               <span aria-hidden>💞</span>
             </>
           }
@@ -200,7 +200,7 @@ export default function Page() {
           delay={120}
           heading={
             <>
-              does the model that <span className="text-lilac">searches</span> answer with the same
+              does the model that <span className="underline decoration-rule underline-offset-[6px]">searches</span> answer with the same
               companies?
             </>
           }
@@ -215,7 +215,7 @@ export default function Page() {
           delay={0}
           heading={
             <>
-              did the content work, or did the <span className="text-lilac">dice</span> move?{" "}
+              did the content work, or did the <span className="underline decoration-rule underline-offset-[6px]">dice</span> move?{" "}
               <span aria-hidden>💫</span>
             </>
           }
@@ -231,7 +231,7 @@ export default function Page() {
           delay={60}
           heading={
             <>
-              or did the <span className="text-lilac">model</span> move?
+              or did the <span className="underline decoration-rule underline-offset-[6px]">model</span> move?
             </>
           }
         >
@@ -245,7 +245,7 @@ export default function Page() {
           delay={120}
           heading={
             <>
-              what is the most this <span className="text-lilac">can</span> cost?
+              what is the most this <span className="underline decoration-rule underline-offset-[6px]">can</span> cost?
             </>
           }
         >

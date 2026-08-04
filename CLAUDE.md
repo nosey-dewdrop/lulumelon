@@ -65,6 +65,14 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 - Renk dünyası pembe ve lila, ve ikisi de terminalin kendi paletinden gelir
   (`--lilac`, `--pink`). Dışarıdan palet getirilmez, gradient yoktur, köşe
   yarıçapı 3px'i geçmez, dinlenme halinde gölge yoktur.
+- **Cümlenin içindeki tek kelime RENKLENDİRİLMEZ**, başlıkta da gövdede de.
+  5 Ağu'da başlıklarda lila kelime denendi ve reddedildi. Vurgu gerekiyorsa
+  altı çizilir ya da kalınlaştırılır, ve sadece cümlenin döndüğü kelimeye:
+  rastgele kelime kalınlaştırmak yasak. Renk kategori işaretler (ölçülen sayı
+  pembe, ± lila), vurgu işaretlemez.
+- Kutu yok. Sayfadaki tek kutu terminaldir; ikinci bir çerçeve ya da dolgulu
+  blok karttır ve reddedilir. Yuvarlak sadece gerçek dairelerde (terminalin
+  üç noktası).
 - Sayfanın tepesi TEK SATIR başlık, hemen altında terminal. Terminalin tek
   başına en üstte durması "çok sıkıcı" diye reddedildi (5 Ağu); başlığın
   altında bir blok halinde durması da reddedilmişti. Ölçü ikisinin arası:

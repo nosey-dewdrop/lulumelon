@@ -20,7 +20,22 @@ function usesMotion(): boolean {
   return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** True once this element has been on screen, and true forever after. */
+/**
+ * True once this element has been on screen, and true forever after.
+ *
+ * The effect subscribes and nothing else: the state moves in the observer's
+ * callback, which is the one place it can move without costing a render. The
+ * reader who never gets that callback is not handled here either. No script at
+ * all is a `noscript` rule in `layout.tsx`, and reduced motion is a media query
+ * in `globals.css`; both land before the first paint, where a state flip would
+ * have painted the hidden frame first and the argument second.
+ *
+ * A window with no `IntersectionObserver` cannot have parsed this bundle, so
+ * the last branch is a guard against a constructor that throws rather than a
+ * case with a reader in it. It finishes the block by hand: this component will
+ * never render again in that browser, so there is no state to keep and nothing
+ * to overwrite the class.
+ */
 function useSeen<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const [seen, setSeen] = useState(false);
@@ -28,8 +43,8 @@ function useSeen<T extends HTMLElement>() {
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    if (!usesMotion() || typeof IntersectionObserver === "undefined") {
-      setSeen(true);
+    if (typeof IntersectionObserver === "undefined") {
+      node.classList.add("reveal-in");
       return;
     }
     const watcher = new IntersectionObserver(
@@ -84,26 +99,24 @@ const DURATION = 900;
  */
 export function CountUp({ value }: { value: string }) {
   const { ref, seen } = useSeen<HTMLSpanElement>();
-  const [shown, setShown] = useState<string | null>(null);
+  // A climb is remembered with the number it was climbing to, so a partial
+  // figure can never outlive the value that produced it.
+  const [climb, setClimb] = useState<{ toward: string; at: string } | null>(null);
 
   useEffect(() => {
     if (!seen) return;
-    if (!usesMotion()) {
-      setShown(value);
-      return;
-    }
+    // Every way out of here leaves the climb alone, and a span with no climb of
+    // its own shows the finished number. That is what makes each of these an
+    // exit rather than a write: a reader who asked for no motion, and a figure
+    // with no digits to move, both want the resting string that is already on
+    // screen.
+    if (!usesMotion()) return;
 
     const digits = value.match(/[\d.]+/);
-    if (!digits) {
-      setShown(value);
-      return;
-    }
+    if (!digits) return;
     const target = Number(digits[0]);
     const decimals = (digits[0].split(".")[1] ?? "").length;
-    if (!Number.isFinite(target)) {
-      setShown(value);
-      return;
-    }
+    if (!Number.isFinite(target)) return;
 
     let frame = 0;
     const started = performance.now();
@@ -112,7 +125,7 @@ export function CountUp({ value }: { value: string }) {
       // Eased out, so it decelerates into the number rather than snapping.
       const eased = 1 - Math.pow(1 - through, 3);
       const at = (target * eased).toFixed(decimals);
-      setShown(value.replace(digits[0], at));
+      setClimb({ toward: value, at: value.replace(digits[0], at) });
       if (through < 1) frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
@@ -123,7 +136,7 @@ export function CountUp({ value }: { value: string }) {
   // reads and what a reader ends on are the same string.
   return (
     <span ref={ref} className="tabular-nums">
-      {shown ?? value}
+      {climb?.toward === value ? climb.at : value}
     </span>
   );
 }

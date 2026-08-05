@@ -10,7 +10,7 @@
  */
 import Link from "next/link";
 
-import { SITE_NAME } from "@/lib/site";
+import { AUTHOR, AUTHOR_URL, SITE_NAME } from "@/lib/site";
 
 export const REPO = "https://github.com/nosey-dewdrop/lulumelon";
 
@@ -54,7 +54,7 @@ export function Nav({ here }: { here?: "named" | "docs" }) {
 
 export function Foot({ back }: { back?: boolean }) {
   return (
-    <footer className="mt-24 border-t border-rule pt-6 text-[12px] text-ink-soft">
+    <footer className="mt-10 text-[12px] text-ink-soft">
       <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2">
         <Link className="text-ink hover:text-lilac" href="/">
           {SITE_NAME}
@@ -64,7 +64,12 @@ export function Foot({ back }: { back?: boolean }) {
           source
         </a>
         <Pm />
-        <span>built by nosey dewdrop</span>
+        <span>
+          built by{" "}
+          <a className="underline decoration-rule underline-offset-4 hover:decoration-pink" href={AUTHOR_URL}>
+            {AUTHOR}
+          </a>
+        </span>
         {back ? (
           <>
             <Pm />

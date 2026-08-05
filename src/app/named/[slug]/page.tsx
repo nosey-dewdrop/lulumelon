@@ -14,6 +14,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Foot, Nav, Pm } from "@/app/Frame";
+import { Reveal } from "@/app/Reveal";
 import { armInWords, percent, publishedRound, publishedRounds } from "@/lib/published";
 import { REPO_URL, SITE_NAME, url } from "@/lib/site";
 
@@ -95,7 +96,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
   };
 
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-5 sm:px-10 sm:pt-6">
+    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-5 sm:px-10 sm:pt-6">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -110,7 +111,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
         <h1 className="text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
           <span aria-hidden>💘</span> {round.question}
         </h1>
-        <p className="mx-auto mt-4 max-w-[62ch] text-[13px] leading-relaxed text-ink-soft">
+        <p className="mx-auto mt-4 max-w-[62ch] text-[13px] leading-snug text-ink-soft">
           asked {round.draws} times of {round.model}, {armInWords(round.arm)}. the question names no
           company. what follows is who the model reached for on its own, counted per draw, with the
           range the sample supports beside each one.
@@ -130,7 +131,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
         </p>
       </header>
 
-      <section className="mt-12" aria-label="who was named">
+      <section className="mt-8" aria-label="who was named">
         <div className="grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
           {round.names.map((one) => (
             <div key={one.name}>
@@ -150,9 +151,9 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
         </div>
       </section>
 
-      <section className="mt-16 border-t border-rule pt-7">
+      <section className="mt-10">
         <h2 className="text-[1.15rem]">what does this not say?</h2>
-        <div className="mt-5 grid max-w-[86ch] gap-6 text-[13px] leading-relaxed text-ink-soft sm:grid-cols-2">
+        <div className="mt-5 grid max-w-[86ch] gap-6 text-[13px] leading-snug text-ink-soft sm:grid-cols-2">
           <p>
             a name at {round.draws} of {round.draws} is not a certainty. six draws put the honest
             range at 61% to 100%, and a page that printed 100% would be quoting a sample it does

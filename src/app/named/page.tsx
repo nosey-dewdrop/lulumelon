@@ -10,6 +10,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Foot, Nav } from "@/app/Frame";
+import { Reveal } from "@/app/Reveal";
 import { armInWords, percent, publishedRounds } from "@/lib/published";
 import { SITE_NAME, url } from "@/lib/site";
 
@@ -31,14 +32,14 @@ export default function NamedIndex() {
   const rounds = publishedRounds();
 
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-5 sm:px-10 sm:pt-6">
+    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-5 sm:px-10 sm:pt-6">
       <Nav here="named" />
 
       <header className="mx-auto mt-7 max-w-[58rem] text-center">
         <h1 className="text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
           <span aria-hidden>💞</span> who does the model name when the question names nobody?
         </h1>
-        <p className="mx-auto mt-4 max-w-[62ch] text-[13px] leading-relaxed text-ink-soft">
+        <p className="mx-auto mt-4 max-w-[62ch] text-[13px] leading-snug text-ink-soft">
           each question below was asked of one model several times over, and every answer was
           written into a hash-chained file before anything was counted. the pages report what the
           sample supports and refuse what it does not.
@@ -46,22 +47,23 @@ export default function NamedIndex() {
       </header>
 
       {rounds.length === 0 ? (
-        <p className="mt-14 text-[14.5px] text-ink-soft">
+        <p className="mt-9 text-[14.5px] text-ink-soft">
           no round has been published yet. `lulu publish` writes them, and they are committed by
           hand.
         </p>
       ) : (
-        <ul className="mt-12 border-t border-rule">
-          {rounds.map((round) => {
+        <ul className="mx-auto mt-8 max-w-[62rem]">
+          {rounds.map((round, i) => {
             const leader = round.names[0];
             return (
-              <li key={round.slug} className="border-b border-rule py-6">
+              <li key={round.slug} className="py-4">
+                <Reveal delay={Math.min(i, 4) * 50}>
                 <Link href={`/named/${round.slug}`} className="group block">
                   <div className="grid gap-x-10 gap-y-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
                     <h2 className="text-[1.1rem] leading-snug group-hover:text-lilac">
                       {round.question}
                     </h2>
-                    <div className="text-[13px] leading-relaxed text-ink-soft">
+                    <div className="text-[13px] leading-snug text-ink-soft">
                       {leader ? (
                         <span>
                           <span className="text-ink">{leader.name}</span> in {leader.draws} of{" "}
@@ -75,6 +77,7 @@ export default function NamedIndex() {
                     </div>
                   </div>
                 </Link>
+                </Reveal>
               </li>
             );
           })}

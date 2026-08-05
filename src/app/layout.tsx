@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
+import { AUTHOR, AUTHOR_URL, SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
 
 import "./globals.css";
 
@@ -30,8 +30,9 @@ export const metadata: Metadata = {
     "generative engine optimisation",
     "chatgpt brand monitoring",
   ],
-  authors: [{ name: "nosey dewdrop", url: "https://noseydewdrop.com" }],
-  creator: "nosey dewdrop",
+  authors: [{ name: AUTHOR, url: AUTHOR_URL }],
+  creator: AUTHOR,
+  publisher: AUTHOR,
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",

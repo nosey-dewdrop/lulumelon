@@ -62,16 +62,42 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <Reveal delay={delay} className="border-t border-rule pt-5">
+    <Reveal delay={delay}>
       <h2 className="text-[1.15rem] leading-tight">{heading}</h2>
-      <p className="mt-4 text-[13px] leading-relaxed text-ink-soft">{children}</p>
+      <p className="mt-4 text-[13px] leading-snug text-ink-soft">{children}</p>
     </Reveal>
   );
 }
 
 export default function Page() {
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-5 sm:px-10 sm:pt-6">
+    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-5 sm:px-10 sm:pt-6">
+      {/* What this is and who wrote it, in the form a search engine reads as
+          an entity rather than as a sentence. The name is written out because
+          a handle is not a person to an index. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: SITE_NAME,
+            applicationCategory: "DeveloperApplication",
+            operatingSystem: "macOS, Linux",
+            url: url("/"),
+            license: "https://opensource.org/licenses/MIT",
+            isAccessibleForFree: true,
+            programmingLanguage: "Python",
+            softwareRequirements: "Python 3.11 or newer",
+            codeRepository: REPO,
+            description:
+              "A python library and command line tool that measures what language models say about a brand, asking each question many times and reporting the interval the sample supports.",
+            author: { "@type": "Person", name: AUTHOR, url: AUTHOR_URL },
+            creator: { "@type": "Person", name: AUTHOR, url: AUTHOR_URL },
+          }),
+        }}
+      />
+
       {/* ------------------------------------------------------------- hero
           The terminal is the first thing on the page. Not the first thing
           under a headline, the first thing: it is already running when the
@@ -109,15 +135,15 @@ export default function Page() {
         </section>
       </div>
 
-      <header className="mt-14 text-center">
+      <header className="mt-9 text-center">
         <p className="mx-auto max-w-[44ch] text-[1.15rem] leading-snug">
           every tool in this category reports one number.{" "}
           <span className="text-ink-soft">it asked once.</span>
         </p>
       </header>
 
-      <section className="mt-10 grid gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <p className="max-w-[58ch] text-[14.5px] leading-relaxed text-ink-soft">
+      <section className="mt-10 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <p className="max-w-[58ch] text-[14.5px] leading-snug text-ink-soft">
           language models are not deterministic. ask the same question twice and you get different
           companies, in a different order. so &ldquo;your visibility is 18.5%&rdquo; is not a
           measurement, it is one draw from a distribution nobody characterised. this asks n times,
@@ -127,7 +153,7 @@ export default function Page() {
 
         {/* Four figures off one paid round, each with the sentence that makes
             it checkable. Proof, not decoration. */}
-        <div className="border-t border-rule pt-6 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
+        <div className="lg:pl-12">
           <p className="text-[13px] uppercase tracking-[0.14em] text-ink-soft">
             <span aria-hidden>💘</span> one round, 4 august 2026
           </p>
@@ -144,7 +170,7 @@ export default function Page() {
           Six questions the category answers wrong, each arriving as it is
           scrolled to. A heading that asks something ends in a question mark,
           every time, on every surface. */}
-      <section className="mt-20 grid gap-x-14 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="mt-8 grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
         <Card
           delay={0}
           heading={
@@ -234,10 +260,10 @@ export default function Page() {
       </section>
 
       {/* ------------------------------------------------------ what it does */}
-      <section className="mt-20 grid gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="mt-8 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Reveal>
           <h2 className="text-[1.15rem]">what does it measure?</h2>
-          <dl className="mt-6 text-[13px] leading-relaxed">
+          <dl className="mt-6 text-[13px] leading-snug">
             {[
               [
                 "appearance rate",
@@ -275,7 +301,7 @@ export default function Page() {
           <h2 className="text-[1.15rem]">
             what does it refuse? <span aria-hidden>🎀</span>
           </h2>
-          <dl className="mt-6 text-[13px] leading-relaxed">
+          <dl className="mt-6 text-[13px] leading-snug">
             {[
               [
                 "a round it cannot re-derive",
@@ -315,21 +341,21 @@ export default function Page() {
           this the page is an argument about measurement rather than a library
           somebody can run tonight, and every figure above came out of these
           fifteen commands. */}
-      <Reveal className="mt-20 border-t border-rule pt-8">
+      <Reveal className="mt-8">
         <h2 className="text-[1.15rem]">how do you run it?</h2>
-        <p className="mt-4 max-w-[72ch] text-[13px] leading-relaxed text-ink-soft">
+        <p className="mt-4 max-w-[72ch] text-[13px] leading-snug text-ink-soft">
           python 3.11 and two dependencies, both of them arithmetic. everything on the network path
           is standard library, because an http client is not worth a supply chain for one post.
           the suite runs offline and spends no key.
         </p>
 
-        <div className="mt-7 grid gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="mt-7 grid gap-x-12 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div>
             {/* No border and no fill. This page has one box in it and that box
                 is the terminal at the top; a second one made of a lighter
                 colour would be a card by another name. The type is already
                 monospace, so a command reads as a command on its own. */}
-            <pre className="overflow-x-auto text-[13px] leading-relaxed">
+            <pre className="min-w-0 overflow-x-auto text-[13px] leading-snug">
 {[
                 ["pip install -e .", ""],
                 ["lulu setup", "your key, into the OS keychain"],
@@ -359,7 +385,7 @@ export default function Page() {
             </p>
           </div>
 
-          <div className="text-[13px] leading-relaxed text-ink-soft">
+          <div className="text-[13px] leading-snug text-ink-soft">
             <p>
               <span className="text-ink">the library is the product.</span> `mirror` is pure
               arithmetic and reaches no network, so an interval can be recomputed from a file
@@ -390,15 +416,15 @@ export default function Page() {
       </Reveal>
 
       {/* ------------------------------------------------------------ proof */}
-      <Reveal className="mt-20 border-t border-rule pt-10 text-center">
+      <Reveal className="mt-8 text-center">
         <h2 className="text-[1.15rem]">can you check any of it?</h2>
-        <p className="mx-auto mt-4 max-w-[64ch] text-[13px] leading-relaxed text-ink-soft">
+        <p className="mx-auto mt-4 max-w-[64ch] text-[13px] leading-snug text-ink-soft">
           yes, and that is the design. the measurement core is pure arithmetic and reaches no
           network, the collector reaches the network and computes nothing, and the wall between
           them is why a number here can be reproduced from the file it came from. the suite runs
           offline with every socket closed and spends no key.
         </p>
-        <div className="mt-10 flex flex-wrap items-start justify-center gap-x-16 gap-y-8 text-left">
+        <div className="mt-10 flex flex-wrap items-start justify-center gap-x-16 gap-y-6 text-left">
           <Stacked value="979" of="python tests, offline, on the measurement core and the collector" />
           <Stacked value="45" of="node tests on the sampling maths behind the demo above" />
           <Stacked value="0" of="answers rewritten, retried, or dropped from any round" />

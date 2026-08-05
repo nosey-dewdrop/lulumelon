@@ -70,6 +70,10 @@
 
 html,
 body {
+  /* One long command line in a grid column used to widen the page and scroll
+     the whole layout sideways. The columns are told they may shrink where they
+     live; this is the backstop. */
+  overflow-x: hidden;
   background: var(--paper);
   color: var(--ink);
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;

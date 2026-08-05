@@ -16,6 +16,11 @@ export const SITE_URL = (
 
 export const REPO_URL = "https://github.com/nosey-dewdrop/lulumelon";
 
+/** Written out rather than left as the handle, on every surface. */
+export const AUTHOR = "Damla Su Bilge";
+export const AUTHOR_URL = "https://noseydewdrop.com";
+export const AUTHOR_HANDLE = "nosey dewdrop";
+
 /**
  * Absolute url for a path, for canonicals and the sitemap.
  *

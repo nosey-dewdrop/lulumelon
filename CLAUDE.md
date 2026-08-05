@@ -66,10 +66,15 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
   (`--lilac`, `--pink`). Dışarıdan palet getirilmez, gradient yoktur, köşe
   yarıçapı 3px'i geçmez, dinlenme halinde gölge yoktur.
 - **Cümlenin içindeki tek kelime RENKLENDİRİLMEZ**, başlıkta da gövdede de.
-  5 Ağu'da başlıklarda lila kelime denendi ve reddedildi. Vurgu gerekiyorsa
-  altı çizilir ya da kalınlaştırılır, ve sadece cümlenin döndüğü kelimeye:
-  rastgele kelime kalınlaştırmak yasak. Renk kategori işaretler (ölçülen sayı
-  pembe, ± lila), vurgu işaretlemez.
+  Renk kategori işaretler (ölçülen sayı pembe, ± lila), vurgu işaretlemez.
+- **Vurgu PR'dır, dilbilgisi değil.** 5 Ağu'da iki yol denendi ve ikisi de
+  reddedildi: başlıklarda lila kelime, sonra her başlıkta "pivot kelimenin"
+  altını çizmek. İkincisi için Damla'nın sözü: "yine rastgele bir kelime türü
+  seçip altını çizmişsin, PR yap, PR ruhun bu olsun." Kalınlaştırılan şey
+  okuyucunun aklında kalmasını istediğin ŞEYDİR: sert sayı ("43.4% of the
+  time", "12.6 points", "printed $0.0440 and paid $0.0467") ve satan iddia
+  ("claim certainty of absence", "it does not"). Kelime türü seçip mekanik
+  uygulamak vurgu değil, süstür.
 - Kutu yok. Sayfadaki tek kutu terminaldir; ikinci bir çerçeve ya da dolgulu
   blok karttır ve reddedilir. Yuvarlak sadece gerçek dairelerde (terminalin
   üç noktası).

@@ -22,6 +22,22 @@ import { AUTHOR, AUTHOR_URL, SITE_NAME, url } from "@/lib/site";
 import { CountUp, Reveal } from "./Reveal";
 import { Terminal } from "./Terminal";
 
+/**
+ * `**like this**` becomes bold, so the sentence beside a figure can carry the
+ * word it turns on without the markup swallowing the copy.
+ */
+function emphasised(text: string) {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 ? (
+      <strong key={i} className="font-bold text-ink">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
 /** A figure and the words that make it checkable. Never a figure alone. */
 function Figure({ value, of }: { value: string; of: string }) {
   return (
@@ -29,7 +45,7 @@ function Figure({ value, of }: { value: string; of: string }) {
       <span className="min-w-[3.6rem] text-[1.3rem] leading-none tracking-tight text-pink">
         <CountUp value={value} />
       </span>
-      <span className="text-[13px] leading-snug text-ink-soft">{of}</span>
+      <span className="text-[13px] leading-snug text-ink-soft">{emphasised(of)}</span>
     </div>
   );
 }
@@ -160,9 +176,9 @@ export default function Page() {
           </p>
           <div className="mt-5 flex flex-col gap-4">
             <Figure value="20" of="questions written from one customer site, then measured four times each" />
-            <Figure value="11" of="of them named none of the thirteen rivals that had been declared" />
-            <Figure value="339" of="companies the same answers did name, that the declared list never carried" />
-            <Figure value="$2.46" of="the whole round, against a ceiling of $3.50 printed before it started" />
+            <Figure value="11" of="of them named **none** of the thirteen rivals that had been declared" />
+            <Figure value="339" of="companies the same answers **did** name, that the declared list never carried" />
+            <Figure value="$2.46" of="the whole round, against a ceiling of $3.50 **printed before it started**" />
           </div>
         </div>
       </section>
@@ -176,26 +192,28 @@ export default function Page() {
           delay={0}
           heading={
             <>
-              is 0 of 10 <span className="underline decoration-rule underline-offset-[6px]">zero</span>?
+              is 0 of 10 zero?
             </>
           }
         >
           never being named in ten draws is compatible with being named up to{" "}
-          <span className="text-ink">43.4%</span> of the time. the textbook interval collapses to
-          nothing here and lets a tool claim certainty of absence after ten samples. wilson keeps
-          the real bound, so the report says what it does not know.
+          <strong className="font-bold text-ink">43.4% of the time</strong>. the textbook interval
+          collapses to nothing here and lets a tool{" "}
+          <strong className="font-bold text-ink">claim certainty of absence</strong> after ten
+          samples. wilson keeps the real bound, so the report says what it does not know.
         </Card>
 
         <Card
           delay={60}
           heading={
             <>
-              when is a competitor <span className="underline decoration-rule underline-offset-[6px]">ahead</span>?{" "}
+              when is a competitor ahead?{" "}
               <span aria-hidden>💞</span>
             </>
           }
         >
-          a competitor at 6 of 10 against your 4 of 10 is not ahead of you. those ranges overlap
+          a competitor at <strong className="font-bold text-ink">6 of 10 against your 4 of 10 is not
+          ahead of you</strong>. those ranges overlap
           almost entirely. this refuses to print a ranking the sample cannot support, which is the
           one thing every dashboard in the category does anyway.
         </Card>
@@ -204,7 +222,7 @@ export default function Page() {
           delay={120}
           heading={
             <>
-              does the model that <span className="underline decoration-rule underline-offset-[6px]">searches</span> answer with the same
+              does the model that searches answer with the same
               companies?
             </>
           }
@@ -219,15 +237,15 @@ export default function Page() {
           delay={0}
           heading={
             <>
-              did the content work, or did the <span className="underline decoration-rule underline-offset-[6px]">dice</span> move?{" "}
+              did the content work, or did the dice move?{" "}
               <span aria-hidden>💫</span>
             </>
           }
         >
           publish something, measure again. if the two intervals overlap, the honest verdict is
           inconclusive and the report says how many draws it would take to settle it. going from 2
-          of 10 to 4 of 10 looks like a doubling and means nothing. that round&rsquo;s own noise
-          floor was <span className="text-ink">12.6 points</span>, read off the draws that were
+          of 10 to 4 of 10 looks like a doubling and means nothing. that round&rsquo;s own noise floor was{" "}
+          <strong className="font-bold text-ink">12.6 points</strong>, read off the draws that were
           already bought.
         </Card>
 
@@ -235,13 +253,14 @@ export default function Page() {
           delay={60}
           heading={
             <>
-              or did the <span className="underline decoration-rule underline-offset-[6px]">model</span> move?
+              or did the model move?
             </>
           }
         >
           providers ship new versions without telling anyone, and everybody&rsquo;s numbers shift at
-          once. the same fixed question set, run on a schedule, separates &ldquo;you dropped&rdquo;
-          from &ldquo;the model changed underneath you&rdquo;, and a round whose model moved is
+          once. the same fixed question set, run on a schedule, separates{" "}
+          <strong className="font-bold text-ink">&ldquo;you dropped&rdquo; from &ldquo;the model
+          changed underneath you&rdquo;</strong>, and a round whose model moved is
           refused rather than compared.
         </Card>
 
@@ -249,14 +268,14 @@ export default function Page() {
           delay={120}
           heading={
             <>
-              what is the most this <span className="underline decoration-rule underline-offset-[6px]">can</span> cost?
+              what is the most this can cost?
             </>
           }
         >
           every command prints that figure before it spends anything, and the guard stops the round
-          rather than discovering the overrun afterwards. the first version of that guard printed{" "}
-          <span className="text-ink">$0.0440</span> and paid <span className="text-ink">$0.0467</span>
-          , because it priced a call nobody was making. it is priced from the request now.
+          rather than discovering the overrun afterwards. the first version of that guard{" "}
+          <strong className="font-bold text-ink">printed $0.0440 and paid $0.0467</strong>, because it
+          priced a call nobody was making. it is priced from the request now.
         </Card>
       </section>
 

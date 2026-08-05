@@ -9,7 +9,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Foot, Nav } from "@/app/Frame";
+import { Divider, Foot, Nav } from "@/app/Frame";
 import { Reveal } from "@/app/Reveal";
 import { armInWords, percent, publishedRounds } from "@/lib/published";
 import { SITE_NAME, url } from "@/lib/site";
@@ -45,6 +45,8 @@ export default function NamedIndex() {
           sample supports and refuse what it does not.
         </p>
       </header>
+
+      <Divider />
 
       {rounds.length === 0 ? (
         <p className="mt-9 text-[15px] text-ink-soft">

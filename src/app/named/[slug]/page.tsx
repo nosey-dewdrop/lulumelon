@@ -13,7 +13,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { Foot, Nav, Pm } from "@/app/Frame";
+import { Divider, Foot, Nav, Pm } from "@/app/Frame";
 import { Reveal } from "@/app/Reveal";
 import { armInWords, percent, publishedRound, publishedRounds } from "@/lib/published";
 import { REPO_URL, SITE_NAME, url } from "@/lib/site";
@@ -154,6 +154,8 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
       {/* Centred as a column, left aligned inside it. Long copy set flush to
           the page edge on one side and open on the other reads as a leftover
           rather than as a section. */}
+      <Divider />
+
       <Reveal className="mx-auto mt-10 max-w-[54rem]">
         <h2 className="text-[1.3rem]">what does this not say?</h2>
         <div className="mt-5 grid gap-6 text-[15px] leading-snug text-ink-soft sm:grid-cols-2">

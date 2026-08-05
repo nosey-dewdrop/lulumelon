@@ -17,7 +17,7 @@
  */
 import Link from "next/link";
 
-import { Foot, Nav, Pm, REPO } from "./Frame";
+import { Divider, Foot, Nav, Pm, REPO } from "./Frame";
 import { AUTHOR, AUTHOR_URL, SITE_NAME, url } from "@/lib/site";
 import { CountUp, Reveal } from "./Reveal";
 import { Terminal } from "./Terminal";
@@ -190,6 +190,8 @@ export default function Page() {
         </div>
       </section>
 
+      <Divider />
+
       {/* ---------------------------------------------------- the argument
           Six questions the category answers wrong, each arriving as it is
           scrolled to. A heading that asks something ends in a question mark,
@@ -286,6 +288,8 @@ export default function Page() {
         </Card>
       </section>
 
+      <Divider />
+
       {/* ------------------------------------------------------ what it does */}
       <section className="mt-8 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Reveal>
@@ -362,6 +366,8 @@ export default function Page() {
           </dl>
         </Reveal>
       </section>
+
+      <Divider />
 
       {/* --------------------------------------------------------- the thing
           What a stranger can install, and the commands that exist. Without
@@ -446,6 +452,8 @@ export default function Page() {
           </div>
         </div>
       </Reveal>
+
+      <Divider />
 
       {/* ------------------------------------------------------------ proof */}
       <Reveal className="mt-8 text-center">

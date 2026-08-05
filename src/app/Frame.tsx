@@ -56,6 +56,22 @@ export function Nav({ here }: { here?: "named" | "docs" }) {
   );
 }
 
+/**
+ * What separates two blocks here.
+ *
+ * A plain rule was tried and thrown out. This is the same three glyphs every
+ * time, from the palette, centred and spaced out, so a reader learns it as the
+ * mark of a break rather than reading it as content. Hidden from a screen
+ * reader, which hears the heading that follows instead.
+ */
+export function Divider() {
+  return (
+    <div className="my-10 text-center text-[13px] tracking-[0.7em] select-none" aria-hidden>
+      ✨🍉✨
+    </div>
+  );
+}
+
 export function Foot({ back }: { back?: boolean }) {
   return (
     <footer className="mt-10 text-[12px] text-ink-soft">

@@ -14,7 +14,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Foot, Nav, Pm, REPO } from "@/app/Frame";
+import { Divider, Foot, Nav, Pm, REPO } from "@/app/Frame";
 import { Reveal } from "@/app/Reveal";
 import { SITE_NAME, url } from "@/lib/site";
 
@@ -70,6 +70,7 @@ export default function Docs() {
         </p>
       </header>
 
+      <Divider />
       <Section title="how do you install it?">
         <p>
           python 3.11 or newer. two dependencies, both of them arithmetic; everything on the network
@@ -90,6 +91,7 @@ export default function Docs() {
         </p>
       </Section>
 
+      <Divider />
       <Section title="where does the key go?">
         <p>
           into the os keychain, under the service <span className="text-ink">lulumelon</span> and
@@ -119,6 +121,7 @@ export default function Docs() {
         </p>
       </Section>
 
+      <Divider />
       <Section title="what are the commands?">
         <p>fifteen, and these are the six a first round goes through.</p>
         <pre className="mt-4 min-w-0 overflow-x-auto text-[15px] leading-snug">
@@ -150,6 +153,7 @@ export default function Docs() {
         </p>
       </Section>
 
+      <Divider />
       <Section title="what is inside the library?">
         <p>
           two layers and a wall between them, and the wall is the product.{" "}
@@ -172,6 +176,7 @@ export default function Docs() {
         </p>
       </Section>
 
+      <Divider />
       <Section title="what does a round look like on disk?">
         <p>
           one file per round, append only, one json object per line, each line carrying the hash of
@@ -194,6 +199,7 @@ export default function Docs() {
         </p>
       </Section>
 
+      <Divider />
       <Section title="what does it refuse to tell you?">
         <p>
           a ranking the sample cannot support, a comparison across a model version change, a rate

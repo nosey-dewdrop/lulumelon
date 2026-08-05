@@ -94,6 +94,13 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
   karşılaştıran kartta, 💫 zar kartında, 🎀 neyi reddettiğini sayan bölümde.
   İki yol denendi ve ikisi de reddedildi: altısını yan yana dizmek "lök",
   arka plana serpmek "tek tek değil". Her satırın başına emoji konmaz.
+- Bloklar **✨🍉✨** ile ayrılır (`Frame.tsx` → `Divider`). Yatay çizgi yasak,
+  ama bölme süsü Damla'nın isteği: "böyle çok kağıt gibi olmuş". Hep aynı üç
+  glif, ortalı, seyrek harf aralıklı, ekran okuyucudan gizli.
+- Navbar STICKY ve kağıt zeminli, altında çizgi yok, blur yok, gölge yok.
+- Sayı ile yanındaki cümle AYNI satır yüksekliğini taşır, yoksa taban çizgisi
+  kayar ve rakam cümlesinin altına düşer. Rakam sütunu sabit genişliktir
+  (`w-[5.5rem]`), minimum değil, çünkü `$2.46` kendi satırını sağa itiyordu.
 - Sayfayı kapatan kanıt şeridi ORTALI, rakam üstte yazı altında. Rakamı geniş
   bir boşlukla yazısından ayıran satır düzeni reddedildi.
 - Sayfadaki her sayı ölçülmüş bir turdan gelir. Bir ölçüm ürününün vitrininde

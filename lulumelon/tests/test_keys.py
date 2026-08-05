@@ -442,14 +442,20 @@ def test_the_temporary_keychain_is_removed_even_when_the_test_using_it_fails():
     assert not made[0].parent.exists()
 
 
-def test_the_keychain_write_does_not_put_the_key_on_a_command_line():
+def test_the_keychain_write_does_not_put_the_key_on_a_command_line(monkeypatch):
     """Read the argv the helper would use, and prove the secret is not in it.
 
     Anything passed as an argument is visible in `ps` to every other user on
     the machine while the call runs. The keychain file is not a secret and is
     quoted onto the interactive line, where nothing outside this process can
     read it.
+
+    The platform is held open the way the neighbouring tests hold it, because
+    the argv being read here is the argv this package builds anywhere. Without
+    that line the write refuses before the spy sees anything, and the claim
+    about where a secret travels is only ever checked on one operating system.
     """
+    monkeypatch.setattr("lulumelon.keys.keychain_supported", lambda *a: True)
     seen: list[list[str]] = []
 
     def spy(args, **kwargs):
@@ -464,12 +470,13 @@ def test_the_keychain_write_does_not_put_the_key_on_a_command_line():
     assert seen == [["security", "-i"], ["security", "-i"]]
 
 
-def test_a_named_keychain_reaches_security_quoted_and_the_default_one_is_unnamed():
+def test_a_named_keychain_reaches_security_quoted_and_the_default_one_is_unnamed(monkeypatch):
     """A home directory with a space in it is ordinary, and would split.
 
     The interactive parser tokenises on whitespace, so the one argument this
     package generates rather than fixes is the one that gets quotes.
     """
+    monkeypatch.setattr("lulumelon.keys.keychain_supported", lambda *a: True)
     written: list[str] = []
 
     def spy(args, **kwargs):

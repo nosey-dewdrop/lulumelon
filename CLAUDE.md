@@ -85,7 +85,9 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 - **"Terminali küçült" KUTUYU küçültmektir, yazıyı değil.** 5 Ağu'da terminal
   metnini 11px'e indirdim ve reddedildi: okunmayan yazının kimseye faydası yok.
   Terminal metni 13px kalır, daralan şey kutunun genişliği ve yüksekliğidir.
-- Tipografi: gövde 14.5px, ikincil 13px, kart başlığı 1.15rem, h1 1.3rem.
+- Tipografi: gövde 15.5px, ikincil 14px, kart başlığı 1.25rem, h1 1.4rem
+  (5 Ağu'da tüm sayfa bir kademe büyütüldü; terminal 13px'te kaldı, kutusu
+  sabit ölçüde ve satırları tablo).
   5 Ağu'da iki uçtan da geçildi, Damla önce "eşek kadar" dedi sonra "çok küçük";
   bu satır o iki reddin arasında kalan ölçü.
 - Emoji Damla'nın paletidir ve sabittir: 💞🎀✨💘🍉💫. Kırmızı kalp ASLA.
@@ -97,6 +99,20 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
 - Bloklar **✨🍉✨** ile ayrılır (`Frame.tsx` → `Divider`). Yatay çizgi yasak,
   ama bölme süsü Damla'nın isteği: "böyle çok kağıt gibi olmuş". Hep aynı üç
   glif, ortalı, seyrek harf aralıklı, ekran okuyucudan gizli.
+- **TEK IZGARA ORANI: `lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]`.** Sayfadaki
+  her iki kolonlu blok bu oranı ve `gap-x-10`'u kullanır. 5 Ağu'da üç ayrı oran
+  vardı ve sağ kolon her blokta başka bir yerden başlıyordu; Damla'nın sözü:
+  "en sevmediğim şey hizası kayık şeylerdir". Bir blok ya ızgaraya hizalıdır ya
+  da ORTALIDIR (`text-center`); dar bir ortalı kolonun içinde sola hizalı metin
+  üçüncü bir sol kenar açar ve yasaktır.
+- Terminalin yanındaki kolon kısa kalırsa artan yükseklik `items-center` ile
+  alta ve üste EŞİT bölünür, hepsi alta yığılmaz (Damla'nın 5 Ağu isteği).
+- **Ücret cümlesi vizyondur, dipnot değil:** kütüphane bedava ve MIT, anahtar
+  kullanıcının, token parası doğrudan sağlayıcıya gider, yazılım üstüne hiçbir
+  şey almaz. Sayfada tez paragrafının yanında durur, en altta değil.
+- Sonuç sayfasında (`/named/[slug]`) kaydırınca beliren blok YOK. Arama
+  sonucundan gelen okuyucu zaten sayıyı arıyor, blokun solurken açılması
+  sayfayı yavaş gösteriyor.
 - Navbar STICKY ve kağıt zeminli, altında çizgi yok, blur yok, gölge yok.
 - Sayı ile yanındaki cümle AYNI satır yüksekliğini taşır, yoksa taban çizgisi
   kayar ve rakam cümlesinin altına düşer. Rakam sütunu sabit genişliktir

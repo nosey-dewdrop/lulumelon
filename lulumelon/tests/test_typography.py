@@ -511,3 +511,20 @@ def test_a_dash_a_customer_typed_reaches_the_page_and_ours_does_not(tmp_path):
 
     for name in ("report, benjerry", "document, benjerry"):
         assert dashes(surfaces[name]), f"{name} lost the customer's own punctuation"
+
+
+# -- the pages in the repository ---------------------------------------------
+
+
+def test_no_page_in_this_repository_carries_a_dash():
+    """The rule is every surface, and the markdown was never one of them.
+
+    Every screen this build prints is read above. The pages a stranger meets
+    first were not, and the proof arrived the day the changelog was written: an
+    em dash went into its first heading and no test said a word. A rule enforced
+    on the output and not on the front page holds where nobody is looking.
+    """
+    root = Path(__file__).resolve().parents[2]
+    pages = [root / "README.md", root / "CHANGELOG.md", *sorted((root / "docs").glob("*.md"))]
+    assert len(pages) >= 3, "the pages moved, and this stopped reading them"
+    assert_clean({page.name: page.read_text(encoding="utf-8") for page in pages})

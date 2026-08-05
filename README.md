@@ -139,7 +139,7 @@ fifteen is a different object from one that started as thirteen.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 987 tests, offline
+    python3 -m pytest lulumelon/tests   # 988 tests, offline
     npm test                            # 52 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
@@ -167,6 +167,9 @@ That puts `lulu` on the path. Without the install the same commands run as
 Building it as a package needs setuptools 77 or newer, which is stated in
 `pyproject.toml` and is not a preference: the licence field here is the SPDX
 string, and every backend before 77 reads that as a table and stops.
+
+Releases are tagged, and what is in each one is in
+[CHANGELOG.md](CHANGELOG.md). `0.1.0` is the first.
 
 ### the first five minutes
 

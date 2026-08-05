@@ -140,7 +140,7 @@ export default function Page() {
           right edge it reads as a window, and the width it stops taking now
           carries the line that says what this is, what the terminal is, and
           the round that paid for the figures under it. */}
-      <section className="mt-7 grid items-start gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <section className="mt-7 grid items-center gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div>
           <h1 className="text-[1.15rem] leading-tight tracking-tight sm:text-[1.4rem]">
             lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
@@ -188,7 +188,7 @@ export default function Page() {
         </p>
       </header>
 
-      <section className="mt-9 grid gap-x-10 gap-y-7 lg:grid-cols-2">
+      <section className="mt-9 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <p className="text-[15.5px] leading-snug text-ink-soft">
           language models are not deterministic. ask the same question twice and you get different
           companies, in a different order. so &ldquo;your visibility is 18.5%&rdquo; is not a
@@ -202,7 +202,7 @@ export default function Page() {
             on your behalf; this hands over the software and lets the money go
             straight to the provider. It belongs this high on the page because
             it is the first question anybody has after the demo. */}
-        <div className="lg:pl-8">
+        <div>
           <h2 className="text-[1.25rem] leading-snug">
             <span aria-hidden>💐</span> what does it cost to use?
           </h2>
@@ -228,19 +228,21 @@ export default function Page() {
           somebody can run tonight, and every figure above came out of these
           fifteen commands. */}
       <Reveal className="mt-12">
-        {/* The heading and the line under it sit as a centred column. What
-            follows keeps the width it had, because a command list set to a
-            reading measure wraps where a command should not wrap. */}
-        <div className="mx-auto max-w-[54rem]">
+        {/* Centred, and centred properly. Left aligned copy inside a narrow
+            centred column opened a third left edge on a page that already had
+            two, which is the one thing the eye catches from across the room. A
+            block is either flush with the grid or it is centred; this one is
+            centred, and the commands under it keep the grid. */}
+        <div className="mx-auto max-w-[62ch] text-center">
           <h2 className="text-[1.25rem]">how do you run it?</h2>
           <p className="mt-4 text-[14px] leading-snug text-ink-soft">
-          python 3.11 and two dependencies, both of them arithmetic. everything on the network path
-          is standard library, because an http client is not worth a supply chain for one post.
-            the suite runs offline and spends no key.
+            python 3.11 and two dependencies, both of them arithmetic. everything on the network
+            path is standard library, because an http client is not worth a supply chain for one
+            post. the suite runs offline and spends no key.
           </p>
         </div>
 
-        <div className="mt-7 grid gap-x-12 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="mt-7 grid gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
           <div>
             {/* No border and no fill. This page has one box in it and that box
                 is the terminal at the top; a second one made of a lighter
@@ -407,7 +409,7 @@ export default function Page() {
       <Divider />
 
       {/* ------------------------------------------------------ what it does */}
-      <section className="mt-8 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="mt-8 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <Reveal>
           <h2 className="text-[1.25rem]">what does it measure?</h2>
           <dl className="mt-6 text-[14px] leading-snug">

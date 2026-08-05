@@ -50,7 +50,7 @@ for calls it said nothing about as three separate bases that never merge.
 
 ### the gates
 
-- 988 python tests and 52 node tests, all offline, no key spent.
+- 990 python tests and 52 node tests, all offline, no key spent.
 - ruff over 78 python files, eslint and tsc over the site.
 - Every push runs all of it on python 3.11 and 3.13, installs the wheel into an
   empty environment and runs `lulu --help` out of it, and the site deploys only

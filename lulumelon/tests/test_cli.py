@@ -171,13 +171,40 @@ def run_doctor(rec: Recorder, tmp_path: Path, **kw) -> int:
 
 
 def test_doctor_lists_every_place_it_looked_when_it_finds_nothing(tmp_path: Path):
+    """The evidence, and then the one command that acts on it.
+
+    This is where somebody with no key arrives, and it used to send them to
+    `lulu init`, the older wizard that asks where the key should go. The
+    command written for a first run is `lulu setup`, which asks nothing. What
+    that costs is on the screen as well, because a first command that bills an
+    account without saying so is the behaviour this repository argues against.
+    """
     rec = Recorder()
     assert run_doctor(rec, tmp_path) == 1
     text = rec.text
     assert "PERPLEXITY_API_KEY" in text
     assert str(tmp_path / ".env") in text
-    assert "lulu init" in text
+    assert "lulu setup" in text
+    assert "lulu init" not in text, "the greeting points at the older wizard again"
+    assert "about a cent" in text, "the next command bills, and the screen has to say so"
+    assert "nothing was spent" in text
     assert PPLX.key_page in text
+
+
+def test_doctor_agrees_with_the_provider_name_it_was_given(tmp_path: Path):
+    """`a anthropic key` was the first line a stranger read.
+
+    The sentence was written once, around a registry that later gained a second
+    entry starting with a vowel. Both providers are read here rather than the
+    one that happens to be the default.
+    """
+    for provider, expected in (
+        ("perplexity", "a perplexity key"),
+        ("anthropic", "an anthropic key"),
+    ):
+        rec = Recorder()
+        assert run_doctor(rec, tmp_path, provider=provider) == 1
+        assert expected in rec.text
 
 
 def test_doctor_spends_nothing_when_told_not_to(tmp_path: Path, monkeypatch):

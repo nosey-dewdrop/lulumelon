@@ -52,6 +52,7 @@ from lulumelon.collect import (
     without,
 )
 from lulumelon.collect.audit import audit
+from lulumelon.keys import PROVIDERS
 from lulumelon.mirror.ablation import replica_gate
 from lulumelon.mirror.compare import paired_difference
 from lulumelon.mirror.lift import source_effect
@@ -62,7 +63,7 @@ from lulumelon.mirror.variance import decompose, prompts_needed, runs_needed
 from lulumelon.panel import Panel
 from lulumelon.plan import Comparison, critical_value, draws_needed, total_variance
 from lulumelon.prices import price_for
-from lulumelon.text import counted
+from lulumelon.text import article, counted
 from lulumelon.usage import spend_of
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -616,6 +617,20 @@ def test_the_helper_refuses_to_guess_a_plural_it_would_get_wrong():
     for singular in ("search", "fix", "entry", "bus", "dish"):
         with pytest.raises(ValueError, match="does not pluralise"):
             counted(2, singular)
+
+
+def test_the_article_agrees_with_every_provider_this_build_can_name():
+    """Not a fixed pair, the registry itself, so a third engine is covered.
+
+    `a anthropic key` shipped because a sentence written around one provider
+    name outlived the day there was only one of them. Reading `PROVIDERS` here
+    means the next entry is checked on the day it is added rather than on the
+    day a stranger reads its screen.
+    """
+    assert article("perplexity") == "a"
+    assert article("anthropic") == "an"
+    for name in PROVIDERS:
+        assert article(name) == ("an" if name[0] in "aeiou" else "a")
 
 
 def test_the_helper_still_takes_the_regular_case_in_one_argument():

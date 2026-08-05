@@ -67,3 +67,20 @@ def counted(n: float, singular: str, plural: str | None = None, *, fmt: str = ""
         plural = singular + "s"
     shown = format(n, fmt)
     return f"{shown} {singular if shown == '1' else plural}"
+
+
+def article(word: str) -> str:
+    """`a` or `an`, agreeing with the word after it.
+
+    The same defect as `searchs`, one line further down the same screen. The
+    first thing a stranger with no key read was "Looking for a anthropic key",
+    because the sentence was written once around a provider name that arrives
+    from a registry, and the registry gained a second entry.
+
+    The letter is the rule here, not the sound. Every word this is ever handed
+    is a provider name out of `PROVIDERS`, all of them lowercase and none of
+    them the English exceptions where the two disagree, so a vowel test is the
+    whole of it. A name that broke that assumption would be a name whose own
+    spelling had to be decided anyway.
+    """
+    return "an" if word[:1].lower() in _VOWELS else "a"

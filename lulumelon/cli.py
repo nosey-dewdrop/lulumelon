@@ -135,7 +135,7 @@ from .plan import (
     variance_of,
 )
 from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for, reported
-from .text import counted
+from .text import article, counted
 from .usage import spend_of, token_rate
 
 #: Where rounds are written unless a caller says otherwise. Relative on
@@ -467,7 +467,19 @@ def init(
 
 
 def report_lookup(console: Console, spec: ProviderSpec, found: Resolution) -> None:
-    console.say(f"Looking for a {spec.name} key, in order:")
+    """Where the key was looked for, and what to do about it.
+
+    The empty half of this is the first screen anybody meets, so it says what
+    happens next rather than only what did not happen. It used to end at
+    `lulu init`, which is the older wizard kept for people who want to choose
+    where the key goes; the one command written for a stranger is `lulu setup`,
+    and the screen that greets strangers was pointing at the other one.
+
+    What that command costs is on the screen too. A first command that quietly
+    bills an account, however little, is the behaviour this repository spends
+    its whole argument objecting to.
+    """
+    console.say(f"Looking for {article(spec.name)} {spec.name} key, in order:")
     for line in found.explain():
         console.say(f"  {line}")
     console.say()
@@ -475,8 +487,16 @@ def report_lookup(console: Console, spec: ProviderSpec, found: Resolution) -> No
         console.say(f"Using the key from {found.source}.")
         console.say(f"Fingerprint: {fingerprint(found.key)}")
     else:
-        console.say("No key was found in any of those places.")
-        console.say(f"Get one at {spec.key_page}, then run:  lulu init")
+        console.say("No key was found in any of those places, and nothing has been asked.")
+        console.say()
+        console.say(f"Get a key at {spec.key_page}, then run:  lulu setup")
+        console.say(f"  It reads which engine the key belongs to off the key, and {spec.name} keys")
+        console.say(f"  start with {spec.key_prefix!r}.")
+        console.say("  It stores it in the OS keychain, or in a file only you can read when the")
+        console.say("  keychain will not take it, and says which of the two happened.")
+        console.say("  Then it spends about a cent proving the key works and the search tool is on.")
+        console.say()
+        console.say("No call was made, and nothing was spent.")
 
 
 def record_check_call(

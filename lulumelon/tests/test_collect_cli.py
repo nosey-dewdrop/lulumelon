@@ -242,7 +242,11 @@ def test_a_round_with_no_key_asks_nothing_and_says_where_it_looked(tmp_path):
     assert run(rec, tmp_path, env={}) == 1
 
     assert "ANTHROPIC_API_KEY" in rec.text
-    assert "lulu init" in rec.text
+    # The same screen `doctor` prints, so a round stopped by a missing key
+    # sends the reader to the one command that fixes it rather than to the
+    # older wizard.
+    assert "lulu setup" in rec.text
+    assert "nothing was spent" in rec.text
     assert not (tmp_path / "ledger").exists(), "a round that never ran writes no snapshot"
 
 

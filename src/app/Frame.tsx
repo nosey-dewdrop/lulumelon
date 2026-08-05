@@ -20,7 +20,11 @@ export function Pm() {
 
 export function Nav({ here }: { here?: "named" | "docs" }) {
   return (
-    <nav className="flex flex-wrap items-baseline justify-center gap-x-5 gap-y-2 text-[13px] text-ink-soft">
+    // Sticky, and solid rather than blurred. The page scrolls under it and
+    // the paper hides what passes, so there is no rule to draw and nothing to
+    // float. `-mx` reaches back through the padding of the page it sits in, so
+    // the bar is the width of the window rather than of the column.
+    <nav className="sticky top-0 z-20 -mx-5 flex flex-wrap items-baseline justify-center gap-x-5 gap-y-2 bg-paper px-5 py-3 text-[14px] text-ink-soft sm:-mx-10 sm:px-10">
       {here ? (
         <Link className="text-ink hover:text-lilac" href="/">
           {SITE_NAME}

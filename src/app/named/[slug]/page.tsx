@@ -96,7 +96,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
   };
 
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-5 sm:px-10 sm:pt-6">
+    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-0 sm:px-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

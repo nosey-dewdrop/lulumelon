@@ -56,7 +56,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function Docs() {
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-5 sm:px-10 sm:pt-6">
+    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-0 sm:px-10">
       <Nav here="docs" />
 
       <header className="mx-auto mt-7 max-w-[58rem] text-center">

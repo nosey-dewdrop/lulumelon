@@ -45,7 +45,11 @@ function Figure({ value, of }: { value: string; of: string }) {
       {/* A fixed column, not a minimum. `$2.46` is wider than `11`, so a
           minimum let the widest figure push its own sentence to the right and
           the four rows stopped lining up with each other. */}
-      <span className="w-[5.5rem] shrink-0 text-[1.3rem] leading-none tracking-tight text-pink">
+      {/* Both sides carry the same line height, so the baseline the flex box
+          aligns on is the same one the eye reads. `leading-none` on the figure
+          shortened its line box and dropped the number below the sentence it
+          belongs to. */}
+      <span className="w-[5.5rem] shrink-0 text-[1.3rem] leading-snug tracking-tight text-pink">
         <CountUp value={value} />
       </span>
       <span className="text-[13px] leading-snug text-ink-soft">{emphasised(of)}</span>
@@ -63,7 +67,7 @@ function Figure({ value, of }: { value: string; of: string }) {
 function Stacked({ value, of }: { value: string; of: string }) {
   return (
     <div className="max-w-[24ch]">
-      <div className="text-[1.7rem] leading-none tracking-tight text-pink">
+      <div className="text-[1.7rem] leading-snug tracking-tight text-pink">
         <CountUp value={value} />
       </div>
       <p className="mt-3 text-[13px] leading-snug text-ink-soft">{of}</p>
@@ -91,7 +95,7 @@ function Card({
 
 export default function Page() {
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-5 sm:px-10 sm:pt-6">
+    <main className="mx-auto max-w-[82rem] px-5 pb-14 pt-0 sm:px-10">
       {/* What this is and who wrote it, in the form a search engine reads as
           an entity rather than as a sentence. The name is written out because
           a handle is not a person to an index. */}

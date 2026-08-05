@@ -18,6 +18,7 @@
 import Link from "next/link";
 
 import { Foot, Nav, Pm, REPO } from "./Frame";
+import { AUTHOR, AUTHOR_URL, SITE_NAME, url } from "@/lib/site";
 import { CountUp, Reveal } from "./Reveal";
 import { Terminal } from "./Terminal";
 

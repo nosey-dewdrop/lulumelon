@@ -36,10 +36,10 @@ export default function NamedIndex() {
       <Nav here="named" />
 
       <header className="mx-auto mt-7 max-w-[58rem] text-center">
-        <h1 className="text-[1.3rem] leading-tight tracking-tight sm:text-[1.6rem]">
+        <h1 className="text-[1.4rem] leading-tight tracking-tight sm:text-[1.7rem]">
           <span aria-hidden>💞</span> who does the model name when the question names nobody?
         </h1>
-        <p className="mx-auto mt-4 max-w-[62ch] text-[15px] leading-snug text-ink-soft">
+        <p className="mx-auto mt-4 max-w-[62ch] text-[16px] leading-snug text-ink-soft">
           each question below was asked of one model several times over, and every answer was
           written into a hash-chained file before anything was counted. the pages report what the
           sample supports and refuse what it does not.
@@ -49,7 +49,7 @@ export default function NamedIndex() {
       <Divider />
 
       {rounds.length === 0 ? (
-        <p className="mt-9 text-[15px] text-ink-soft">
+        <p className="mt-9 text-[16px] text-ink-soft">
           no round has been published yet. `lulu publish` writes them, and they are committed by
           hand.
         </p>
@@ -62,10 +62,10 @@ export default function NamedIndex() {
                 <Reveal delay={Math.min(i, 4) * 50}>
                 <Link href={`/named/${round.slug}`} className="group block">
                   <div className="grid gap-x-10 gap-y-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-                    <h2 className="text-[1.25rem] leading-snug group-hover:text-lilac">
+                    <h2 className="text-[1.35rem] leading-snug group-hover:text-lilac">
                       {round.question}
                     </h2>
-                    <div className="text-[15px] leading-snug text-ink-soft">
+                    <div className="text-[16px] leading-snug text-ink-soft">
                       {leader ? (
                         <span>
                           <span className="text-ink">{leader.name}</span> in {leader.draws} of{" "}

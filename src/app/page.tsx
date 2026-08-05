@@ -49,10 +49,10 @@ function Figure({ value, of }: { value: string; of: string }) {
           aligns on is the same one the eye reads. `leading-none` on the figure
           shortened its line box and dropped the number below the sentence it
           belongs to. */}
-      <span className="w-[4.2rem] shrink-0 text-[1.3rem] leading-snug tracking-tight text-pink">
+      <span className="w-[4.2rem] shrink-0 text-[1.4rem] leading-snug tracking-tight text-pink">
         <CountUp value={value} />
       </span>
-      <span className="text-[13px] leading-snug text-ink-soft">{emphasised(of)}</span>
+      <span className="text-[14px] leading-snug text-ink-soft">{emphasised(of)}</span>
     </div>
   );
 }
@@ -67,10 +67,10 @@ function Figure({ value, of }: { value: string; of: string }) {
 function Stacked({ value, of }: { value: string; of: string }) {
   return (
     <div className="max-w-[24ch]">
-      <div className="text-[1.7rem] leading-snug tracking-tight text-pink">
+      <div className="text-[1.85rem] leading-snug tracking-tight text-pink">
         <CountUp value={value} />
       </div>
-      <p className="mt-3 text-[13px] leading-snug text-ink-soft">{of}</p>
+      <p className="mt-3 text-[14px] leading-snug text-ink-soft">{of}</p>
     </div>
   );
 }
@@ -87,8 +87,8 @@ function Card({
 }) {
   return (
     <Reveal delay={delay}>
-      <h2 className="text-[1.15rem] leading-tight">{heading}</h2>
-      <p className="mt-4 text-[13px] leading-snug text-ink-soft">{children}</p>
+      <h2 className="text-[1.25rem] leading-tight">{heading}</h2>
+      <p className="mt-4 text-[14px] leading-snug text-ink-soft">{children}</p>
     </Reveal>
   );
 }
@@ -140,7 +140,7 @@ export default function Page() {
           rather than a block so the demo is still the first thing that
           happens on the page. */}
       <div className="mx-auto mt-7 max-w-[47rem]">
-        <h1 className="text-center text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
+        <h1 className="text-center text-[1.15rem] leading-tight tracking-tight sm:text-[1.4rem]">
           lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
         </h1>
 
@@ -149,7 +149,7 @@ export default function Page() {
               measure spends its right half on nothing, because the widest line
               in it is a sentence and the rest is a table. */}
           <Terminal />
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-ink-soft">
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[14px] text-ink-soft">
             <span>
               <span aria-hidden>✨</span> a recording. typing here calls nothing and costs nothing.
             </span>
@@ -160,14 +160,14 @@ export default function Page() {
       </div>
 
       <header className="mt-9 text-center">
-        <p className="mx-auto max-w-[44ch] text-[1.15rem] leading-snug">
+        <p className="mx-auto max-w-[44ch] text-[1.25rem] leading-snug">
           every tool in this category reports one number.{" "}
           <span className="text-ink-soft">it asked once.</span>
         </p>
       </header>
 
       <section className="mt-10 grid gap-x-10 gap-y-7 lg:grid-cols-2">
-        <p className="text-[14.5px] leading-snug text-ink-soft">
+        <p className="text-[15.5px] leading-snug text-ink-soft">
           language models are not deterministic. ask the same question twice and you get different
           companies, in a different order. so &ldquo;your visibility is 18.5%&rdquo; is not a
           measurement, it is one draw from a distribution nobody characterised. this asks n times,
@@ -178,7 +178,7 @@ export default function Page() {
         {/* Four figures off one paid round, each with the sentence that makes
             it checkable. Proof, not decoration. */}
         <div className="lg:pl-8">
-          <p className="text-[13px] uppercase tracking-[0.14em] text-ink-soft">
+          <p className="text-[14px] uppercase tracking-[0.14em] text-ink-soft">
             <span aria-hidden>💘</span> one round, 4 august 2026
           </p>
           <div className="mt-5 flex flex-col gap-4">
@@ -189,6 +189,108 @@ export default function Page() {
           </div>
         </div>
       </section>
+
+      <Divider />
+
+      {/* --------------------------------------------------------- the thing
+          What a stranger can install, and the commands that exist. Without
+          this the page is an argument about measurement rather than a library
+          somebody can run tonight, and every figure above came out of these
+          fifteen commands. */}
+      <Reveal className="mt-12">
+        {/* The heading and the line under it sit as a centred column. What
+            follows keeps the width it had, because a command list set to a
+            reading measure wraps where a command should not wrap. */}
+        <div className="mx-auto max-w-[54rem]">
+          {/* The whole commercial position of the thing, in one line, before
+              the install. Every product in this category rents you a seat and
+              bills you for calls it makes on your behalf; this one hands you
+              the software and lets you pay the provider directly. That is the
+              sentence a stranger should leave with, so it is set larger than
+              the copy under it and it arrives before the commands. */}
+          <p className="mx-auto max-w-[52ch] text-center text-[1.25rem] leading-snug">
+            <span aria-hidden>💐</span>{" "}
+            <strong className="font-bold text-ink">it is free, and it stays free.</strong>{" "}
+            <span className="text-ink-soft">
+              bring your own key, pay the provider for your own tokens, and the software{" "}
+              <strong className="font-bold text-ink">takes nothing on top</strong>. no account, no
+              seat, no invoice from here.
+            </span>
+          </p>
+
+          <h2 className="mt-10 text-[1.25rem]">how do you run it?</h2>
+          <p className="mt-4 text-[14px] leading-snug text-ink-soft">
+          python 3.11 and two dependencies, both of them arithmetic. everything on the network path
+          is standard library, because an http client is not worth a supply chain for one post.
+            the suite runs offline and spends no key.
+          </p>
+        </div>
+
+        <div className="mt-7 grid gap-x-12 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div>
+            {/* No border and no fill. This page has one box in it and that box
+                is the terminal at the top; a second one made of a lighter
+                colour would be a card by another name. The type is already
+                monospace, so a command reads as a command on its own. */}
+            <pre className="min-w-0 overflow-x-auto text-[14px] leading-snug">
+{[
+                ["pip install -e .", ""],
+                ["lulu setup", "your key, into the OS keychain"],
+                ["lulu draft --site example.com", "writes the question set from a site"],
+                ["lulu collect --subject FILE", "asks each question k times"],
+                ["lulu report --snapshot ROUND", "the number, with what it withholds"],
+                ["lulu verify", "re-derive every chain on disk"],
+              ].map(([command, said]) => (
+                <div key={command}>
+                  <span className="text-ink">{command}</span>
+                  {said ? (
+                    <span className="text-ink-soft">
+                      {"  ".repeat(1)}
+                      <span className="text-lilac">±</span> {said}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </pre>
+            <p className="mt-3 text-[13px] text-ink-soft">
+              fifteen commands in all. `lulu screened` turns a round into a pdf, `lulu rivals`
+              reads the names off it, `lulu publish` writes the pages under{" "}
+              <Link className="underline decoration-rule underline-offset-4 hover:decoration-pink" href="/named">
+                measured questions
+              </Link>
+              , and `lulu usage` prices what was spent from the provider&rsquo;s own figures.
+            </p>
+          </div>
+
+          <div className="text-[14px] leading-snug text-ink-soft">
+            <p>
+              <span className="text-ink">the library is the product.</span> `mirror` is pure
+              arithmetic and reaches no network, so an interval can be recomputed from a file
+              without a key. `collect` is the only part allowed to reach a provider and it computes
+              nothing. that wall is why a number here is checkable rather than quotable.
+            </p>
+            <p className="mt-4">
+              a round lands in an append-only file, hash-chained, each line carrying the hash of
+              the one before it, and the round states its own length so a file somebody cut lines
+              off the end of stops verifying.
+            </p>
+            <p className="mt-4">
+              mit licensed, on{" "}
+              <a className="underline decoration-rule underline-offset-4 hover:decoration-pink" href={REPO}>
+                github
+              </a>
+              , with the key setup written out in{" "}
+              <a
+                className="underline decoration-rule underline-offset-4 hover:decoration-pink"
+                href={`${REPO}/blob/main/docs/keys.md`}
+              >
+                docs/keys.md
+              </a>
+              .
+            </p>
+          </div>
+        </div>
+      </Reveal>
 
       <Divider />
 
@@ -293,8 +395,8 @@ export default function Page() {
       {/* ------------------------------------------------------ what it does */}
       <section className="mt-8 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Reveal>
-          <h2 className="text-[1.15rem]">what does it measure?</h2>
-          <dl className="mt-6 text-[13px] leading-snug">
+          <h2 className="text-[1.25rem]">what does it measure?</h2>
+          <dl className="mt-6 text-[14px] leading-snug">
             {[
               [
                 "appearance rate",
@@ -329,10 +431,10 @@ export default function Page() {
         </Reveal>
 
         <Reveal delay={80}>
-          <h2 className="text-[1.15rem]">
+          <h2 className="text-[1.25rem]">
             what does it refuse? <span aria-hidden>🎀</span>
           </h2>
-          <dl className="mt-6 text-[13px] leading-snug">
+          <dl className="mt-6 text-[14px] leading-snug">
             {[
               [
                 "a round it cannot re-derive",
@@ -369,96 +471,10 @@ export default function Page() {
 
       <Divider />
 
-      {/* --------------------------------------------------------- the thing
-          What a stranger can install, and the commands that exist. Without
-          this the page is an argument about measurement rather than a library
-          somebody can run tonight, and every figure above came out of these
-          fifteen commands. */}
-      <Reveal className="mt-12">
-        {/* The heading and the line under it sit as a centred column. What
-            follows keeps the width it had, because a command list set to a
-            reading measure wraps where a command should not wrap. */}
-        <div className="mx-auto max-w-[54rem]">
-          <h2 className="text-[1.15rem]">how do you run it?</h2>
-          <p className="mt-4 text-[13px] leading-snug text-ink-soft">
-          python 3.11 and two dependencies, both of them arithmetic. everything on the network path
-          is standard library, because an http client is not worth a supply chain for one post.
-            the suite runs offline and spends no key.
-          </p>
-        </div>
-
-        <div className="mt-7 grid gap-x-12 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div>
-            {/* No border and no fill. This page has one box in it and that box
-                is the terminal at the top; a second one made of a lighter
-                colour would be a card by another name. The type is already
-                monospace, so a command reads as a command on its own. */}
-            <pre className="min-w-0 overflow-x-auto text-[13px] leading-snug">
-{[
-                ["pip install -e .", ""],
-                ["lulu setup", "your key, into the OS keychain"],
-                ["lulu draft --site example.com", "writes the question set from a site"],
-                ["lulu collect --subject FILE", "asks each question k times"],
-                ["lulu report --snapshot ROUND", "the number, with what it withholds"],
-                ["lulu verify", "re-derive every chain on disk"],
-              ].map(([command, said]) => (
-                <div key={command}>
-                  <span className="text-ink">{command}</span>
-                  {said ? (
-                    <span className="text-ink-soft">
-                      {"  ".repeat(1)}
-                      <span className="text-lilac">±</span> {said}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
-            </pre>
-            <p className="mt-3 text-[12px] text-ink-soft">
-              fifteen commands in all. `lulu screened` turns a round into a pdf, `lulu rivals`
-              reads the names off it, `lulu publish` writes the pages under{" "}
-              <Link className="underline decoration-rule underline-offset-4 hover:decoration-pink" href="/named">
-                measured questions
-              </Link>
-              , and `lulu usage` prices what was spent from the provider&rsquo;s own figures.
-            </p>
-          </div>
-
-          <div className="text-[13px] leading-snug text-ink-soft">
-            <p>
-              <span className="text-ink">the library is the product.</span> `mirror` is pure
-              arithmetic and reaches no network, so an interval can be recomputed from a file
-              without a key. `collect` is the only part allowed to reach a provider and it computes
-              nothing. that wall is why a number here is checkable rather than quotable.
-            </p>
-            <p className="mt-4">
-              a round lands in an append-only file, hash-chained, each line carrying the hash of
-              the one before it, and the round states its own length so a file somebody cut lines
-              off the end of stops verifying.
-            </p>
-            <p className="mt-4">
-              mit licensed, on{" "}
-              <a className="underline decoration-rule underline-offset-4 hover:decoration-pink" href={REPO}>
-                github
-              </a>
-              , with the key setup written out in{" "}
-              <a
-                className="underline decoration-rule underline-offset-4 hover:decoration-pink"
-                href={`${REPO}/blob/main/docs/keys.md`}
-              >
-                docs/keys.md
-              </a>
-              .
-            </p>
-          </div>
-        </div>
-      </Reveal>
-
-      <Divider />
-
       {/* ------------------------------------------------------------ proof */}
       <Reveal className="mt-8 text-center">
-        <h2 className="text-[1.15rem]">can you check any of it?</h2>
-        <p className="mx-auto mt-4 max-w-[64ch] text-[13px] leading-snug text-ink-soft">
+        <h2 className="text-[1.25rem]">can you check any of it?</h2>
+        <p className="mx-auto mt-4 max-w-[64ch] text-[14px] leading-snug text-ink-soft">
           yes, and that is the design. the measurement core is pure arithmetic and reaches no
           network, the collector reaches the network and computes nothing, and the wall between
           them is why a number here can be reproduced from the file it came from. the suite runs

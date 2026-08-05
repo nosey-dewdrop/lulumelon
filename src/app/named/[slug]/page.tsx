@@ -14,7 +14,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Divider, Foot, Nav, Pm } from "@/app/Frame";
-import { Reveal } from "@/app/Reveal";
 import { armInWords, percent, publishedRound, publishedRounds } from "@/lib/published";
 import { REPO_URL, SITE_NAME, url } from "@/lib/site";
 
@@ -108,15 +107,15 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
           page, because they are the same kind of line. A visitor who lands here
           from a search result has to meet the site, not a stray table. */}
       <header className="mx-auto mt-7 max-w-[58rem] text-center">
-        <h1 className="text-[1.3rem] leading-tight tracking-tight sm:text-[1.6rem]">
+        <h1 className="text-[1.4rem] leading-tight tracking-tight sm:text-[1.7rem]">
           <span aria-hidden>💘</span> {round.question}
         </h1>
-        <p className="mx-auto mt-4 max-w-[62ch] text-[15px] leading-snug text-ink-soft">
+        <p className="mx-auto mt-4 max-w-[62ch] text-[16px] leading-snug text-ink-soft">
           asked {round.draws} times of {round.model}, {armInWords(round.arm)}. the question names no
           company. what follows is who the model reached for on its own, counted per draw, with the
           range the sample supports beside each one.
         </p>
-        <p className="mt-4 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-[13.5px] text-ink-soft">
+        <p className="mt-4 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-[14.5px] text-ink-soft">
           <span>{round.asked_at}</span>
           <Pm />
           <span>
@@ -136,8 +135,8 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
           {round.names.map((one) => (
             <div key={one.name}>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[15px]">{one.name}</span>
-                <span className="text-[15px] text-ink-soft">
+                <span className="text-[16px]">{one.name}</span>
+                <span className="text-[16px] text-ink-soft">
                   {one.draws}/{one.of}
                 </span>
               </div>
@@ -156,9 +155,12 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
           rather than as a section. */}
       <Divider />
 
-      <Reveal className="mx-auto mt-10 max-w-[54rem]">
-        <h2 className="text-[1.3rem]">what does this not say?</h2>
-        <div className="mt-5 grid gap-6 text-[15px] leading-snug text-ink-soft sm:grid-cols-2">
+      {/* No arrival on this page. A result page is read after a search,
+          not scrolled through, and a block that fades in under somebody
+          already looking for a number reads as the page being slow. */}
+      <div className="mx-auto mt-10 max-w-[54rem]">
+        <h2 className="text-[1.4rem]">what does this not say?</h2>
+        <div className="mt-5 grid gap-6 text-[16px] leading-snug text-ink-soft sm:grid-cols-2">
           <p>
             a name at {round.draws} of {round.draws} is not a certainty. six draws put the honest
             range at 61% to 100%, and a page that printed 100% would be quoting a sample it does
@@ -188,7 +190,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
             </p>
           )}
         </div>
-      </Reveal>
+      </div>
 
       <Foot back />
     </main>

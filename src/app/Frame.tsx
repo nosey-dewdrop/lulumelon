@@ -24,7 +24,7 @@ export function Nav({ here }: { here?: "named" | "docs" }) {
     // the paper hides what passes, so there is no rule to draw and nothing to
     // float. `-mx` reaches back through the padding of the page it sits in, so
     // the bar is the width of the window rather than of the column.
-    <nav className="sticky top-0 z-20 -mx-5 flex flex-wrap items-baseline justify-center gap-x-5 gap-y-2 bg-paper px-5 py-3 text-[14px] text-ink-soft sm:-mx-10 sm:px-10">
+    <nav className="sticky top-0 z-20 -mx-5 flex flex-wrap items-baseline justify-center gap-x-5 gap-y-2 bg-paper px-5 py-3 text-[15px] text-ink-soft sm:-mx-10 sm:px-10">
       {here ? (
         <Link className="text-ink hover:text-lilac" href="/">
           {SITE_NAME}
@@ -66,7 +66,7 @@ export function Nav({ here }: { here?: "named" | "docs" }) {
  */
 export function Divider() {
   return (
-    <div className="my-10 text-center text-[13px] tracking-[0.7em] select-none" aria-hidden>
+    <div className="my-10 text-center text-[14px] tracking-[0.7em] select-none" aria-hidden>
       ✨🍉✨
     </div>
   );
@@ -74,7 +74,7 @@ export function Divider() {
 
 export function Foot({ back }: { back?: boolean }) {
   return (
-    <footer className="mt-10 text-[12px] text-ink-soft">
+    <footer className="mt-10 text-[13px] text-ink-soft">
       <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2">
         <Link className="text-ink hover:text-lilac" href="/">
           {SITE_NAME}

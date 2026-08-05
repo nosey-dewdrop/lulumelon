@@ -48,8 +48,8 @@ function Command({ line, said }: { line: string; said: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Reveal className="mx-auto mt-10 max-w-[54rem]">
-      <h2 className="text-[1.3rem]">{title}</h2>
-      <div className="mt-4 text-[15px] leading-snug text-ink-soft">{children}</div>
+      <h2 className="text-[1.4rem]">{title}</h2>
+      <div className="mt-4 text-[16px] leading-snug text-ink-soft">{children}</div>
     </Reveal>
   );
 }
@@ -60,10 +60,10 @@ export default function Docs() {
       <Nav here="docs" />
 
       <header className="mx-auto mt-7 max-w-[58rem] text-center">
-        <h1 className="text-[1.3rem] leading-tight tracking-tight sm:text-[1.6rem]">
+        <h1 className="text-[1.4rem] leading-tight tracking-tight sm:text-[1.7rem]">
           <span aria-hidden>🎀</span> a library, not a service.
         </h1>
-        <p className="mx-auto mt-4 max-w-[62ch] text-[15px] leading-snug text-ink-soft">
+        <p className="mx-auto mt-4 max-w-[62ch] text-[16px] leading-snug text-ink-soft">
           there is no hosted api here, no account and no dashboard. you install a python package,
           you bring your own key, and every round is written to your own disk in a file that
           re-derives. what that costs is printed before anything is spent.
@@ -76,7 +76,7 @@ export default function Docs() {
           python 3.11 or newer. two dependencies, both of them arithmetic; everything on the network
           path is standard library, because an http client is not worth a supply chain for one post.
         </p>
-        <pre className="mt-4 min-w-0 overflow-x-auto text-[15px] leading-snug">
+        <pre className="mt-4 min-w-0 overflow-x-auto text-[16px] leading-snug">
           <Command line="git clone .../lulumelon.git" said="the repository" />
           <Command line="python3 -m venv .venv && source .venv/bin/activate" said="" />
           <Command line="pip install -e .          " said="puts `lulu` on the path" />
@@ -98,7 +98,7 @@ export default function Docs() {
           the account name of the engine. one command, no questions asked, and it spends about a
           cent proving the key works and that a search actually comes back with pages.
         </p>
-        <pre className="mt-4 min-w-0 overflow-x-auto text-[15px] leading-snug">
+        <pre className="mt-4 min-w-0 overflow-x-auto text-[16px] leading-snug">
           <Command line="lulu setup   " said="paste the key, or pipe it: pbpaste | lulu setup" />
           <Command line="lulu doctor  " said="find the key, test it, price the call" />
           <Command line="lulu doctor --offline" said="everything except the call" />
@@ -124,7 +124,7 @@ export default function Docs() {
       <Divider />
       <Section title="what are the commands?">
         <p>fifteen, and these are the six a first round goes through.</p>
-        <pre className="mt-4 min-w-0 overflow-x-auto text-[15px] leading-snug">
+        <pre className="mt-4 min-w-0 overflow-x-auto text-[16px] leading-snug">
           <Command line="lulu draft --site example.com " said="writes a question set from a site" />
           <Command line="lulu screened --draft FILE    " said="that round as a document, with a pdf" />
           <Command line="lulu rivals --snapshot ROUND  " said="who the answers named, uninvited" />
@@ -162,7 +162,7 @@ export default function Docs() {
           <span className="text-ink">collect</span> is the only part allowed to reach a provider and
           it computes nothing.
         </p>
-        <pre className="mt-4 min-w-0 overflow-x-auto text-[15px] leading-snug">
+        <pre className="mt-4 min-w-0 overflow-x-auto text-[16px] leading-snug">
           <Command line="from lulumelon.mirror.intervals import wilson_interval" said="" />
           <Command line="wilson_interval(0, 10)" said="Interval(low=0.0, high=0.434)" />
           <Command line="wilson_interval(6, 6) " said="Interval(low=0.61, high=1.0)" />

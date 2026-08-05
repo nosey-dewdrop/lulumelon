@@ -161,12 +161,29 @@ client is not worth a supply chain for one POST.
 That puts `lulu` on the path. Without the install the same commands run as
 `python3 -m lulumelon.cli`, and the tests run either way.
 
-    pip install -e ".[dev]"     # pytest, to run the suite
+    pip install -e ".[dev]"     # pytest and ruff, to run the suite and the linter
     python3 lulumelon/demo.py   # the argument this exists for, no key, no network
 
 Building it as a package needs setuptools 77 or newer, which is stated in
 `pyproject.toml` and is not a preference: the licence field here is the SPDX
 string, and every backend before 77 reads that as a table and stops.
+
+### the first five minutes
+
+The whole path from an empty machine to a number, with each step written out
+further down. Only the first spends nothing, and every one after it prints what
+it is about to spend before it spends it.
+
+    lulu doctor --offline    # every place a key is looked for, and no call made
+    lulu setup               # paste the key once, about a cent to prove it works
+    lulu plan --prompts 40 --brands 5 --half-width 5
+    lulu draft --site https://ornek.com --floor 0.5 --budget 5.00 --rivals Numerai --out data/subjects/ornek.json
+    lulu collect --subject data/subjects/ornek.json --k 5 --budget 5.00
+    lulu report --ledger ./ledger --snapshot ROUND --subject data/subjects/ornek.json --brand Ornek
+
+`ROUND` is the snapshot id `collect` prints when it finishes. Every command
+above prints the ceiling before it spends anything, and the round stops at the
+ceiling rather than passing it.
 
 ## getting started
 

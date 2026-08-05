@@ -49,7 +49,7 @@ function Figure({ value, of }: { value: string; of: string }) {
           aligns on is the same one the eye reads. `leading-none` on the figure
           shortened its line box and dropped the number below the sentence it
           belongs to. */}
-      <span className="w-[5.5rem] shrink-0 text-[1.3rem] leading-snug tracking-tight text-pink">
+      <span className="w-[4.2rem] shrink-0 text-[1.3rem] leading-snug tracking-tight text-pink">
         <CountUp value={value} />
       </span>
       <span className="text-[13px] leading-snug text-ink-soft">{emphasised(of)}</span>
@@ -166,8 +166,8 @@ export default function Page() {
         </p>
       </header>
 
-      <section className="mt-10 grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <p className="max-w-[58ch] text-[14.5px] leading-snug text-ink-soft">
+      <section className="mt-10 grid gap-x-10 gap-y-7 lg:grid-cols-2">
+        <p className="text-[14.5px] leading-snug text-ink-soft">
           language models are not deterministic. ask the same question twice and you get different
           companies, in a different order. so &ldquo;your visibility is 18.5%&rdquo; is not a
           measurement, it is one draw from a distribution nobody characterised. this asks n times,
@@ -177,7 +177,7 @@ export default function Page() {
 
         {/* Four figures off one paid round, each with the sentence that makes
             it checkable. Proof, not decoration. */}
-        <div className="lg:pl-12">
+        <div className="lg:pl-8">
           <p className="text-[13px] uppercase tracking-[0.14em] text-ink-soft">
             <span aria-hidden>💘</span> one round, 4 august 2026
           </p>

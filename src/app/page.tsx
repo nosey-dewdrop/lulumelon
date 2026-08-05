@@ -135,38 +135,60 @@ export default function Page() {
           line says it. */}
       <Nav />
 
-      {/* One line, then the thing itself. The line is what a stranger needs to
-          know before the terminal starts making sense, and it is one line
-          rather than a block so the demo is still the first thing that
-          happens on the page. */}
-      <div className="mx-auto mt-7 max-w-[47rem]">
-        <h1 className="text-center text-[1.15rem] leading-tight tracking-tight sm:text-[1.4rem]">
-          lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
-        </h1>
+      {/* Two columns, and the terminal is one of them. Centred on its own it
+          sat as a lump with the page left open either side of it. Against the
+          right edge it reads as a window, and the width it stops taking now
+          carries the line that says what this is, what the terminal is, and
+          the round that paid for the figures under it. */}
+      <section className="mt-7 grid items-start gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div>
+          <h1 className="text-[1.15rem] leading-tight tracking-tight sm:text-[1.4rem]">
+            lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
+          </h1>
 
-        <section aria-label="recorded measurement" className="mt-4">
-          {/* Narrower than the page and centred. A terminal set to the full
-              measure spends its right half on nothing, because the widest line
-              in it is a sentence and the rest is a table. */}
-          <Terminal />
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[14px] text-ink-soft">
-            <span>
-              <span aria-hidden>✨</span> a recording. typing here calls nothing and costs nothing.
-            </span>
-            <Pm />
-            <span>ask the same question ten times and count, or read a number somebody asked once.</span>
+          <div className="mt-4 text-[14px] leading-snug text-ink-soft">
+            <p>
+              <span aria-hidden>✨</span> a recording. typing there calls nothing and costs nothing.
+            </p>
+            <p className="mt-2 flex gap-3">
+              <Pm />
+              <span>
+                ask the same question ten times and count, or read a number somebody asked once.
+              </span>
+            </p>
           </div>
-        </section>
-      </div>
 
-      <header className="mt-9 text-center">
+          {/* Four figures off one paid round, each with the sentence that
+              makes it checkable. Proof, not decoration, and it sits beside the
+              demo rather than under it because it is what the demo produced. */}
+          <div className="mt-9">
+            <p className="text-[14px] uppercase tracking-[0.14em] text-ink-soft">
+              <span aria-hidden>💘</span> one round, 4 august 2026
+            </p>
+            <div className="mt-5 flex flex-col gap-4">
+              <Figure value="20" of="questions written from one customer site, then measured four times each" />
+              <Figure value="11" of="of them named **none** of the thirteen rivals that had been declared" />
+              <Figure value="339" of="companies the same answers **did** name, that the declared list never carried" />
+              <Figure value="$2.46" of="the whole round, against a ceiling of $3.50 **printed before it started**" />
+            </div>
+          </div>
+        </div>
+
+        <section aria-label="recorded measurement" className="w-full lg:justify-self-end">
+          <Terminal />
+        </section>
+      </section>
+
+      <Divider />
+
+      <header className="text-center">
         <p className="mx-auto max-w-[44ch] text-[1.25rem] leading-snug">
           every tool in this category reports one number.{" "}
           <span className="text-ink-soft">it asked once.</span>
         </p>
       </header>
 
-      <section className="mt-10 grid gap-x-10 gap-y-7 lg:grid-cols-2">
+      <section className="mt-9 grid gap-x-10 gap-y-7 lg:grid-cols-2">
         <p className="text-[15.5px] leading-snug text-ink-soft">
           language models are not deterministic. ask the same question twice and you get different
           companies, in a different order. so &ldquo;your visibility is 18.5%&rdquo; is not a
@@ -175,18 +197,26 @@ export default function Page() {
           support.
         </p>
 
-        {/* Four figures off one paid round, each with the sentence that makes
-            it checkable. Proof, not decoration. */}
+        {/* The commercial position, where the figures used to sit. Every
+            product in this category rents a seat and bills for calls it makes
+            on your behalf; this hands over the software and lets the money go
+            straight to the provider. It belongs this high on the page because
+            it is the first question anybody has after the demo. */}
         <div className="lg:pl-8">
-          <p className="text-[14px] uppercase tracking-[0.14em] text-ink-soft">
-            <span aria-hidden>💘</span> one round, 4 august 2026
+          <h2 className="text-[1.25rem] leading-snug">
+            <span aria-hidden>💐</span> what does it cost to use?
+          </h2>
+          <p className="mt-4 text-[15.5px] leading-snug text-ink-soft">
+            <strong className="font-bold text-ink">nothing.</strong> the library is free, mit
+            licensed, and it stays that way. bring your own key, pay the provider for your own
+            tokens, and{" "}
+            <strong className="font-bold text-ink">the software takes nothing on top</strong>. no
+            account, no seat, no invoice from here.
           </p>
-          <div className="mt-5 flex flex-col gap-4">
-            <Figure value="20" of="questions written from one customer site, then measured four times each" />
-            <Figure value="11" of="of them named **none** of the thirteen rivals that had been declared" />
-            <Figure value="339" of="companies the same answers **did** name, that the declared list never carried" />
-            <Figure value="$2.46" of="the whole round, against a ceiling of $3.50 **printed before it started**" />
-          </div>
+          <p className="mt-4 text-[15.5px] leading-snug text-ink-soft">
+            the round above cost <strong className="font-bold text-ink">$2.46</strong>, paid
+            straight to the model provider, and that was the whole bill.
+          </p>
         </div>
       </section>
 
@@ -202,23 +232,7 @@ export default function Page() {
             follows keeps the width it had, because a command list set to a
             reading measure wraps where a command should not wrap. */}
         <div className="mx-auto max-w-[54rem]">
-          {/* The whole commercial position of the thing, in one line, before
-              the install. Every product in this category rents you a seat and
-              bills you for calls it makes on your behalf; this one hands you
-              the software and lets you pay the provider directly. That is the
-              sentence a stranger should leave with, so it is set larger than
-              the copy under it and it arrives before the commands. */}
-          <p className="mx-auto max-w-[52ch] text-center text-[1.25rem] leading-snug">
-            <span aria-hidden>💐</span>{" "}
-            <strong className="font-bold text-ink">it is free, and it stays free.</strong>{" "}
-            <span className="text-ink-soft">
-              bring your own key, pay the provider for your own tokens, and the software{" "}
-              <strong className="font-bold text-ink">takes nothing on top</strong>. no account, no
-              seat, no invoice from here.
-            </span>
-          </p>
-
-          <h2 className="mt-10 text-[1.25rem]">how do you run it?</h2>
+          <h2 className="text-[1.25rem]">how do you run it?</h2>
           <p className="mt-4 text-[14px] leading-snug text-ink-soft">
           python 3.11 and two dependencies, both of them arithmetic. everything on the network path
           is standard library, because an http client is not worth a supply chain for one post.

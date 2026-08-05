@@ -255,7 +255,10 @@ def test_the_build_floor_is_the_one_the_licence_field_needs():
     """
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert 'requires = ["setuptools>=77"]' in pyproject
-    assert 'dev = ["pytest>=8.1"]' in pyproject, "8.0.0 raises 22 errors in this suite"
+    # The floor, not the whole line. Pinned to the line, this test failed the
+    # day a second development dependency was added beside pytest, which is a
+    # gate reporting on the punctuation around the thing it guards.
+    assert '"pytest>=8.1"' in pyproject, "8.0.0 raises 22 errors in this suite"
 
 
 def test_the_key_file_example_lists_the_variables_this_build_reads():

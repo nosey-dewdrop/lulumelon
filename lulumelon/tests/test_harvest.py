@@ -19,8 +19,6 @@ import pytest
 from lulumelon.collect.harvest import (
     NOT_DOCUMENT_SUFFIXES,
     USER_AGENT,
-    Page,
-    SiteCorpus,
     declares_not_a_document,
     harvest,
     opens_as_document,

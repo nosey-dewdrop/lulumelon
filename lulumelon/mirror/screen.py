@@ -54,8 +54,8 @@ exists to avoid.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Callable, Iterable, Mapping, Sequence
 
 from .intervals import Interval, wilson_interval
 from .variance import VarianceSplit, decompose

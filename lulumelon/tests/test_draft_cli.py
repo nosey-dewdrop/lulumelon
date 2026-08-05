@@ -108,10 +108,10 @@ class Engine:
     #: first.
     max_output_tokens: int = 1024
 
-    def with_output_cap(self, max_output_tokens: int) -> "Engine":
+    def with_output_cap(self, max_output_tokens: int) -> Engine:
         return replace(self, max_output_tokens=max_output_tokens)
 
-    def without_search(self) -> "Engine":
+    def without_search(self) -> Engine:
         return replace(self, surface=UNSEARCHED_SURFACE)
 
     def ask(self, prompt: str) -> Answer:

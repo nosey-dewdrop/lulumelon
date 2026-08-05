@@ -16,8 +16,8 @@ of its repeats travel together. This is the cluster bootstrap.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Sequence
 
 import numpy as np
 from scipy import stats
@@ -84,7 +84,7 @@ class Interval:
     def as_text(self, digits: int = 3, scale: float = 1.0, unit: str = "") -> str:
         """Human-readable form, e.g. "34.0 +/- 6.2 (95% CI 27.8..40.2)%"."""
         p, lo, hi = self.point * scale, self.low * scale, self.high * scale
-        pct = int(round(self.confidence * 100))
+        pct = round(self.confidence * 100)
         return (
             f"{p:.{digits}f} +/- {(hi - lo) / 2:.{digits}f} "
             f"({pct}% CI {lo:.{digits}f}..{hi:.{digits}f}){unit}"

@@ -43,9 +43,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Sequence, TextIO
+from typing import TextIO
 
 from .collect.ask import (
     DEFAULT_MAX_SEARCHES,
@@ -54,13 +55,23 @@ from .collect.ask import (
     Provider,
     provider_for,
 )
+from .collect.audit import http_get
 from .collect.budget import UNMEASURED_INPUT_TOKENS, Budget
+from .collect.detect import Brand, detect
+from .collect.harvest import DEFAULT_MAX_PAGES, harvest
 from .collect.ledger import (
     DIAGNOSTIC_SUBJECT,
     Ledger,
     LedgerFormatError,
     Record,
     is_diagnostic,
+)
+from .collect.propose import (
+    DEFAULT_PAGE_CHARS,
+    DEFAULT_WANTED,
+    call_for,
+    pages_for_screening,
+    propose,
 )
 from .collect.replay import Replay, replay
 from .collect.replica import (
@@ -69,38 +80,8 @@ from .collect.replica import (
     replica_surface,
     without,
 )
-from .collect.audit import http_get
-from .collect.detect import Brand, detect
-from .collect.harvest import DEFAULT_MAX_PAGES, harvest
-from .collect.propose import (
-    DEFAULT_PAGE_CHARS,
-    DEFAULT_WANTED,
-    call_for,
-    pages_for_screening,
-    propose,
-)
 from .collect.session import Prompt, run_round, utc_now
 from .collect.subject import Subject, load_subject
-from .mirror.screen import (
-    CARRIES,
-    Candidate,
-    minimum_draws,
-    pool_variance,
-    screen,
-    screen_by_discrimination,
-    stable_ids,
-)
-from .mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
-from .mirror.compare import model_confounds
-from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST
-from .mirror.lift import UNDECIDED as EFFECT_UNDECIDED
-from .mirror.lift import source_effect
-from .mirror.intervals import wilson_interval
-from .mirror.names import names_in
-from .mirror.report import NothingLeftToScore, brand_report
-from .mirror.types import Reply, Snapshot, group_runs
-from .mirror.variance import decompose
-from .latex import Evidence, tex_document, tex_screening
 from .keys import (
     KEYCHAIN_SERVICE,
     PROVIDERS,
@@ -118,7 +99,26 @@ from .keys import (
     spec_for,
     write_env_file,
 )
-from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for, reported
+from .latex import Evidence, tex_document, tex_screening
+from .mirror.ablation import DIFFERS, STANDS_IN, UNDECIDED, replica_gate
+from .mirror.compare import model_confounds
+from .mirror.intervals import wilson_interval
+from .mirror.lift import MOVES, NEGLIGIBLE, NO_CONTRAST, source_effect
+from .mirror.lift import UNDECIDED as EFFECT_UNDECIDED
+from .mirror.names import names_in
+from .mirror.report import NothingLeftToScore, brand_report
+from .mirror.screen import (
+    CARRIES,
+    Candidate,
+    minimum_draws,
+    pool_variance,
+    screen,
+    screen_by_discrimination,
+    stable_ids,
+)
+from .mirror.types import Reply, Snapshot, group_runs
+from .mirror.variance import decompose
+from .panel import Panel, Question, Screened, ScreenPanel
 from .plan import (
     MIN_DRAWS,
     Comparison,
@@ -134,7 +134,7 @@ from .plan import (
     total_variance,
     variance_of,
 )
-from .panel import Panel, Question, ScreenPanel, Screened
+from .prices import FEE_PER_SEARCH, Cost, Price, estimate, fees, price_for, reported
 from .text import counted
 from .usage import spend_of, token_rate
 
@@ -398,10 +398,10 @@ def init(
             console.warn("This shell has no terminal, so a hidden prompt is not possible here.")
             console.warn("")
             console.warn("Two ways in that do not echo the key and do not put it in shell history:")
-            console.warn(f"  1. Run the same command in a real terminal window.")
-            console.warn(f"  2. Put the key in a file, then run:")
+            console.warn("  1. Run the same command in a real terminal window.")
+            console.warn("  2. Put the key in a file, then run:")
             console.warn(f"       lulu init --provider {spec.name} --from-file /path/to/keyfile")
-            console.warn(f"     and delete the file afterwards.")
+            console.warn("     and delete the file afterwards.")
             console.warn("")
             console.warn(f"  Already exported {spec.env_var}?  lulu init --provider {spec.name} --from-env")
             return 1
@@ -1127,7 +1127,7 @@ def draft(
         console.say("  nothing was proposed, so there is nothing to screen.")
         return 1
 
-    tracked = (Brand(name=corpus.subject_name),) + tuple(Brand(name=name) for name in rivals)
+    tracked = (Brand(name=corpus.subject_name), *tuple(Brand(name=name) for name in rivals))
     candidates = tuple(
         Candidate(id=f"c{i}", text=p.text, source=p.source, evidence=p.evidence)
         for i, p in enumerate(proposed.proposals, start=1)
@@ -1773,7 +1773,11 @@ def plan(
     console.say()
     console.say("PRICE")
     tokens = _pilot_tokens(pilot, ledger_dir)
-    console.say(f"  {provider}/{model}, {price.fee_text}." if price else f"  {provider}/{model}, no published price on file.")
+    console.say(
+        f"  {provider}/{model}, {price.fee_text}."
+        if price
+        else f"  {provider}/{model}, no published price on file."
+    )
     if tokens is None:
         console.say("  no call has been metered, so only the fee is counted. these are")
         console.say("  floors, not totals.")

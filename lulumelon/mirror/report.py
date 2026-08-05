@@ -22,8 +22,8 @@ can be stable while every per-prompt and every rank claim built on it is noise.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
-from typing import Collection
 
 from ..text import counted
 from .intervals import Interval, cluster_bootstrap_ci, wilson_interval, z_for
@@ -246,7 +246,7 @@ def brand_report(
     per_prompt_stability = [stability_of([r.brands for r in s.runs]) for s in snapshot.samples]
     n = len(per_prompt_stability)
     pooled = Stability(
-        k=int(round(sum(st.k for st in per_prompt_stability) / n)),
+        k=round(sum(st.k for st in per_prompt_stability) / n),
         set_overlap=sum(st.set_overlap for st in per_prompt_stability) / n,
         rank_overlap=sum(st.rank_overlap for st in per_prompt_stability) / n,
         leader_repeat=sum(st.leader_repeat for st in per_prompt_stability) / n,

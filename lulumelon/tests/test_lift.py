@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import pytest
 
-from lulumelon.mirror.ablation import STANDS_IN, UNDECIDED as GATE_UNDECIDED, replica_gate
+from lulumelon.mirror.ablation import STANDS_IN, replica_gate
+from lulumelon.mirror.ablation import UNDECIDED as GATE_UNDECIDED
 from lulumelon.mirror.lift import (
     ARM_DIFFERENCE,
     LIFT,
@@ -589,7 +590,7 @@ def test_swapping_the_two_arms_is_refused_by_the_ledger(tmp_path):
 def test_a_source_list_that_is_not_the_one_asked_is_refused(tmp_path):
     _, _, held, dropped = three_rounds(tmp_path)
     with pytest.raises(ValueError, match="was collected under"):
-        run_lift(tmp_path, held, dropped, sources=SRC + ("https://d.example/extra",))
+        run_lift(tmp_path, held, dropped, sources=(*SRC, "https://d.example/extra"))
 
 
 def test_reordering_the_list_is_a_different_arm(tmp_path):

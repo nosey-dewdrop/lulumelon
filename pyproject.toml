@@ -34,11 +34,52 @@ lulu = "lulumelon.cli:main"
 [project.optional-dependencies]
 # 8.1, not 8. The suite raises 22 errors on 8.0.0 and is clean from 8.1, so a
 # floor of 8 points at a version this cannot run under.
-dev = ["pytest>=8.1"]
+# The ruff floor is the version the selection below was zeroed against, and a
+# linter that changes its verdict between two machines is not a gate.
+dev = ["pytest>=8.1", "ruff>=0.16,<0.17"]
 
 [tool.setuptools.packages.find]
 include = ["lulumelon*"]
 exclude = ["lulumelon.tests*"]
+
+[tool.ruff]
+# Seventy eight python files went without a linter until 5 August 2026, so the
+# selection below is written out rather than left to whatever the tool defaults
+# to this month: a set that moves under you is a gate that changes its verdict
+# without anybody deciding.
+# 120 is the ceiling, and the working width is still the 100 this code was
+# written at. The gap is deliberate. 112 lines sat between the two and almost
+# every one of them is a sentence the tool prints, so meeting 100 would have
+# meant cutting printed English in half with implicit concatenation, and the
+# suite greps this source for sentences the screens say. A ceiling that makes
+# a printed line ungreppable is buying alignment with the thing that finds
+# drift. Nine lines were over 120 and those are fixed rather than allowed.
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# E and F are the errors. I is import order, which is the one thing in a file
+# nobody has an opinion about and everybody edits. UP is what a floor of 3.11
+# already allows. B is the bug classes, and RUF is the tool's own.
+#
+# BLE is here because the code had already taken a position on it. Four broad
+# excepts carry a written `noqa: BLE001` and a reason, and with the rule
+# switched off the tool read those as dead comments and deleted them on the
+# first pass. A rule the source already argues with belongs in the selection.
+select = ["E", "F", "I", "UP", "B", "BLE", "RUF"]
+
+# The ambiguity rules read a homoglyph as a typo, and in this package it is the
+# subject. `collect/detect.py` maps curly quotes and non-breaking spaces onto
+# ASCII, `plan.py` writes the intraclass correlation as the letter statistics
+# uses for it, and `tests/test_typography.py` has to contain an em dash to
+# check that no surface prints one.
+ignore = ["RUF001", "RUF002"]
+
+[tool.ruff.lint.per-file-ignores]
+# The expected LaTeX and the expected screens, as the renderer prints them.
+# Wrapping a line in here would change what the test compares against, so the
+# file is exempt from the ceiling and from nothing else.
+"lulumelon/tests/test_latex.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["lulumelon/tests"]

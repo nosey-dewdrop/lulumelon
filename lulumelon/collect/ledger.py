@@ -60,10 +60,10 @@ import json
 import math
 import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, fields, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator
 
 from ..keys import redact
 from ..text import counted
@@ -531,7 +531,7 @@ class Record:
             allow_nan=False,
         )
 
-    def linked(self, prev_hash: str) -> "Record":
+    def linked(self, prev_hash: str) -> Record:
         """A copy pointing at `prev_hash` and carrying its own digest.
 
         Named for the chain rather than for sealing, now that a seal is a
@@ -665,7 +665,7 @@ class Ledger:
         The directory entry is fsynced, because a reservation that a crash can
         forget is not one.
         """
-        stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
+        stamp = (now or datetime.now(UTC)).strftime("%Y%m%dT%H%M%SZ")
         prefix = f"{subject}__{engine}__{surface}"
         used = {
             int(m.group(1))

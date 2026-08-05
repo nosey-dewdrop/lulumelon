@@ -42,9 +42,9 @@ import platform
 import re
 import stat
 import subprocess
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Mapping, Sequence
 
 from .text import counted
 
@@ -107,7 +107,10 @@ PROVIDERS: dict[str, ProviderSpec] = {
         # nothing and only explains a warning, and the wording is kept exact so
         # that nobody later mistakes it for something read off a first-party
         # page.
-        key_prefix_source="a convention reported outside the provider, not stated in perplexity's docs as of 2026-07-31",
+        key_prefix_source=(
+            "a convention reported outside the provider, "
+            "not stated in perplexity's docs as of 2026-07-31"
+        ),
         check_model="sonar",
     ),
     "anthropic": ProviderSpec(
@@ -300,8 +303,7 @@ def keychain_read(service: str, account: str, keychain: Path | str | None = None
         return None
     try:
         done = subprocess.run(
-            ["security", "find-generic-password", "-s", service, "-a", account, "-w"]
-            + _in_keychain(keychain),
+            ["security", "find-generic-password", "-s", service, "-a", account, "-w", *_in_keychain(keychain)],
             capture_output=True,
             text=True,
             timeout=KEYCHAIN_READ_TIMEOUT_SECONDS,
@@ -364,8 +366,7 @@ def keychain_delete(service: str, account: str, keychain: Path | str | None = No
     if not keychain_supported():
         return False
     done = subprocess.run(
-        ["security", "delete-generic-password", "-s", service, "-a", account]
-        + _in_keychain(keychain),
+        ["security", "delete-generic-password", "-s", service, "-a", account, *_in_keychain(keychain)],
         capture_output=True,
         text=True,
         timeout=KEYCHAIN_READ_TIMEOUT_SECONDS,

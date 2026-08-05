@@ -57,8 +57,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from typing import Sequence
 
 from .ask import Answer, Provider
 
@@ -233,10 +233,10 @@ class ReplicaProvider:
         """
         return self.base.max_output_tokens
 
-    def with_output_cap(self, max_output_tokens: int) -> "ReplicaProvider":
+    def with_output_cap(self, max_output_tokens: int) -> ReplicaProvider:
         return replace(self, base=self.base.with_output_cap(max_output_tokens))
 
-    def without_search(self) -> "ReplicaProvider":
+    def without_search(self) -> ReplicaProvider:
         """Itself. This instrument's whole treatment is the sources it holds constant.
 
         The surface it reports names those sources, and a copy that turned the
@@ -266,7 +266,7 @@ class ReplicaProvider:
             usage=answer.usage,
         )
 
-    def dropping(self, source: str) -> "ReplicaProvider":
+    def dropping(self, source: str) -> ReplicaProvider:
         """The other arm: the same instrument with one source taken out.
 
         The surface is not carried over. Handing the child its parent's label

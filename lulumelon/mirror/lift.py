@@ -63,8 +63,8 @@ a decision on screen that the printed interval disagrees with.
 
 from __future__ import annotations
 
+from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Hashable, Mapping, Sequence
 
 import numpy as np
 
@@ -159,7 +159,7 @@ class SourceEffect:
 
     def as_text(self) -> str:
         interval = self.difference.interval
-        pct = int(round(interval.confidence * 100))
+        pct = round(interval.confidence * 100)
         lines = [
             f"ABLATION: {self.verdict.replace('_', ' ').upper()}",
             "",

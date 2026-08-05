@@ -49,6 +49,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: pip install -e ".[dev]"
+      - run: ruff check lulumelon conftest.py
       - run: python -m pytest lulumelon/tests
 
   install:

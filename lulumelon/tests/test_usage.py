@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from lulumelon.cli import Console, usage as run_usage
+from lulumelon.cli import Console
+from lulumelon.cli import usage as run_usage
 from lulumelon.collect import UNSEARCHED_SURFACE, Ledger, Record
 from lulumelon.prices import price_for
 from lulumelon.usage import spend_of, token_rate

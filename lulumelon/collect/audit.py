@@ -34,8 +34,8 @@ import json
 import re
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse
 
 from ..text import counted
@@ -127,7 +127,7 @@ def http_get(url: str, timeout_s: float = 20.0) -> tuple[int, str]:
             return resp.status, resp.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, ""
-    except Exception:
+    except Exception:  # noqa: BLE001 - an audit reports what it could not read, it does not raise
         return 0, ""
 
 

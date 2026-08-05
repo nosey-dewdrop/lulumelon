@@ -46,9 +46,9 @@ removing the tail of a file takes away.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Callable, Iterable, Sequence
+from datetime import UTC, datetime
 
 from .ask import Answer, Provider
 from .budget import Budget
@@ -58,7 +58,7 @@ from .ledger import Ledger, Record
 
 def utc_now() -> str:
     """Default clock. Injected rather than called inline so rounds replay."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass(frozen=True, slots=True)

@@ -27,7 +27,6 @@ from lulumelon.collect import UNSEARCHED_SURFACE, Answer, Budget, Usage
 from lulumelon.collect.harvest import Page, SiteCorpus
 from lulumelon.collect.propose import (
     DEFAULT_WANTED,
-    Malformed,
     Proposal,
     as_candidate_rows,
     call_for,
@@ -90,12 +89,12 @@ class Stub:
     max_output_tokens: int = 1024
     capped_to: int | None = None
 
-    def with_output_cap(self, max_output_tokens: int) -> "Stub":
+    def with_output_cap(self, max_output_tokens: int) -> Stub:
         self.capped_to = max_output_tokens
         self.max_output_tokens = max_output_tokens
         return self
 
-    def without_search(self) -> "Stub":
+    def without_search(self) -> Stub:
         # The surface is how the rest of the library reads the condition, so
         # the stub moves to it rather than keeping a flag of its own.
         self.surface = UNSEARCHED_SURFACE

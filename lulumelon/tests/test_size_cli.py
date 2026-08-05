@@ -144,5 +144,5 @@ def test_holding_every_brand_at_once_widens_the_interval():
 
 
 def _first_width(text: str) -> float:
-    line = [ln for ln in bought(text).splitlines() if "icc 0.00" in ln][0]
+    line = next(ln for ln in bought(text).splitlines() if "icc 0.00" in ln)
     return float(line.split("+/-")[1].split(" points")[0])

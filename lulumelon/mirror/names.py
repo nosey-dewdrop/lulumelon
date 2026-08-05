@@ -37,8 +37,8 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from ..text import counted
 from .types import Reply

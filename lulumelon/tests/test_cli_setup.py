@@ -483,7 +483,8 @@ import urllib.error  # noqa: E402
 
 import pytest  # noqa: E402,F811
 
-from lulumelon.cli import doctor, usage as run_usage  # noqa: E402
+from lulumelon.cli import doctor  # noqa: E402
+from lulumelon.cli import usage as run_usage  # noqa: E402
 from lulumelon.collect import Ledger, is_diagnostic, replay  # noqa: E402
 
 #: The model id the first real call this repo ever made came back under. The

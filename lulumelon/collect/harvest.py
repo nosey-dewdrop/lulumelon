@@ -35,15 +35,15 @@ import hashlib
 import json
 import re
 import urllib.parse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .audit import (
-    Fetcher,
-    RobotsGroup,
     _HREF,
     _JSONLD,
     _META_DESC,
     _TITLE,
+    Fetcher,
+    RobotsGroup,
     http_get,
     is_disallowed,
     parse_robots,

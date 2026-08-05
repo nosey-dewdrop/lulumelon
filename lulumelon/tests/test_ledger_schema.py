@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import replace
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -148,7 +149,7 @@ def test_the_figure_no_response_has_ever_carried_is_not_a_column():
 
 def test_a_version_only_ever_adds_fields():
     """Renaming or dropping one makes every older snapshot unreadable."""
-    for older, newer in zip(sorted(HASHED_FIELDS), sorted(HASHED_FIELDS)[1:]):
+    for older, newer in pairwise(sorted(HASHED_FIELDS)):
         assert HASHED_FIELDS[older] < HASHED_FIELDS[newer]
 
 
@@ -434,7 +435,10 @@ def test_a_reported_cost_survives_the_round_trip(led):
 
 
 def test_an_error_record_carries_no_invented_usage(led):
-    written = led.append("s__e__api__x__0001", rec(status="error", answer_text="", brands=(), citations=(), error="timeout after 45s"))
+    written = led.append(
+        "s__e__api__x__0001",
+        rec(status="error", answer_text="", brands=(), citations=(), error="timeout after 45s"),
+    )
     assert written.usage().known is False
 
 

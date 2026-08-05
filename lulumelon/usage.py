@@ -57,8 +57,8 @@ defines it, and would do it at the moment the two arms are compared.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Sequence
 
 from .collect.ask import is_unsearched_surface
 from .collect.ledger import Record

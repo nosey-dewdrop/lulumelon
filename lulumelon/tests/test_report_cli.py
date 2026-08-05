@@ -30,8 +30,8 @@ import pytest
 
 from lulumelon.cli import (
     CHAIN_BROKEN,
-    NOTHING_TO_SCORE,
     NO_TEX_ENGINE,
+    NOTHING_TO_SCORE,
     TEX_ENGINE,
     TEX_ENGINE_FAILED,
     Console,
@@ -141,7 +141,7 @@ def test_the_rate_on_screen_is_the_one_mirror_computes(tmp_path):
 
 def test_the_question_that_names_the_brand_is_what_moves_the_rate(tmp_path):
     """m1's answer says it has never heard of the brand, and detection reads it as a mention."""
-    ledger, snapshot, subject = collected(tmp_path)
+    ledger, snapshot, _subject = collected(tmp_path)
     played = replay(ledger, snapshot)
     snap = Snapshot(label=snapshot, samples=group_runs(played.runs))
 

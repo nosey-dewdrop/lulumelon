@@ -175,7 +175,7 @@ class Answer:
     status: str = "ok"
     error: str = ""
     citations: tuple[str, ...] = ()
-    usage: "Usage" = field(default_factory=lambda: Usage())
+    usage: Usage = field(default_factory=lambda: Usage())
 
     @property
     def ok(self) -> bool:
@@ -189,7 +189,7 @@ def provider_for(
     model: str | None = None,
     max_searches: int | None = None,
     can_search: bool = True,
-) -> "Provider":
+) -> Provider:
     """The live provider for one engine name, or a refusal that lists the rest.
 
     One place where an engine name becomes a class. Without it every command
@@ -257,9 +257,9 @@ class Provider(Protocol):
 
     def ask(self, prompt: str) -> Answer: ...
 
-    def with_output_cap(self, max_output_tokens: int) -> "Provider": ...
+    def with_output_cap(self, max_output_tokens: int) -> Provider: ...
 
-    def without_search(self) -> "Provider": ...
+    def without_search(self) -> Provider: ...
 
 
 # -- deterministic stub -----------------------------------------------------
@@ -290,7 +290,7 @@ class FakeProvider:
     max_output_tokens: int = 1024
     _calls: int = 0
 
-    def with_output_cap(self, max_output_tokens: int) -> "FakeProvider":
+    def with_output_cap(self, max_output_tokens: int) -> FakeProvider:
         """Cap in place, and hand back the same stub.
 
         The live providers hand back a copy, because a round's ceiling is one
@@ -303,7 +303,7 @@ class FakeProvider:
         self.max_output_tokens = max_output_tokens
         return self
 
-    def without_search(self) -> "FakeProvider":
+    def without_search(self) -> FakeProvider:
         """The stub under the surface a call with no search tool records itself on."""
         return replace(self, surface=UNSEARCHED_SURFACE)
 
@@ -475,10 +475,10 @@ class PerplexityProvider:
     endpoint: str = "https://api.perplexity.ai/v1/sonar"
     timeout_s: float = 45.0
 
-    def with_output_cap(self, max_output_tokens: int) -> "PerplexityProvider":
+    def with_output_cap(self, max_output_tokens: int) -> PerplexityProvider:
         return replace(self, max_output_tokens=max_output_tokens)
 
-    def without_search(self) -> "PerplexityProvider":
+    def without_search(self) -> PerplexityProvider:
         """Itself, because this engine answers by searching and cannot be asked not to.
 
         Returning the same object rather than raising, so a caller does not
@@ -516,7 +516,7 @@ class PerplexityProvider:
             detail = ""
             try:
                 detail = e.read().decode("utf-8", "replace")[:400]
-            except Exception:
+            except Exception:  # noqa: BLE001 - the body is a courtesy, the status is the answer
                 pass
             return self._failed(started, f"http {e.code}: {detail or e.reason}")
         except Exception as e:  # noqa: BLE001 - recorded, never swallowed
@@ -705,10 +705,10 @@ class AnthropicProvider:
                 "is collected with can_search=False, which sends no search tool at all"
             )
 
-    def with_output_cap(self, max_output_tokens: int) -> "AnthropicProvider":
+    def with_output_cap(self, max_output_tokens: int) -> AnthropicProvider:
         return replace(self, max_output_tokens=max_output_tokens)
 
-    def without_search(self) -> "AnthropicProvider":
+    def without_search(self) -> AnthropicProvider:
         """The same engine with the tool left off, for a call that supplies its own pages.
 
         The copy files itself under the unsearched surface, which is where the
@@ -755,7 +755,7 @@ class AnthropicProvider:
             detail = ""
             try:
                 detail = e.read().decode("utf-8", "replace")[:400]
-            except Exception:
+            except Exception:  # noqa: BLE001 - the body is a courtesy, the status is the answer
                 pass
             return self._failed(started, f"http {e.code}: {detail or e.reason}")
         except Exception as e:  # noqa: BLE001 - recorded, never swallowed

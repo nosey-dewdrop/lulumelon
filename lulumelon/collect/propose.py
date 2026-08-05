@@ -39,8 +39,8 @@ can cost a candidate and can never pass a false one.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from .ask import Answer, Provider, is_unsearched_surface
 from .budget import Budget, token_ceiling, tokens_for_chars

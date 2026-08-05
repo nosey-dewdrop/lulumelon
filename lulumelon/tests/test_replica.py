@@ -112,7 +112,7 @@ def test_the_two_arms_do_not_share_a_label():
 
 def test_a_repeated_source_is_refused_because_it_is_an_unchosen_treatment():
     with pytest.raises(ValueError, match="supplied twice"):
-        ReplicaProvider(base=FakeProvider(), sources=SOURCES + (SOURCES[0],))
+        ReplicaProvider(base=FakeProvider(), sources=(*SOURCES, SOURCES[0]))
 
 
 def test_a_replica_provider_without_sources_is_refused():

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -55,7 +55,7 @@ def round_of(led: Ledger, snapshot_id: str, records: list[Record]) -> str:
 
 
 def test_second_round_is_a_new_snapshot_not_an_overwrite(led):
-    now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 30, 10, tzinfo=UTC)
     first = led.next_snapshot_id("ornek", "chatgpt", "logged_out", now=now)
     round_of(led, first, [rec()])
 
@@ -80,7 +80,7 @@ def test_a_name_is_taken_by_creating_the_file_not_by_returning_a_string(led):
     name is claimed on disk, and asking again cannot hand back a name that is
     already spoken for.
     """
-    now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 30, 10, tzinfo=UTC)
     handed_out = [
         led.next_snapshot_id("ornek", "chatgpt", "logged_out", now=now) for _ in range(5)
     ]
@@ -90,7 +90,7 @@ def test_a_name_is_taken_by_creating_the_file_not_by_returning_a_string(led):
 
 
 def test_sequence_survives_two_rounds_inside_the_same_second(led):
-    now = datetime(2026, 7, 30, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 30, 10, tzinfo=UTC)
     ids = []
     for _ in range(3):
         sid = led.next_snapshot_id("ornek", "chatgpt", "logged_out", now=now)

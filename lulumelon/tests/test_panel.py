@@ -286,8 +286,8 @@ def test_severity_labels_do_not_run_into_the_title():
     starts = [
         line.index(title)
         for line, title in (
-            (next(l for l in text.splitlines() if "no canonical link" in l), "no canonical link"),
-            (next(l for l in text.splitlines() if "no llms.txt" in l), "no llms.txt"),
+            (next(r for r in text.splitlines() if "no canonical link" in r), "no canonical link"),
+            (next(r for r in text.splitlines() if "no llms.txt" in r), "no llms.txt"),
         )
     ]
     assert len(set(starts)) == 1, f"severity labels do not line up: {starts}"

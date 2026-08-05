@@ -10,8 +10,8 @@ enough to report a number.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping, Sequence
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,7 +210,7 @@ class Snapshot:
             by_engine[s.engine].update(s.surfaces)
         return {e: tuple(sorted(v)) for e, v in by_engine.items() if len(v) > 1}
 
-    def for_engine(self, engine: str) -> "Snapshot":
+    def for_engine(self, engine: str) -> Snapshot:
         """A new Snapshot narrowed to a single engine."""
         kept = tuple(s for s in self.samples if s.engine == engine)
         if not kept:

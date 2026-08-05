@@ -15,9 +15,9 @@ what says so with a number.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Sequence
 
 import numpy as np
 

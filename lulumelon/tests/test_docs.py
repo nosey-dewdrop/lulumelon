@@ -20,7 +20,6 @@ from pathlib import Path
 
 from lulumelon.cli import build_parser
 from lulumelon.keys import KEYCHAIN_SERVICE, spec_for
-from lulumelon.mirror.intervals import wilson_interval
 from lulumelon.prices import PRICES, fees, price_for
 
 ROOT = Path(__file__).resolve().parents[2]

@@ -330,7 +330,7 @@ def test_the_commands_never_print_a_one_beside_a_plural_noun(tmp_path):
     )
     surfaces["collect, one prompt"] = collected.text
 
-    ledger, snapshot = one_call_ledger(tmp_path)
+    ledger, _snapshot = one_call_ledger(tmp_path)
     for name, command in (("usage", run_usage), ("verify", run_verify)):
         rec = Recorder()
         assert command(rec.console, ledger_dir=ledger.root) == 0
@@ -573,7 +573,7 @@ def test_the_ledger_never_reports_a_one_beside_a_plural_noun(tmp_path):
     # One record appended after the round said it was over.
     spliced = tmp_path / "spliced"
     spliced.mkdir()
-    (spliced / path.name).write_text("\n".join(lines + [lines[0]]) + "\n", encoding="utf-8")
+    (spliced / path.name).write_text("\n".join([*lines, lines[0]]) + "\n", encoding="utf-8")
     surfaces["a record after the seal"] = "\n".join(Ledger(spliced).verify(snapshot))
 
     # One line nobody can read, so the seal's count cannot be checked.
@@ -586,7 +586,7 @@ def test_the_ledger_never_reports_a_one_beside_a_plural_noun(tmp_path):
 
     # A sealed round refuses a further call, and says how long it already is.
     with pytest.raises(ValueError) as sealed:
-        ledger.append(snapshot, list(ledger.read(snapshot))[0])
+        ledger.append(snapshot, next(iter(ledger.read(snapshot))))
     surfaces["a sealed round"] = str(sealed.value)
 
     assert_agrees(surfaces)

@@ -32,6 +32,7 @@ paid for one.
 
 from __future__ import annotations
 
+import itertools
 import json
 import shutil
 from pathlib import Path
@@ -148,7 +149,7 @@ def test_the_chain_in_the_golden_file_links_line_to_line(archive):
     records = list(archive.read(V1_SNAPSHOT))
     assert [r.seq for r in records] == [0, 1, 2, 3]
     assert records[0].prev_hash == "0" * 64
-    for earlier, later in zip(records, records[1:]):
+    for earlier, later in itertools.pairwise(records):
         assert later.prev_hash == earlier.hash
 
 

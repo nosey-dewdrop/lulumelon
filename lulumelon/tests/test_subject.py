@@ -127,7 +127,10 @@ def test_a_brand_with_no_name_is_refused(tmp_path):
     doc = altered()
     doc["subject"]["name"] = ""
 
-    with pytest.raises(SubjectFileError, match="subject.name"):
+    # Escaped, because the dot names the path being asserted on and an
+    # unescaped one matches any character, so a message saying `subjectXname`
+    # would pass a test that reads as if it checked the field.
+    with pytest.raises(SubjectFileError, match=r"subject\.name"):
         load_subject(written(tmp_path, doc))
 
 

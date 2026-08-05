@@ -57,8 +57,8 @@ has to be tighter than the difference they are being asked to resolve.
 from __future__ import annotations
 
 import math
+from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Hashable, Mapping, Sequence
 
 from ..plan import critical_value, draws_needed, icc_of, variance_of
 from ..text import counted

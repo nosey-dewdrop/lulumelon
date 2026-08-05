@@ -21,8 +21,8 @@ that will confidently attribute the provider's change to the customer's work.
 
 from __future__ import annotations
 
+from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Hashable, Mapping, Sequence
 
 import numpy as np
 from scipy import stats

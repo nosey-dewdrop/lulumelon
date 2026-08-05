@@ -41,8 +41,11 @@ function emphasised(text: string) {
 /** A figure and the words that make it checkable. Never a figure alone. */
 function Figure({ value, of }: { value: string; of: string }) {
   return (
-    <div className="flex items-baseline gap-3">
-      <span className="min-w-[3.6rem] text-[1.3rem] leading-none tracking-tight text-pink">
+    <div className="flex items-baseline gap-4">
+      {/* A fixed column, not a minimum. `$2.46` is wider than `11`, so a
+          minimum let the widest figure push its own sentence to the right and
+          the four rows stopped lining up with each other. */}
+      <span className="w-[5.5rem] shrink-0 text-[1.3rem] leading-none tracking-tight text-pink">
         <CountUp value={value} />
       </span>
       <span className="text-[13px] leading-snug text-ink-soft">{emphasised(of)}</span>

@@ -108,15 +108,15 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
           page, because they are the same kind of line. A visitor who lands here
           from a search result has to meet the site, not a stray table. */}
       <header className="mx-auto mt-7 max-w-[58rem] text-center">
-        <h1 className="text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
+        <h1 className="text-[1.3rem] leading-tight tracking-tight sm:text-[1.6rem]">
           <span aria-hidden>💘</span> {round.question}
         </h1>
-        <p className="mx-auto mt-4 max-w-[62ch] text-[13px] leading-snug text-ink-soft">
+        <p className="mx-auto mt-4 max-w-[62ch] text-[15px] leading-snug text-ink-soft">
           asked {round.draws} times of {round.model}, {armInWords(round.arm)}. the question names no
           company. what follows is who the model reached for on its own, counted per draw, with the
           range the sample supports beside each one.
         </p>
-        <p className="mt-4 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-[12px] text-ink-soft">
+        <p className="mt-4 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-[13.5px] text-ink-soft">
           <span>{round.asked_at}</span>
           <Pm />
           <span>
@@ -136,8 +136,8 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
           {round.names.map((one) => (
             <div key={one.name}>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[14.5px]">{one.name}</span>
-                <span className="text-[13px] text-ink-soft">
+                <span className="text-[15px]">{one.name}</span>
+                <span className="text-[15px] text-ink-soft">
                   {one.draws}/{one.of}
                 </span>
               </div>
@@ -151,9 +151,12 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
         </div>
       </section>
 
-      <section className="mt-10">
-        <h2 className="text-[1.15rem]">what does this not say?</h2>
-        <div className="mt-5 grid max-w-[86ch] gap-6 text-[13px] leading-snug text-ink-soft sm:grid-cols-2">
+      {/* Centred as a column, left aligned inside it. Long copy set flush to
+          the page edge on one side and open on the other reads as a leftover
+          rather than as a section. */}
+      <Reveal className="mx-auto mt-10 max-w-[54rem]">
+        <h2 className="text-[1.3rem]">what does this not say?</h2>
+        <div className="mt-5 grid gap-6 text-[15px] leading-snug text-ink-soft sm:grid-cols-2">
           <p>
             a name at {round.draws} of {round.draws} is not a certainty. six draws put the honest
             range at 61% to 100%, and a page that printed 100% would be quoting a sample it does
@@ -183,7 +186,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
             </p>
           )}
         </div>
-      </section>
+      </Reveal>
 
       <Foot back />
     </main>

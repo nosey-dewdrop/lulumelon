@@ -17,14 +17,9 @@
  */
 import Link from "next/link";
 
+import { Foot, Nav, Pm, REPO } from "./Frame";
 import { CountUp, Reveal } from "./Reveal";
 import { Terminal } from "./Terminal";
-
-const REPO = "https://github.com/nosey-dewdrop/lulumelon";
-
-function Pm() {
-  return <span className="text-lilac">±</span>;
-}
 
 /** A figure and the words that make it checkable. Never a figure alone. */
 function Figure({ value, of }: { value: string; of: string }) {
@@ -88,31 +83,13 @@ export default function Page() {
 
           The brand still arrives first, because the terminal's own opening
           line says it. */}
-      {/* --------------------------------------------------------------- nav
-          A page with no doors reads as an essay about a product rather than a
-          product. These four are the whole surface: the thing, what it has
-          already measured, how to get a key into it, and the code. */}
-      <nav className="flex flex-wrap items-baseline justify-center gap-x-5 gap-y-2 text-[13px] text-ink-soft">
-        <span className="text-ink">lulumelon</span>
-        <Pm />
-        <Link className="hover:text-lilac" href="/named">
-          measured questions
-        </Link>
-        <Pm />
-        <a className="hover:text-lilac" href={`${REPO}/blob/main/docs/keys.md`}>
-          docs
-        </a>
-        <Pm />
-        <a className="hover:text-lilac" href={REPO}>
-          source
-        </a>
-      </nav>
+      <Nav />
 
       {/* One line, then the thing itself. The line is what a stranger needs to
           know before the terminal starts making sense, and it is one line
           rather than a block so the demo is still the first thing that
           happens on the page. */}
-      <div className="mx-auto mt-7 max-w-[58rem]">
+      <div className="mx-auto mt-7 max-w-[47rem]">
         <h1 className="text-center text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
           lulumelon <span aria-hidden>🍉</span> measures what language models say about you.
         </h1>
@@ -428,21 +405,7 @@ export default function Page() {
         </div>
       </Reveal>
 
-      {/* ---------------------------------------------------------- footer */}
-      <footer className="mt-24 border-t border-rule pt-6 text-[13px] text-ink-soft">
-        <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2">
-          <span className="text-ink">lulumelon</span>
-          <Pm />
-          <a
-            className="underline decoration-rule underline-offset-4 hover:decoration-ink"
-            href="https://github.com/nosey-dewdrop/lulumelon"
-          >
-            source
-          </a>
-          <Pm />
-          <span>built by nosey dewdrop</span>
-        </div>
-      </footer>
+      <Foot back />
     </main>
   );
 }

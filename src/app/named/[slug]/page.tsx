@@ -12,8 +12,8 @@
  */
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 
+import { Foot, Nav, Pm } from "@/app/Frame";
 import { armInWords, percent, publishedRound, publishedRounds } from "@/lib/published";
 import { REPO_URL, SITE_NAME, url } from "@/lib/site";
 
@@ -95,64 +95,42 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
   };
 
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
+    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-5 sm:px-10 sm:pt-6">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="flex items-baseline gap-2 text-[13px] text-ink-soft">
-        <Link href="/" className="text-ink underline decoration-rule underline-offset-4 hover:decoration-pink">
-          {SITE_NAME}
-        </Link>
-        <span className="text-lilac">±</span>
-        <Link href="/named" className="hover:text-ink">
-          measured questions
-        </Link>
-      </div>
+      <Nav here="named" />
 
-      <header className="mt-8 grid gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div>
-          <h1 className="max-w-[30ch] text-[1.5rem] leading-[1.18] tracking-tight sm:text-[2.1rem]">
-            {round.question}
-          </h1>
-          <p className="mt-6 max-w-[58ch] text-[14.5px] leading-relaxed text-ink-soft">
-            asked {round.draws} times of {round.model}, {armInWords(round.arm)}. the question names
-            no company. what follows is who the model reached for on its own, counted per draw,
-            with the range the sample supports beside each one.
-          </p>
-        </div>
-        <dl className="self-end border-t border-rule pt-5 text-[13px] leading-relaxed text-ink-soft lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
-          <div className="flex gap-3">
-            <dt className="min-w-[6rem] text-ink">asked</dt>
-            <dd>{round.asked_at}</dd>
-          </div>
-          <div className="mt-2 flex gap-3">
-            <dt className="min-w-[6rem] text-ink">engine</dt>
-            <dd>
-              {round.engine} {round.model}
-            </dd>
-          </div>
-          <div className="mt-2 flex gap-3">
-            <dt className="min-w-[6rem] text-ink">round</dt>
-            <dd className="break-all">{round.snapshot}</dd>
-          </div>
-          <div className="mt-2 flex gap-3">
-            <dt className="min-w-[6rem] text-ink">check it</dt>
-            <dd>
-              <a
-                className="underline decoration-rule underline-offset-4 hover:decoration-pink"
-                href={REPO_URL}
-              >
-                lulu verify
-              </a>{" "}
-              re-derives the chain this came off
-            </dd>
-          </div>
-        </dl>
+      {/* The same measure and the same size as the line at the top of the home
+          page, because they are the same kind of line. A visitor who lands here
+          from a search result has to meet the site, not a stray table. */}
+      <header className="mx-auto mt-7 max-w-[58rem] text-center">
+        <h1 className="text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
+          <span aria-hidden>💘</span> {round.question}
+        </h1>
+        <p className="mx-auto mt-4 max-w-[62ch] text-[13px] leading-relaxed text-ink-soft">
+          asked {round.draws} times of {round.model}, {armInWords(round.arm)}. the question names no
+          company. what follows is who the model reached for on its own, counted per draw, with the
+          range the sample supports beside each one.
+        </p>
+        <p className="mt-4 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-[12px] text-ink-soft">
+          <span>{round.asked_at}</span>
+          <Pm />
+          <span>
+            {round.engine} {round.model}
+          </span>
+          <Pm />
+          <span className="break-all">{round.snapshot}</span>
+          <Pm />
+          <a className="underline decoration-rule underline-offset-4 hover:decoration-pink" href={REPO_URL}>
+            lulu verify
+          </a>
+        </p>
       </header>
 
-      <section className="mt-14" aria-label="who was named">
+      <section className="mt-12" aria-label="who was named">
         <div className="grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
           {round.names.map((one) => (
             <div key={one.name}>
@@ -206,11 +184,7 @@ export default async function NamedPage({ params }: { params: Promise<{ slug: st
         </div>
       </section>
 
-      <footer className="mt-20 border-t border-rule pt-6 text-[11.5px] text-ink-soft">
-        <Link href="/named" className="underline decoration-rule underline-offset-4 hover:decoration-pink">
-          every measured question
-        </Link>
-      </footer>
+      <Foot back />
     </main>
   );
 }

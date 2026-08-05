@@ -21,6 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     { url: url("/"), changeFrequency: "monthly", priority: 1 },
+    { url: url("/docs"), changeFrequency: "monthly", priority: 0.9 },
     {
       url: url("/named"),
       lastModified: newest ? new Date(newest) : undefined,

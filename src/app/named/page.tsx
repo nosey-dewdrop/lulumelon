@@ -9,6 +9,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Foot, Nav } from "@/app/Frame";
 import { armInWords, percent, publishedRounds } from "@/lib/published";
 import { SITE_NAME, url } from "@/lib/site";
 
@@ -30,26 +31,19 @@ export default function NamedIndex() {
   const rounds = publishedRounds();
 
   return (
-    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-10 sm:px-10 sm:pt-14">
-      <div className="flex items-baseline gap-2 text-[13px] text-ink-soft">
-        <Link
-          href="/"
-          className="text-ink underline decoration-rule underline-offset-4 hover:decoration-pink"
-        >
-          {SITE_NAME}
-        </Link>
-        <span className="text-lilac">±</span>
-        <span>measured questions</span>
-      </div>
+    <main className="mx-auto max-w-[82rem] px-5 pb-24 pt-5 sm:px-10 sm:pt-6">
+      <Nav here="named" />
 
-      <h1 className="mt-8 max-w-[30ch] text-[1.5rem] leading-[1.18] tracking-tight sm:text-[2.1rem]">
-        who does the model name when the question names nobody?
-      </h1>
-      <p className="mt-6 max-w-[62ch] text-[14.5px] leading-relaxed text-ink-soft">
-        each question below was asked of one model several times over, and every answer was written
-        into a hash-chained file before anything was counted. the pages report what the sample
-        supports and refuse what it does not.
-      </p>
+      <header className="mx-auto mt-7 max-w-[58rem] text-center">
+        <h1 className="text-[1.05rem] leading-tight tracking-tight sm:text-[1.3rem]">
+          <span aria-hidden>💞</span> who does the model name when the question names nobody?
+        </h1>
+        <p className="mx-auto mt-4 max-w-[62ch] text-[13px] leading-relaxed text-ink-soft">
+          each question below was asked of one model several times over, and every answer was
+          written into a hash-chained file before anything was counted. the pages report what the
+          sample supports and refuse what it does not.
+        </p>
+      </header>
 
       {rounds.length === 0 ? (
         <p className="mt-14 text-[14.5px] text-ink-soft">
@@ -57,7 +51,7 @@ export default function NamedIndex() {
           hand.
         </p>
       ) : (
-        <ul className="mt-14 border-t border-rule">
+        <ul className="mt-12 border-t border-rule">
           {rounds.map((round) => {
             const leader = round.names[0];
             return (
@@ -86,6 +80,7 @@ export default function NamedIndex() {
           })}
         </ul>
       )}
+      <Foot />
     </main>
   );
 }

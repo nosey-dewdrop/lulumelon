@@ -39,6 +39,15 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
+      # The documentation gate runs the node suite to read its count back out
+      # of the README, so this job needs the node side installed too. Without
+      # it the two test files that import a dependency never load and the gate
+      # compares the README against a suite that did not run.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: pip install -e ".[dev]"
       - run: python -m pytest lulumelon/tests
 

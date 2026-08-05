@@ -216,6 +216,13 @@ def test_the_test_counts_in_the_readme_are_the_counts_that_run():
     node = subprocess.run(
         ["npm", "test", "--silent"], capture_output=True, text=True, cwd=ROOT
     )
+    # The exit code first, and the count only after it. On a machine with no
+    # `node_modules` the two test files that reach a dependency never load, and
+    # the runner still prints a total: 23 of the 52, with a red exit code
+    # underneath it. Read without the code, that number looks like a suite that
+    # shrank rather than one that did not run, and the assertion below reports a
+    # stale README instead of a missing install.
+    assert node.returncode == 0, node.stdout[-800:] + node.stderr[-500:]
     counted = re.search(r"^. tests (\d+)$", node.stdout, re.M)
     assert counted, node.stdout[-500:] + node.stderr[-500:]
     assert f"# {counted.group(1)} tests, offline" in README_TEXT

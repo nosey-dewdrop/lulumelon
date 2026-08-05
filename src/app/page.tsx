@@ -312,7 +312,7 @@ export default function Page() {
               <div key={term} className="mt-5 flex gap-3">
                 <Pm />
                 <div>
-                  <dt className="text-ink">{term}</dt>
+                  <dt className="font-bold text-ink">{term}</dt>
                   <dd className="mt-1 text-ink-soft">{body}</dd>
                 </div>
               </div>
@@ -350,7 +350,7 @@ export default function Page() {
               <div key={term} className="mt-5 flex gap-3">
                 <Pm />
                 <div>
-                  <dt className="text-ink">{term}</dt>
+                  <dt className="font-bold text-ink">{term}</dt>
                   <dd className="mt-1 text-ink-soft">{body}</dd>
                 </div>
               </div>
@@ -364,7 +364,7 @@ export default function Page() {
           this the page is an argument about measurement rather than a library
           somebody can run tonight, and every figure above came out of these
           fifteen commands. */}
-      <Reveal className="mt-8">
+      <Reveal className="mx-auto mt-12 max-w-[54rem]">
         <h2 className="text-[1.15rem]">how do you run it?</h2>
         <p className="mt-4 max-w-[72ch] text-[13px] leading-snug text-ink-soft">
           python 3.11 and two dependencies, both of them arithmetic. everything on the network path

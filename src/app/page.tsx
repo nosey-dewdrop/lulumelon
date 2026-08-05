@@ -323,10 +323,10 @@ export default function Page() {
             </>
           }
         >
-          never being named in ten draws is compatible with being named up to{" "}
-          <strong className="font-bold text-ink">43.4% of the time</strong>. the textbook interval
-          collapses to nothing here and lets a tool{" "}
-          <strong className="font-bold text-ink">claim certainty of absence</strong> after ten
+          never being named in five draws is compatible with being named up to{" "}
+          <strong className="font-bold text-ink">43.4% of the time</strong>, and ten draws only
+          bring that down to 27.8%. the textbook interval collapses to nothing here and lets a tool{" "}
+          <strong className="font-bold text-ink">claim certainty of absence</strong> after five
           samples. wilson keeps the real bound, so the report says what it does not know.
         </Card>
 

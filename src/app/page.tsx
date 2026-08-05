@@ -364,13 +364,18 @@ export default function Page() {
           this the page is an argument about measurement rather than a library
           somebody can run tonight, and every figure above came out of these
           fifteen commands. */}
-      <Reveal className="mx-auto mt-12 max-w-[54rem]">
-        <h2 className="text-[1.15rem]">how do you run it?</h2>
-        <p className="mt-4 max-w-[72ch] text-[13px] leading-snug text-ink-soft">
+      <Reveal className="mt-12">
+        {/* The heading and the line under it sit as a centred column. What
+            follows keeps the width it had, because a command list set to a
+            reading measure wraps where a command should not wrap. */}
+        <div className="mx-auto max-w-[54rem]">
+          <h2 className="text-[1.15rem]">how do you run it?</h2>
+          <p className="mt-4 text-[13px] leading-snug text-ink-soft">
           python 3.11 and two dependencies, both of them arithmetic. everything on the network path
           is standard library, because an http client is not worth a supply chain for one post.
-          the suite runs offline and spends no key.
-        </p>
+            the suite runs offline and spends no key.
+          </p>
+        </div>
 
         <div className="mt-7 grid gap-x-12 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div>

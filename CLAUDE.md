@@ -77,7 +77,10 @@ hesaplamaz. Bir sayının dosyadan yeniden üretilebilmesinin sebebi bu ayrım.
   başına en üstte durması "çok sıkıcı" diye reddedildi (5 Ağu); başlığın
   altında bir blok halinde durması da reddedilmişti. Ölçü ikisinin arası:
   bir satır, sonra çalışan şeyin kendisi.
-- Tipografi: gövde 14.5px, ikincil 13px, kart başlığı 1.15rem, h1 2.1rem.
+- **"Terminali küçült" KUTUYU küçültmektir, yazıyı değil.** 5 Ağu'da terminal
+  metnini 11px'e indirdim ve reddedildi: okunmayan yazının kimseye faydası yok.
+  Terminal metni 13px kalır, daralan şey kutunun genişliği ve yüksekliğidir.
+- Tipografi: gövde 14.5px, ikincil 13px, kart başlığı 1.15rem, h1 1.3rem.
   5 Ağu'da iki uçtan da geçildi, Damla önce "eşek kadar" dedi sonra "çok küçük";
   bu satır o iki reddin arasında kalan ölçü.
 - Emoji Damla'nın paletidir ve sabittir: 💞🎀✨💘🍉💫. Kırmızı kalp ASLA.

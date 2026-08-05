@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from lulumelon.cli import build_parser
-from lulumelon.keys import KEYCHAIN_SERVICE, spec_for
+from lulumelon.keys import KEYCHAIN_SERVICE, PROVIDERS, spec_for
 from lulumelon.prices import PRICES, fees, price_for
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -194,6 +194,29 @@ def test_the_readme_layout_names_every_module_and_no_others():
         f"in the README only: {sorted(listed - on_disk)}; "
         f"on disk only: {sorted(on_disk - listed)}"
     )
+
+
+def test_the_readme_declares_its_limits_and_the_engine_list_is_the_real_one():
+    """The section a reader needs most is the one nothing was checking.
+
+    A library that hides an edge costs more than the edge does, so the README
+    carries what this build cannot do. Prose alone would go stale the moment an
+    engine is added, so the engine sentence is held to the registry in both
+    directions: every provider the code can call has to be named there, and an
+    engine the section says is missing has to be genuinely missing from it.
+    """
+    heading = "## what does it not do?"
+    assert heading in README_TEXT, "the README stopped saying where it stops"
+    section = " ".join(README_TEXT.split(heading)[1].split()).lower()
+
+    for provider in PROVIDERS:
+        assert provider in section, f"{provider} can be called and the limits section omits it"
+
+    for absent in ("chatgpt", "gemini"):
+        assert absent not in {name.lower() for name in PROVIDERS}, (
+            f"{absent} is wired in now, so the README must stop listing it as missing"
+        )
+        assert absent in section, f"{absent} cannot be called and the README does not say so"
 
 
 def test_the_test_counts_in_the_readme_are_the_counts_that_run():

@@ -139,7 +139,7 @@ fifteen is a different object from one that started as thirteen.
 so the claim this makes can be checked without spending a token. `collect/` is
 the only part allowed to reach the network, and it computes nothing.
 
-    python3 -m pytest lulumelon/tests   # 986 tests, offline
+    python3 -m pytest lulumelon/tests   # 987 tests, offline
     npm test                            # 52 tests, offline
 
 Offline and self contained: the suite closes every socket for the length of a
@@ -473,6 +473,50 @@ holds are named.
 provider stated, a cost computed from tokens it reported, and a floor for calls
 it said nothing about. Failed calls are counted and priced at nothing, because
 no response says whether a rejected call is billed.
+
+## what does it not do?
+
+A library that hides its edges costs a reader more than the edges do. Every
+line here is a limit this build has today, and each one is the reason it is
+there rather than an apology for it.
+
+**It calls two engines, perplexity and anthropic.** ChatGPT and Gemini are not
+wired in. Adding an engine is not the transport, it is a live key and a round
+against it, because a provider's own account state decides whether the search
+tool is on, and a build that reports an engine it has never actually asked
+would be reporting on its own guess.
+
+**It counts the rivals, and never the customer.** Screening a question set by
+how often the customer is named would keep the questions where the score is
+good and drop the ones where it is bad, so the number published at the end
+would have been raised by deleting the evidence against it. A round with no
+declared rival is refused rather than run.
+
+**`lulu rivals` prints type words above real names.** `API`, `AI` and `ML`
+appear where a company should. The rule is positional plus lowercase evidence
+inside the corpus, and those three pass both gates. A person reading the table
+strikes them out in a second; the table does not.
+
+**Name counting drops a name nothing spells.** A name that never appears inside
+a sentence, and leaves no trace in the surrounding spelling, is not counted.
+The round of 4 August 2026 lost `Twelve Data` that way.
+
+**The rival list is still typed in by hand,** through `--rivals`. The round
+prints the names the list missed, and the subject file records which round and
+which arm each name came from, so the list can be corrected between rounds. It
+is not assembled by the tool.
+
+**Perplexity sends `max_tokens` and that has not been checked against a live
+key.** The code path is there and the round that would prove it has not been
+bought.
+
+**The OS keychain is the macOS one.** Everywhere else the key goes to a file
+with owner-only permissions, which the setup command says out loud and prints
+the path of.
+
+**There is no hosted anything.** No account, no dashboard, no API of ours, no
+seat. It runs on your machine against your key, and what it writes stays on
+your disk.
 
 ---
 

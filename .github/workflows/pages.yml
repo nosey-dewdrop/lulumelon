@@ -1,13 +1,17 @@
-# The site, built and served from the same commit as the engine behind it.
+# Every gate this repository has, and then the site.
 #
-# Static export to GitHub Pages. The build reads `data/published/`, so a round
-# reaches the web exactly when somebody commits the file `lulu publish` wrote,
-# and never before.
+# It used to be three lines: install node, run the node tests, build. That is
+# 52 of the 1038 tests in here, so the arithmetic the product is actually made
+# of was never checked by anything but a person remembering to check it, and a
+# commit that turned the suite red shipped and deployed green. The engine, the
+# clean install and the web build are now four jobs the deploy waits on, and a
+# pull request runs all of them without deploying anything.
 name: pages
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -20,7 +24,65 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  engine:
+    # Both ends of what `requires-python` promises. A floor nobody runs is a
+    # floor that has already moved.
+    name: pytest on python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: python -m pytest lulumelon/tests
+
+  install:
+    # The README's first instruction, carried out by a machine that has never
+    # seen this repository, from a directory with none of the source in it. An
+    # editable install can pass while the packaged one is missing a module, and
+    # nothing else here would notice.
+    name: clean install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: build the wheel and install it into an empty environment
+        run: |
+          python -m venv "$RUNNER_TEMP/fresh"
+          "$RUNNER_TEMP/fresh/bin/pip" install .
+      - name: run the command from somewhere the package is not
+        run: |
+          mkdir -p "$RUNNER_TEMP/elsewhere"
+          cd "$RUNNER_TEMP/elsewhere"
+          "$RUNNER_TEMP/fresh/bin/lulu" --help
+      - name: the first screen on a machine with no key
+        # `doctor` exits 1 without a key, which is the answer and not a fault:
+        # it is telling a new reader the one thing that is missing. What would
+        # be a fault is a traceback, so that is what this looks for.
+        run: |
+          cd "$RUNNER_TEMP/elsewhere"
+          status=0
+          "$RUNNER_TEMP/fresh/bin/lulu" doctor --offline > doctor.txt 2>&1 || status=$?
+          cat doctor.txt
+          if grep -q Traceback doctor.txt; then
+            echo "doctor crashed rather than reported"
+            exit 1
+          fi
+          if [ "$status" != "1" ]; then
+            echo "expected the no-key exit code 1, got $status"
+            exit 1
+          fi
+
+  web:
+    name: lint, types, tests, build
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_SITE_URL: https://nosey-dewdrop.github.io/lulumelon
@@ -32,6 +94,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx eslint src tests scripts
+      - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
@@ -39,7 +103,10 @@ jobs:
           path: out
 
   deploy:
-    needs: build
+    # Only from main, and only behind all three gates. A pull request gets the
+    # same verdict without publishing anything.
+    needs: [engine, install, web]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

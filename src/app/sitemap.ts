@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { ANSWERS } from "@/lib/answers";
 import { publishedRounds } from "@/lib/published";
 import { url } from "@/lib/site";
 
@@ -22,6 +23,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: url("/"), changeFrequency: "monthly", priority: 1 },
     { url: url("/docs"), changeFrequency: "monthly", priority: 0.9 },
+    // The six question pages, off the same list the navigation row reads, so a
+    // page the site serves cannot be missing from the file that tells a crawler
+    // the site has it.
+    ...ANSWERS.map((answer) => ({
+      url: url(`/${answer.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.9,
+    })),
     {
       url: url("/named"),
       lastModified: newest ? new Date(newest) : undefined,
